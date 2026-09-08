@@ -6,7 +6,6 @@ namespace App\Providers;
 
 use App\Domain\Audit\Models\AuditLog;
 use App\Domain\Identity\Models\Department;
-use App\Domain\MasterData\Models\Item;
 use App\Domain\MasterData\Models\PackagingMaterial;
 use App\Domain\MasterData\Models\Product;
 use App\Domain\MasterData\Models\RawMaterial;
@@ -16,7 +15,9 @@ use App\Domain\Warehousing\Models\Warehouse;
 use App\Models\User;
 use App\Policies\AuditLogPolicy;
 use App\Policies\DepartmentPolicy;
-use App\Policies\ItemPolicy;
+use App\Policies\PackagingMaterialPolicy;
+use App\Policies\ProductPolicy;
+use App\Policies\RawMaterialPolicy;
 use App\Policies\UomPolicy;
 use App\Policies\UserPolicy;
 use App\Policies\VendorPolicy;
@@ -41,12 +42,12 @@ class AuthServiceProvider extends ServiceProvider
         Uom::class => UomPolicy::class,
         AuditLog::class => AuditLogPolicy::class,
 
-        // Every flavour of item is guarded by the same policy, which decides
-        // the permission module from the item's type.
-        Item::class => ItemPolicy::class,
-        RawMaterial::class => ItemPolicy::class,
-        PackagingMaterial::class => ItemPolicy::class,
-        Product::class => ItemPolicy::class,
+        // Each item type has its own policy so that Laravel can resolve one
+        // from the model class alone, which is all it has for class-level
+        // abilities such as viewAny and create.
+        RawMaterial::class => RawMaterialPolicy::class,
+        PackagingMaterial::class => PackagingMaterialPolicy::class,
+        Product::class => ProductPolicy::class,
     ];
 
     public function boot(): void
@@ -59,11 +60,20 @@ class AuthServiceProvider extends ServiceProvider
     }
 
     /**
-     * Super Admin passes every check.
+     * Super Admin passes every check — except one made about themselves.
      *
      * Returning null rather than false for everyone else is essential: false
      * would short-circuit the gate and deny the request before the real policy
      * ever ran.
+     *
+     * The self-referential exception matters. UserPolicy refuses to let anyone
+     * delete their own account, deactivate themselves, or hand themselves a
+     * role, and those rules exist precisely because the person most able to
+     * lock the company out of its own ERP — or to quietly widen their own
+     * access — is the one holding this role. A blanket bypass would waive them
+     * for the only account they were written for. Acting on their own record,
+     * a Super Admin goes through the ordinary policy like everybody else; they
+     * still hold every permission row, so nothing legitimate is lost.
      *
      * This is the only bypass in the system. It is a role, not a flag on the
      * user record, so granting and revoking it is itself an audited change to
@@ -71,8 +81,24 @@ class AuthServiceProvider extends ServiceProvider
      */
     private function grantSuperAdminEverything(): void
     {
-        Gate::before(function (User $user, string $ability): ?bool {
-            return $user->isSuperAdmin() ? true : null;
+        Gate::before(function (User $user, string $ability, array $arguments = []): ?bool {
+            if (! $user->isSuperAdmin()) {
+                return null;
+            }
+
+            return $this->concernsOwnAccount($user, $arguments) ? null : true;
         });
+    }
+
+    /**
+     * Whether this authorisation check is about the acting user's own record.
+     *
+     * @param  array<int, mixed>  $arguments
+     */
+    private function concernsOwnAccount(User $user, array $arguments): bool
+    {
+        $subject = $arguments[0] ?? null;
+
+        return $subject instanceof User && $subject->is($user);
     }
 }

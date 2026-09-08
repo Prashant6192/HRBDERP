@@ -156,7 +156,18 @@ enum RoleName: string
             ],
 
             self::PurchaseManager => [
-                'vendor.*', 'raw_material.view', 'packaging_material.view',
+                'vendor.*',
+
+                // Procurement owns the material masters: they are the ones who
+                // onboard a new material or component when they source it.
+                // Deletion is deliberately withheld — a material with purchase
+                // history is deactivated, not removed.
+                'raw_material.view', 'raw_material.create', 'raw_material.edit',
+                'raw_material.export', 'raw_material.import',
+                'packaging_material.view', 'packaging_material.create',
+                'packaging_material.edit', 'packaging_material.export',
+                'packaging_material.import',
+
                 'product.view', 'warehouse.view', 'uom.view',
                 'inventory.view',
                 'purchase.*',

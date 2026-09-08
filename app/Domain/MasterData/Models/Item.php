@@ -115,7 +115,11 @@ class Item extends Model
      */
     public function uomConversions(): HasMany
     {
-        return $this->hasMany(ItemUomConversion::class);
+        // The foreign key is named explicitly. Eloquent would otherwise infer
+        // it from the calling class, and the subclasses that share this table
+        // would each look for a column of their own name — raw_material_id,
+        // packaging_material_id — none of which exist.
+        return $this->hasMany(ItemUomConversion::class, 'item_id');
     }
 
     /**

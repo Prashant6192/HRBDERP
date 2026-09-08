@@ -1,5 +1,16 @@
 import type { ReactNode } from 'react';
+import type { Auth } from '@/types/auth';
 import type { BreadcrumbItem } from '@/types/navigation';
+
+/**
+ * The props every Inertia page receives, from HandleInertiaRequests::share.
+ */
+export type SharedData = {
+    name: string;
+    auth: Auth;
+    sidebarOpen: boolean;
+    [key: string]: unknown;
+};
 
 export type AppLayoutProps = {
     children: ReactNode;

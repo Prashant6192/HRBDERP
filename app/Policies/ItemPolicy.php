@@ -6,9 +6,6 @@ namespace App\Policies;
 
 use App\Domain\MasterData\Enums\ItemType;
 use App\Domain\MasterData\Models\Item;
-use App\Domain\MasterData\Models\PackagingMaterial;
-use App\Domain\MasterData\Models\Product;
-use App\Domain\MasterData\Models\RawMaterial;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 
@@ -16,22 +13,17 @@ use Illuminate\Database\Eloquent\Model;
  * Items share a table, but not their permissions.
  *
  * A designer may read the packaging master and must not see raw materials; a
- * purchase manager is the reverse. So the permission module is decided by the
- * item's type — taken from the record when there is one, and from the model
- * class when authorising something typeless like "create".
+ * purchase manager is the reverse. Each item type therefore gets its own
+ * policy subclass, so that Laravel can resolve the right one from the model
+ * class alone — which is all it has for class-level abilities like viewAny and
+ * create, where there is no record to inspect.
+ *
+ * Where there *is* a record, its own type decides, so a policy resolved from
+ * one class can never authorise against another module's permission.
  */
-class ItemPolicy extends ModulePolicy
+abstract class ItemPolicy extends ModulePolicy
 {
-    /**
-     * Which item type each concrete model represents.
-     *
-     * @var array<class-string, ItemType>
-     */
-    private const MODEL_TYPES = [
-        RawMaterial::class => ItemType::RawMaterial,
-        PackagingMaterial::class => ItemType::PackagingMaterial,
-        Product::class => ItemType::FinishedGood,
-    ];
+    abstract protected function itemType(): ItemType;
 
     protected function module(Model|string|null $model = null): string
     {
@@ -39,37 +31,11 @@ class ItemPolicy extends ModulePolicy
             return $model->type->permissionModule();
         }
 
-        if (is_string($model) && isset(self::MODEL_TYPES[$model])) {
-            return self::MODEL_TYPES[$model]->permissionModule();
-        }
-
-        // Authorising against the base Item with no record in hand. The caller
-        // should pass the concrete class; falling back to the most restrictive
-        // module is safer than guessing the most permissive.
-        return ItemType::RawMaterial->permissionModule();
+        return $this->itemType()->permissionModule();
     }
 
-    /**
-     * Item creation is authorised against the concrete class, which the
-     * controller passes as the second argument to Gate::authorize.
-     */
-    public function create(User $user, Model|string|null $model = null): bool
+    public function import(User $user): bool
     {
-        return $user->can($this->module($model).'.create');
-    }
-
-    public function createOfType(User $user, ItemType $type): bool
-    {
-        return $user->can($type->permissionModule().'.create');
-    }
-
-    public function import(User $user, Model|string|null $model = null): bool
-    {
-        return $user->can($this->module($model).'.import');
-    }
-
-    public function exportOfType(User $user, ItemType $type): bool
-    {
-        return $user->can($type->permissionModule().'.export');
+        return $user->can($this->module().'.import');
     }
 }

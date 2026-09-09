@@ -183,22 +183,31 @@ tamper-proof-by-convention. Without it, the rule lives only in application code.
 **b. Create your account.** This is not optional — there is no sign-up page, by
 design, so until you do this the ERP has no users and nobody can get in.
 
-Run `php artisan tinker`, then paste:
+The command box runs shell commands, not PHP, so this is a single line:
 
-```php
-$user = App\Models\User::create([
-    'name' => 'Prashant',
-    'email' => 'you@yourcompany.com',
-    'password' => 'CHOOSE A LONG UNIQUE PASSWORD',
-    'status' => App\Domain\Identity\Enums\UserStatus::Active,
-    'email_verified_at' => now(),
-]);
-
-$user->assignRole(App\Domain\Access\Enums\RoleName::SuperAdmin->value);
+```bash
+php artisan erp:create-admin --name="Prashant" --email="you@yourcompany.com" --password="a long unique password"
 ```
 
-Change the name, email and password first. Use a password manager — this account
-can reach everything.
+That creates the account, marks it active, and gives it the Super Admin role.
+
+Three things worth knowing:
+
+- **The password needs at least 12 characters**, with upper and lower case,
+  a number and a symbol. The command refuses anything weaker rather than
+  creating an account that is easy to guess.
+- **Hosting platforms keep a history of the commands you run**, so treat any
+  password typed here as known and change it once you are signed in, under
+  **Settings → Password**.
+- If it reports that the database has no schema, run
+  `php artisan migrate --force && php artisan db:seed --force` first.
+
+The same command adds anyone else you need in an emergency — for example if you
+are ever locked out and want to give an existing account the Super Admin role:
+
+```bash
+php artisan erp:create-admin --email="colleague@yourcompany.com" --role="Super Admin" --promote
+```
 
 Then sign in and create everyone else under **Administration → Users**, where
 each account is recorded in the audit trail and you choose the roles it holds.

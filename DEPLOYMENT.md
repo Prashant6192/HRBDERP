@@ -131,24 +131,22 @@ append-only-by-convention. Inserts continue to work. See
 
 ### Create the first administrator
 
+There is no public sign-up, so the first account is made from the console:
+
 ```bash
-php artisan tinker
+php artisan erp:create-admin --name="Your Name" --email="you@yourcompany.com" --password="a long unique password"
 ```
 
-```php
-$user = App\Models\User::create([
-    'name' => 'Your Name',
-    'email' => 'you@yourcompany.com',
-    'password' => 'a long unique password',
-    'status' => App\Domain\Identity\Enums\UserStatus::Active,
-    'email_verified_at' => now(),
-]);
+The password must be at least 12 characters with mixed case, a number and a
+symbol. Pass `--role` to assign something other than Super Admin, and
+`--promote` to give an existing account a role instead of creating one.
 
-$user->assignRole(App\Domain\Access\Enums\RoleName::SuperAdmin->value);
-```
+Note that the password will appear in the shell history of whatever ran it.
+Change it after signing in, or omit `--password` to be prompted for it where
+the console is interactive.
 
 Then sign in and create the rest of the accounts through the interface, where
-they are audited.
+they are authorised and audited.
 
 ---
 

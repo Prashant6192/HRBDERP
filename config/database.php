@@ -17,7 +17,21 @@ return [
     |
     */
 
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    /*
+     * PostgreSQL, not the framework's SQLite default.
+     *
+     * This ERP depends on PostgreSQL behaviour that SQLite does not provide:
+     * SELECT ... FOR UPDATE row locking for stock reservations, NUMERIC
+     * precision for money and quantities, partial indexes, and jsonb.
+     *
+     * The fallback matters as much as the value. Hosting platforms inject
+     * DB_HOST and the credentials when you attach a database but do not always
+     * inject DB_CONNECTION, and falling back to SQLite there means the
+     * application quietly writes to a file nobody will ever look at instead of
+     * failing. AppServiceProvider refuses to run in production on anything but
+     * PostgreSQL for the same reason.
+     */
+    'default' => env('DB_CONNECTION', 'pgsql'),
 
     /*
     |--------------------------------------------------------------------------

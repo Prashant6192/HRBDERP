@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -27,6 +28,41 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         $this->configureModels();
+        $this->assertDatabaseIsPostgres();
+    }
+
+    /**
+     * Refuse to run a production ERP on anything but PostgreSQL.
+     *
+     * The failure this prevents is a quiet one. A hosting platform that injects
+     * database credentials without DB_CONNECTION leaves Laravel on its own
+     * default, and the application then writes to a SQLite file instead of the
+     * database that is backed up, replicated and paid for. Nothing looks wrong
+     * until somebody asks where the stock went.
+     *
+     * Stopping at boot turns that into an error message naming the problem, at
+     * the moment of deployment rather than weeks later.
+     */
+    protected function assertDatabaseIsPostgres(): void
+    {
+        if (! app()->isProduction()) {
+            return;
+        }
+
+        $connection = config('database.default');
+        $driver = config("database.connections.{$connection}.driver");
+
+        if ($driver === 'pgsql') {
+            return;
+        }
+
+        throw new RuntimeException(sprintf(
+            'HRBD ERP requires PostgreSQL, but the active database connection [%s] uses the [%s] driver. '
+            .'Set DB_CONNECTION=pgsql in this environment, along with DB_HOST, DB_PORT, DB_DATABASE, '
+            .'DB_USERNAME and DB_PASSWORD. See DEPLOYMENT.md.',
+            $connection,
+            $driver ?? 'unknown',
+        ));
     }
 
     /**

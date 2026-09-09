@@ -61,6 +61,8 @@ APP_DEBUG=false                 # never true in production
 APP_URL=https://erp.yourcompany.com
 APP_KEY=                        # php artisan key:generate
 
+# Required. Managed platforms often inject the host and credentials but not
+# this, and the application will not start in production without PostgreSQL.
 DB_CONNECTION=pgsql
 DB_HOST=...
 DB_DATABASE=hrbderp

@@ -103,14 +103,19 @@ In the Laravel Cloud application, add:
 
 ## Step 4 — Environment variables
 
-Laravel Cloud fills in the database and Redis values itself once those services
-exist. Set these yourself, in the application's **Environment** settings:
+Laravel Cloud fills in the database host, name and credentials once you attach
+PostgreSQL — but **it does not always set `DB_CONNECTION`**, and without it
+Laravel falls back to its own default. Set it explicitly. Everything below goes
+in the application's **Environment** settings:
 
 ```dotenv
 APP_NAME="HRBD ERP"
 APP_ENV=production
 APP_DEBUG=false
 APP_URL=https://erp.yourdomain.com
+
+# Required. Without this the application does not use your PostgreSQL database.
+DB_CONNECTION=pgsql
 
 CACHE_STORE=redis
 QUEUE_CONNECTION=redis
@@ -130,6 +135,14 @@ formulation data.
 `APP_KEY` is generated for you. **Copy it into your password manager.** It
 encrypts sessions and any encrypted column; a database restored without it is
 partly unreadable.
+
+> **If you see `Database file at path [database/database.sqlite] does not
+exist`**, this is the cause: `DB_CONNECTION` is missing, so the application is
+> looking for a SQLite file instead of your PostgreSQL database. Add
+> `DB_CONNECTION=pgsql` and deploy again.
+>
+> Recent versions refuse to start in production on a non-PostgreSQL connection
+> and say so plainly, rather than writing to a file nobody will ever read.
 
 ---
 

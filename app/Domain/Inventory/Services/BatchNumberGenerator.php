@@ -6,7 +6,7 @@ namespace App\Domain\Inventory\Services;
 
 use App\Domain\MasterData\Enums\ItemType;
 use App\Domain\MasterData\Models\Item;
-use Illuminate\Support\Carbon;
+use Carbon\CarbonInterface;
 
 /**
  * Batch numbers: RM250909-001, PM250909-002, FG250909-001.
@@ -19,7 +19,7 @@ class BatchNumberGenerator
 {
     public function __construct(private readonly SequenceService $sequences) {}
 
-    public function generate(Item $item, ?Carbon $date = null): string
+    public function generate(Item $item, ?CarbonInterface $date = null): string
     {
         $date ??= now();
         $prefix = $this->prefixFor($item->type);

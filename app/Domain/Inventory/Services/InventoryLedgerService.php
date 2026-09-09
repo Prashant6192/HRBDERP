@@ -15,8 +15,8 @@ use App\Domain\Inventory\Models\StockBalance;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\Warehousing\Models\Warehouse;
 use Brick\Math\BigDecimal;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -75,7 +75,7 @@ class InventoryLedgerService
         ?string $reason = null,
         BigDecimal|string|null $unitCost = null,
         ?int $userId = null,
-        ?Carbon $at = null,
+        ?CarbonInterface $at = null,
     ): InventoryTransaction {
         $quantity = BigDecimal::of($quantity)->abs();
 
@@ -102,7 +102,7 @@ class InventoryLedgerService
         ?Model $reference = null,
         ?string $reason = null,
         ?int $userId = null,
-        ?Carbon $at = null,
+        ?CarbonInterface $at = null,
     ): InventoryTransaction {
         $quantity = BigDecimal::of($quantity)->abs()->negated();
 
@@ -130,7 +130,7 @@ class InventoryLedgerService
         ?Model $reference = null,
         ?string $reason = null,
         ?int $userId = null,
-        ?Carbon $at = null,
+        ?CarbonInterface $at = null,
     ): InventoryTransaction {
         $quantity = BigDecimal::of($quantity)->abs();
 

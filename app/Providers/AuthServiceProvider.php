@@ -6,17 +6,23 @@ namespace App\Providers;
 
 use App\Domain\Audit\Models\AuditLog;
 use App\Domain\Identity\Models\Department;
+use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\MasterData\Models\PackagingMaterial;
 use App\Domain\MasterData\Models\Product;
 use App\Domain\MasterData\Models\RawMaterial;
 use App\Domain\Measurement\Models\Uom;
+use App\Domain\Procurement\Models\GoodsReceipt;
 use App\Domain\Procurement\Models\Vendor;
+use App\Domain\Quality\Models\QcInspection;
 use App\Domain\Warehousing\Models\Warehouse;
 use App\Models\User;
 use App\Policies\AuditLogPolicy;
 use App\Policies\DepartmentPolicy;
+use App\Policies\GoodsReceiptPolicy;
+use App\Policies\InventoryLotPolicy;
 use App\Policies\PackagingMaterialPolicy;
 use App\Policies\ProductPolicy;
+use App\Policies\QcInspectionPolicy;
 use App\Policies\RawMaterialPolicy;
 use App\Policies\UomPolicy;
 use App\Policies\UserPolicy;
@@ -41,6 +47,9 @@ class AuthServiceProvider extends ServiceProvider
         Vendor::class => VendorPolicy::class,
         Uom::class => UomPolicy::class,
         AuditLog::class => AuditLogPolicy::class,
+        GoodsReceipt::class => GoodsReceiptPolicy::class,
+        QcInspection::class => QcInspectionPolicy::class,
+        InventoryLot::class => InventoryLotPolicy::class,
 
         // Each item type has its own policy so that Laravel can resolve one
         // from the model class alone, which is all it has for class-level

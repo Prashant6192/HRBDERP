@@ -6,10 +6,14 @@ use App\Http\Controllers\Administration\AuditLogController;
 use App\Http\Controllers\Administration\RoleController;
 use App\Http\Controllers\Administration\UserController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Inventory\LotController;
+use App\Http\Controllers\Inventory\StockController;
 use App\Http\Controllers\MasterData\PackagingMaterialController;
 use App\Http\Controllers\MasterData\ProductController;
 use App\Http\Controllers\MasterData\RawMaterialController;
+use App\Http\Controllers\Procurement\GoodsReceiptController;
 use App\Http\Controllers\Procurement\VendorController;
+use App\Http\Controllers\Quality\QcInspectionController;
 use App\Http\Controllers\Warehousing\WarehouseController;
 use Illuminate\Support\Facades\Route;
 
@@ -43,6 +47,24 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         ->parameters(['products' => 'product']);
 
     Route::resource('vendors', VendorController::class);
+
+    // ---- Store: receiving, quality, stock ---------------------------------
+    Route::resource('goods-receipts', GoodsReceiptController::class)
+        ->only(['index', 'create', 'store', 'show'])
+        ->parameters(['goods-receipts' => 'goodsReceipt']);
+    Route::post('goods-receipts/{goodsReceipt}/post', [GoodsReceiptController::class, 'post'])->name('goods-receipts.post');
+    Route::post('goods-receipts/{goodsReceipt}/cancel', [GoodsReceiptController::class, 'cancel'])->name('goods-receipts.cancel');
+
+    Route::get('qc', [QcInspectionController::class, 'index'])->name('qc.index');
+    Route::get('qc/{qcInspection}', [QcInspectionController::class, 'show'])->name('qc.show');
+    Route::post('qc/{qcInspection}/approve', [QcInspectionController::class, 'approve'])->name('qc.approve');
+    Route::post('qc/{qcInspection}/reject', [QcInspectionController::class, 'reject'])->name('qc.reject');
+    Route::post('qc/{qcInspection}/hold', [QcInspectionController::class, 'hold'])->name('qc.hold');
+
+    Route::get('stock', [StockController::class, 'index'])->name('stock.index');
+    Route::get('lots', [LotController::class, 'index'])->name('lots.index');
+    Route::get('lots/{lot}', [LotController::class, 'show'])->name('lots.show');
+    Route::get('lots/{lot}/sticker', [QcInspectionController::class, 'sticker'])->name('lots.sticker');
 
     // ---- Administration ---------------------------------------------------
     Route::resource('users', UserController::class);

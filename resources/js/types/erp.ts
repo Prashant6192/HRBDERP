@@ -176,3 +176,161 @@ export type AuditEntry = {
     context: Record<string, unknown> | null;
     created_at: string;
 };
+
+// ---- Inventory, receiving and quality --------------------------------------
+
+export type GoodsReceiptStatus = 'draft' | 'received' | 'cancelled';
+export type LotQcStatus =
+    | 'pending'
+    | 'approved'
+    | 'rejected'
+    | 'on_hold'
+    | 'not_required';
+export type StockAlertLevel =
+    | 'healthy'
+    | 'moderate'
+    | 'low'
+    | 'critical'
+    | 'out_of_stock';
+
+export type InventoryLot = {
+    id: number;
+    item_id: number;
+    item?: Pick<Item, 'id' | 'code' | 'name' | 'type' | 'stock_uom_id'> & {
+        stock_uom?: Pick<Uom, 'id' | 'code' | 'display_scale'> | null;
+    };
+    batch_number: string;
+    supplier_batch_ref: string | null;
+    vendor?: { id: number; name: string } | null;
+    manufactured_at: string | null;
+    received_at: string | null;
+    expiry_at: string | null;
+    qc_status: LotQcStatus;
+    qc_decided_at: string | null;
+    qc_decided_by?: { id: number; name: string } | null;
+    initial_quantity: string;
+    unit_cost: string | null;
+    on_hand?: string | null;
+    balances?: {
+        id: number;
+        on_hand: string;
+        reserved: string;
+        warehouse?: {
+            id: number;
+            code: string;
+            name: string;
+            is_quarantine: boolean;
+        } | null;
+    }[];
+    notes: string | null;
+    created_at: string;
+};
+
+export type GoodsReceiptLine = {
+    id: number;
+    item_id: number;
+    item?: {
+        id: number;
+        code: string;
+        name: string;
+        requires_qc: boolean;
+        stock_uom?: { id: number; code: string } | null;
+    };
+    quantity: string;
+    uom?: { id: number; code: string } | null;
+    stock_quantity: string;
+    unit_price: string | null;
+    supplier_batch_ref: string | null;
+    manufactured_at: string | null;
+    expiry_at: string | null;
+    batch_number: string | null;
+    lot?: Pick<
+        InventoryLot,
+        'id' | 'batch_number' | 'qc_status' | 'expiry_at'
+    > | null;
+    inspection?: { id: number; number: string; status: LotQcStatus } | null;
+    notes: string | null;
+};
+
+export type GoodsReceipt = {
+    id: number;
+    number: string;
+    vendor?: { id: number; name: string; code?: string } | null;
+    warehouse?: { id: number; code: string; name: string } | null;
+    received_at: string;
+    invoice_ref: string | null;
+    status: GoodsReceiptStatus;
+    notes: string | null;
+    received_by?: { id: number; name: string } | null;
+    created_by?: { id: number; name: string } | null;
+    posted_at: string | null;
+    lines?: GoodsReceiptLine[];
+    lines_count?: number;
+    created_at: string;
+};
+
+export type QcInspection = {
+    id: number;
+    number: string;
+    lot_id: number;
+    lot?: InventoryLot;
+    item?: {
+        id: number;
+        code: string;
+        name: string;
+        requires_qc?: boolean;
+        shelf_life_days?: number | null;
+        stock_uom?: { id: number; code: string; display_scale?: number } | null;
+    };
+    receipt_line?: {
+        id: number;
+        receipt?: {
+            id: number;
+            number: string;
+            received_at: string;
+            invoice_ref: string | null;
+        } | null;
+    } | null;
+    quantity: string;
+    status: LotQcStatus;
+    destination_warehouse?: { id: number; code: string; name: string } | null;
+    decided_by?: { id: number; name: string } | null;
+    decided_at: string | null;
+    remarks: string | null;
+    parameters:
+        | { name: string; value: string | null; passed: boolean | null }[]
+        | null;
+    created_at: string;
+};
+
+export type StockRow = {
+    item_id: number;
+    code: string;
+    name: string;
+    type: string;
+    uom: string | null;
+    display_scale: number;
+    on_hand: string;
+    reserved: string;
+    available: string;
+    reorder_level: string | null;
+    minimum_stock: string | null;
+    level: StockAlertLevel;
+    level_label: string;
+    severity: number;
+};
+
+export type StockMovement = {
+    id: number;
+    quantity: string;
+    unit_cost: string | null;
+    warehouse?: { id: number; code: string } | null;
+    transaction?: {
+        id: number;
+        number: string;
+        type: string;
+        transacted_at: string;
+        reason: string | null;
+    } | null;
+    created_at: string;
+};

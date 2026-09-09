@@ -9,6 +9,8 @@ use App\Domain\Inventory\Enums\LotQcStatus;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\Procurement\Models\Vendor;
 use App\Models\User;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Database\Factories\InventoryLotFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,7 +18,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
-use Illuminate\Support\Carbon;
 
 /**
  * One batch of one item.
@@ -25,9 +26,9 @@ use Illuminate\Support\Carbon;
  * @property int $item_id
  * @property string $batch_number
  * @property LotQcStatus $qc_status
- * @property Carbon|null $expiry_at
- * @property Carbon|null $manufactured_at
- * @property Carbon|null $received_at
+ * @property CarbonImmutable|null $expiry_at
+ * @property CarbonImmutable|null $manufactured_at
+ * @property CarbonImmutable|null $received_at
  * @property string $initial_quantity
  * @property string|null $unit_cost
  */
@@ -102,7 +103,7 @@ class InventoryLot extends Model
         return $this->hasMany(StockBalance::class, 'lot_id');
     }
 
-    public function isExpired(?Carbon $asOf = null): bool
+    public function isExpired(?CarbonInterface $asOf = null): bool
     {
         if ($this->expiry_at === null) {
             return false;
@@ -115,7 +116,7 @@ class InventoryLot extends Model
      * Whether stock in this lot may be issued: quality has released it and
      * it has not passed its expiry.
      */
-    public function isReleasable(?Carbon $asOf = null): bool
+    public function isReleasable(?CarbonInterface $asOf = null): bool
     {
         return $this->qc_status->isReleasable() && ! $this->isExpired($asOf);
     }
@@ -124,7 +125,7 @@ class InventoryLot extends Model
      * @param  Builder<$this>  $query
      * @return Builder<$this>
      */
-    public function scopeReleasable(Builder $query, ?Carbon $asOf = null): Builder
+    public function scopeReleasable(Builder $query, ?CarbonInterface $asOf = null): Builder
     {
         return $query
             ->whereIn('qc_status', [LotQcStatus::Approved->value, LotQcStatus::NotRequired->value])

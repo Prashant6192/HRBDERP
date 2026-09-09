@@ -1,9 +1,12 @@
 import {
     Boxes,
+    ClipboardCheck,
     ClipboardList,
     FlaskConical,
+    Layers,
     LayoutGrid,
     Package,
+    PackageCheck,
     ScrollText,
     ShieldCheck,
     Truck,
@@ -12,6 +15,10 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { index as auditIndex } from '@/routes/audit';
+import { index as goodsReceiptsIndex } from '@/routes/goods-receipts';
+import { index as lotsIndex } from '@/routes/lots';
+import { index as qcIndex } from '@/routes/qc';
+import { index as stockIndex } from '@/routes/stock';
 import { index as packagingMaterialsIndex } from '@/routes/packaging-materials';
 import { index as productsIndex } from '@/routes/products';
 import { index as rawMaterialsIndex } from '@/routes/raw-materials';
@@ -50,6 +57,35 @@ export const erpNavigation: ErpNavGroup[] = [
                 title: 'Dashboard',
                 href: dashboard().url,
                 icon: LayoutGrid,
+            },
+        ],
+    },
+    {
+        label: 'Store',
+        items: [
+            {
+                title: 'Stock',
+                href: stockIndex().url,
+                icon: Layers,
+                permission: 'inventory.view',
+            },
+            {
+                title: 'Goods Receipts',
+                href: goodsReceiptsIndex().url,
+                icon: PackageCheck,
+                permission: 'purchase.view',
+            },
+            {
+                title: 'Quality Control',
+                href: qcIndex().url,
+                icon: ClipboardCheck,
+                permission: 'qc.view',
+            },
+            {
+                title: 'Batches',
+                href: lotsIndex().url,
+                icon: ClipboardList,
+                permission: 'inventory.view',
             },
         ],
     },
@@ -112,9 +148,3 @@ export const erpNavigation: ErpNavGroup[] = [
         ],
     },
 ];
-
-/**
- * Placeholder icon export kept for modules still to come, so that adding
- * Inventory or Production later is a one-line change here.
- */
-export const upcomingModuleIcon = ClipboardList;

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Domain\Inventory\DTOs;
 
 use App\Domain\Inventory\Enums\InventoryTransactionType;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Carbon;
 
 /**
  * A complete movement, ready to post.
@@ -22,7 +22,7 @@ final readonly class LedgerPosting
         public ?int $counterpartWarehouseId = null,
         public ?Model $reference = null,
         public ?string $reason = null,
-        public ?Carbon $transactedAt = null,
+        public ?CarbonInterface $transactedAt = null,
         public ?int $createdBy = null,
     ) {}
 }

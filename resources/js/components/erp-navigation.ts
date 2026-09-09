@@ -1,5 +1,6 @@
 import {
     Beaker,
+    Factory,
     CalendarCheck,
     ClipboardPen,
     Boxes,
@@ -21,6 +22,7 @@ import { index as auditIndex } from '@/routes/audit';
 import { index as formulasIndex } from '@/routes/formulas';
 import { index as goodsReceiptsIndex } from '@/routes/goods-receipts';
 import { index as lotsIndex } from '@/routes/lots';
+import { index as manufacturingIndex } from '@/routes/manufacturing';
 import { index as materialRequestsIndex } from '@/routes/material-requests';
 import { index as plansIndex } from '@/routes/plans';
 import { index as qcIndex } from '@/routes/qc';
@@ -109,6 +111,17 @@ export const erpNavigation: ErpNavGroup[] = [
                 href: materialRequestsIndex().url,
                 icon: ClipboardPen,
                 permission: 'purchase.view',
+            },
+        ],
+    },
+    {
+        label: 'Manufacturing',
+        items: [
+            {
+                title: 'Manufacturing Orders',
+                href: manufacturingIndex().url,
+                icon: Factory,
+                permission: 'production.view',
             },
         ],
     },

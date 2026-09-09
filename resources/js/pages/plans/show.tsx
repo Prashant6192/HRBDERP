@@ -2,6 +2,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import {
     AlertTriangle,
     ClipboardPen,
+    Factory,
     FileDown,
     RefreshCw,
     XCircle,
@@ -13,6 +14,7 @@ import { RequirementTable } from '@/components/requirement-table';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
 import {
+    MO_STATUS_VARIANT,
     PLAN_STATUS_LABEL,
     PLAN_STATUS_VARIANT,
     PMR_STATUS_VARIANT,
@@ -20,10 +22,12 @@ import {
 import { date, qty } from '@/lib/stock';
 import { dashboard } from '@/routes';
 import { show as showFormula } from '@/routes/formulas';
+import { show as showOrder, store as storeOrder } from '@/routes/manufacturing';
 import { pdf, show as showRequest } from '@/routes/material-requests';
 import { cancel, check, index, requests, show } from '@/routes/plans';
 import { show as showProduct } from '@/routes/products';
 import type {
+    ManufacturingOrderSummary,
     MaterialRequestSummary,
     ProductionPlan,
     RequirementLineRow,
@@ -45,13 +49,20 @@ export default function ShowPlan({
     rawMaterials,
     packaging,
     requests: pmrs,
+    manufacturingOrders,
     can,
 }: {
     plan: ProductionPlan;
     rawMaterials: RequirementLineRow[];
     packaging: RequirementLineRow[];
     requests: MaterialRequestSummary[];
-    can: { check: boolean; request: boolean; cancel: boolean };
+    manufacturingOrders: ManufacturingOrderSummary[];
+    can: {
+        check: boolean;
+        request: boolean;
+        cancel: boolean;
+        manufacture: boolean;
+    };
 }) {
     const rm = countBy(rawMaterials);
     const pm = countBy(packaging);
@@ -111,6 +122,35 @@ export default function ShowPlan({
                                     action={() =>
                                         router.post(
                                             requests(plan.id).url,
+                                            undefined,
+                                            {
+                                                preserveScroll: true,
+                                            },
+                                        )
+                                    }
+                                />
+                            )}
+                            {can.manufacture && (
+                                <ConfirmDialog
+                                    trigger={
+                                        <Button
+                                            size="sm"
+                                            variant={
+                                                can.request
+                                                    ? 'outline'
+                                                    : 'default'
+                                            }
+                                        >
+                                            <Factory className="size-4" />
+                                            Send to manufacturing
+                                        </Button>
+                                    }
+                                    title="Open a manufacturing order?"
+                                    description="The order takes this plan's material list. Approving it will hold the materials in their stores; if anything is still short, approval tells you what is missing."
+                                    confirmLabel="Open order"
+                                    action={() =>
+                                        router.post(
+                                            storeOrder(plan.id).url,
                                             undefined,
                                             {
                                                 preserveScroll: true,
@@ -325,6 +365,44 @@ export default function ShowPlan({
                         emptyText="No packaging is planned for this batch — see the notes above."
                     />
                 </section>
+
+                {manufacturingOrders.length > 0 && (
+                    <section className="bg-card rounded-xl border">
+                        <div className="border-b px-5 py-4">
+                            <h2 className="font-semibold">Manufacturing</h2>
+                        </div>
+                        <ul className="divide-y">
+                            {manufacturingOrders.map((o) => (
+                                <li
+                                    key={o.id}
+                                    className="flex flex-wrap items-center justify-between gap-3 px-5 py-3"
+                                >
+                                    <div>
+                                        <Link
+                                            href={showOrder(o.id)}
+                                            className="font-medium underline-offset-4 hover:underline"
+                                        >
+                                            {o.number}
+                                        </Link>
+                                        <span className="text-muted-foreground ml-2 text-sm">
+                                            {o.started_at
+                                                ? `started ${date(o.started_at)}`
+                                                : ''}
+                                            {o.completed_at
+                                                ? ` · completed ${date(o.completed_at)}`
+                                                : ''}
+                                        </span>
+                                    </div>
+                                    <StatusBadge
+                                        variant={MO_STATUS_VARIANT[o.status]}
+                                    >
+                                        {o.status_label}
+                                    </StatusBadge>
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+                )}
 
                 {pmrs.length > 0 && (
                     <section className="bg-card rounded-xl border">

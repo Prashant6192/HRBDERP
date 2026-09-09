@@ -12,6 +12,7 @@ use App\Http\Controllers\Formulation\FormulaSecurityController;
 use App\Http\Controllers\Formulation\FormulaVersionController;
 use App\Http\Controllers\Inventory\LotController;
 use App\Http\Controllers\Inventory\StockController;
+use App\Http\Controllers\Manufacturing\ManufacturingOrderController;
 use App\Http\Controllers\MasterData\PackagingMaterialController;
 use App\Http\Controllers\MasterData\ProductController;
 use App\Http\Controllers\MasterData\ProductPackagingController;
@@ -89,6 +90,15 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 
     Route::post('products/{product}/packaging', [ProductPackagingController::class, 'store'])->name('products.packaging.store');
     Route::delete('products/{product}/packaging/{line}', [ProductPackagingController::class, 'destroy'])->name('products.packaging.destroy');
+
+    // ---- Manufacturing ----------------------------------------------------
+    Route::get('manufacturing', [ManufacturingOrderController::class, 'index'])->name('manufacturing.index');
+    Route::post('plans/{plan}/manufacturing', [ManufacturingOrderController::class, 'store'])->name('manufacturing.store');
+    Route::get('manufacturing/{order}', [ManufacturingOrderController::class, 'show'])->name('manufacturing.show');
+    Route::post('manufacturing/{order}/approve', [ManufacturingOrderController::class, 'approve'])->name('manufacturing.approve');
+    Route::post('manufacturing/{order}/start', [ManufacturingOrderController::class, 'start'])->name('manufacturing.start');
+    Route::post('manufacturing/{order}/complete', [ManufacturingOrderController::class, 'complete'])->name('manufacturing.complete');
+    Route::post('manufacturing/{order}/cancel', [ManufacturingOrderController::class, 'cancel'])->name('manufacturing.cancel');
 
     // ---- Formulations -----------------------------------------------------
     // The list and the PIN screens need only formula.view. Anything that

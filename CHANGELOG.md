@@ -10,6 +10,26 @@ between them.
 
 ## [Unreleased]
 
+### Added — Manufacturing (Phase E)
+
+- **Manufacturing orders** opened from a checked plan, taking its material
+  list. *Approve* holds every material in its store, drawing on the
+  earliest-expiring QC-approved batches — all or nothing, and if anything is
+  short the message names each shortfall. *Start* issues the held raw
+  materials to the kettle through the ledger. *Complete* records the bulk
+  output, units packed and yield, uses up the held packaging, releases
+  anything left, and posts the finished batch as a new lot (`FG250909-001`)
+  with an expiry from the product's shelf life — into quarantine with a QC
+  inspection when the product needs QC, otherwise straight to the finished
+  goods store. *Cancel* releases what is held; what the kettle already took
+  stays taken.
+- The plan follows its order: in production on approval, completed on
+  completion, back to where it was on cancellation.
+- 11 tests: material list from the plan, all-or-nothing approval, FEFO
+  holds across batches, ledger consumption, QC and no-QC outputs, units
+  required for piece-stocked products, cancellation before and after start,
+  lifecycle order, and the screens by role.
+
 ### Added — Planning & Purchase (Phase D)
 
 - **Production plans.** Pick a formula with an active recipe and a batch

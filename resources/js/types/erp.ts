@@ -662,3 +662,93 @@ export type MaterialRequestLineRow = {
     covered: boolean;
     alert_level: StockAlertLevel;
 };
+
+// ---- Manufacturing ---------------------------------------------------------
+
+export type ManufacturingOrderStatus =
+    | 'draft'
+    | 'approved'
+    | 'in_progress'
+    | 'completed'
+    | 'cancelled';
+
+export type ManufacturingOrder = {
+    id: number;
+    number: string;
+    production_plan_id: number | null;
+    plan?: { id: number; number: string; status?: ProductionPlanStatus } | null;
+    formula_id: number;
+    formula?: { id: number; code: string; name: string } | null;
+    formula_version?: { id: number; version_number: number } | null;
+    product_id: number | null;
+    product?: {
+        id: number;
+        code: string;
+        name: string;
+        requires_qc?: boolean;
+        shelf_life_days?: number | null;
+        stock_uom?: { id: number; code: string; dimension: string } | null;
+    } | null;
+    planned_quantity: string;
+    planned_uom?: { id: number; code: string } | null;
+    planned_units: number | null;
+    status: ManufacturingOrderStatus;
+    output_quantity: string | null;
+    output_units: number | null;
+    yield_percentage: string | null;
+    output_lot_id: number | null;
+    output_lot?: {
+        id: number;
+        batch_number: string;
+        qc_status: LotQcStatus;
+        expiry_at: string | null;
+        initial_quantity: string;
+    } | null;
+    manufactured_at: string | null;
+    notes: string | null;
+    created_by?: { id: number; name: string } | null;
+    approved_by?: { id: number; name: string } | null;
+    completed_by?: { id: number; name: string } | null;
+    approved_at: string | null;
+    started_at: string | null;
+    completed_at: string | null;
+    cancelled_at: string | null;
+    created_at: string;
+};
+
+export type ManufacturingOrderLineRow = {
+    id: number;
+    line_no: number;
+    store_kind: StoreKind;
+    item_id: number;
+    item_code: string;
+    item_name: string;
+    item_type: string;
+    uom: string;
+    percentage: string | null;
+    is_qs: boolean;
+    as_required: boolean;
+    planned: string;
+    reserved: string;
+    consumed: string;
+};
+
+export type ReservationRow = {
+    id: number;
+    item_id: number;
+    lot: string | null;
+    expiry_at: string | null;
+    warehouse: string | null;
+    quantity: string;
+    consumed: string;
+    status: 'active' | 'consumed' | 'released';
+};
+
+export type ManufacturingOrderSummary = {
+    id: number;
+    number: string;
+    status: ManufacturingOrderStatus;
+    status_label: string;
+    started_at: string | null;
+    completed_at: string | null;
+};

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Planning;
 
 use App\Domain\Formulation\Models\Formula;
+use App\Domain\Manufacturing\Models\ManufacturingOrder;
 use App\Domain\Measurement\Models\Uom;
 use App\Domain\Planning\Enums\ProductionPlanStatus;
 use App\Domain\Planning\Exceptions\PlanningException;
@@ -154,10 +155,25 @@ class ProductionPlanController extends Controller
                 'status_label' => $r->status->label(),
                 'needed_by' => $r->needed_by?->toDateString(),
             ])->all(),
+            'manufacturingOrders' => ManufacturingOrder::query()
+                ->where('production_plan_id', $plan->id)
+                ->orderBy('id')
+                ->get(['id', 'number', 'status', 'started_at', 'completed_at', 'output_lot_id'])
+                ->map(static fn (ManufacturingOrder $o): array => [
+                    'id' => $o->id,
+                    'number' => $o->number,
+                    'status' => $o->status->value,
+                    'status_label' => $o->status->label(),
+                    'started_at' => $o->started_at?->toIso8601String(),
+                    'completed_at' => $o->completed_at?->toIso8601String(),
+                ])->all(),
             'can' => [
                 'check' => $request->user()->can('check', $plan) && $plan->status->canBeChecked(),
                 'request' => $request->user()->can('request', $plan) && $plan->status === ProductionPlanStatus::Checked,
                 'cancel' => $request->user()->can('cancel', $plan) && $plan->status->isOpen(),
+                'manufacture' => $request->user()->can('create', ManufacturingOrder::class)
+                    && in_array($plan->status, [ProductionPlanStatus::Checked, ProductionPlanStatus::Requested], strict: true)
+                    && ! ManufacturingOrder::query()->where('production_plan_id', $plan->id)->open()->exists(),
             ],
         ]);
     }

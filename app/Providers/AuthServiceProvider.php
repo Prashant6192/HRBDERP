@@ -9,6 +9,7 @@ use App\Domain\Formulation\Models\Formula;
 use App\Domain\Formulation\Models\FormulaVersion;
 use App\Domain\Identity\Models\Department;
 use App\Domain\Inventory\Models\InventoryLot;
+use App\Domain\Manufacturing\Models\ManufacturingOrder;
 use App\Domain\MasterData\Models\PackagingMaterial;
 use App\Domain\MasterData\Models\Product;
 use App\Domain\MasterData\Models\RawMaterial;
@@ -26,6 +27,7 @@ use App\Policies\FormulaPolicy;
 use App\Policies\FormulaVersionPolicy;
 use App\Policies\GoodsReceiptPolicy;
 use App\Policies\InventoryLotPolicy;
+use App\Policies\ManufacturingOrderPolicy;
 use App\Policies\MaterialRequestPolicy;
 use App\Policies\PackagingMaterialPolicy;
 use App\Policies\ProductionPlanPolicy;
@@ -60,6 +62,7 @@ class AuthServiceProvider extends ServiceProvider
         FormulaVersion::class => FormulaVersionPolicy::class,
         ProductionPlan::class => ProductionPlanPolicy::class,
         MaterialRequest::class => MaterialRequestPolicy::class,
+        ManufacturingOrder::class => ManufacturingOrderPolicy::class,
         QcInspection::class => QcInspectionPolicy::class,
         InventoryLot::class => InventoryLotPolicy::class,
 

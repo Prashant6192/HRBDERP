@@ -47,3 +47,25 @@ export const STORE_SHORT: Record<StoreKind, string> = {
     raw_material: 'RM',
     packaging: 'PM',
 };
+
+export const MO_STATUS_LABEL: Record<
+    import('@/types').ManufacturingOrderStatus,
+    string
+> = {
+    draft: 'Draft',
+    approved: 'Approved · reserved',
+    in_progress: 'In progress',
+    completed: 'Completed',
+    cancelled: 'Cancelled',
+};
+
+export const MO_STATUS_VARIANT: Record<
+    import('@/types').ManufacturingOrderStatus,
+    Variant
+> = {
+    draft: 'muted',
+    approved: 'info',
+    in_progress: 'warning',
+    completed: 'success',
+    cancelled: 'destructive',
+};

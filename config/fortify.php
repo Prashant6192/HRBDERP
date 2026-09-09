@@ -161,7 +161,17 @@ return [
     */
 
     'features' => [
-        Features::registration(),
+        /*
+         * Registration is deliberately absent.
+         *
+         * This is a company ERP, not a public product. Accounts are created by
+         * an administrator, who assigns the roles that decide what the person
+         * can reach — a self-registered account would have none, and would
+         * exist only as an unexplained row in the user list and a foothold for
+         * whoever found the URL.
+         *
+         * Employees are added under Administration -> Users.
+         */
         Features::resetPasswords(),
         Features::emailVerification(),
         Features::twoFactorAuthentication([

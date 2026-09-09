@@ -25,6 +25,21 @@ password is ever stored, logged, or written to the audit trail.
 | Passkeys         | Fortify passkeys, already wired                                                                                                       |
 | SSO              | Not yet configured — the structure supports adding Google Workspace and Microsoft as Socialite drivers without changing authorisation |
 
+### There is no self-registration
+
+`/register` does not exist. This is a company ERP, not a public product:
+accounts are created by an administrator under **Administration → Users**, who
+also assigns the roles that decide what the person can reach.
+
+A self-registered account would hold no roles and so could do nothing useful —
+but it would still be an unexplained row in the user list, and a foothold for
+anyone who found the address. Two tests assert the routes are absent, so
+re-enabling the package's registration feature has to be a deliberate act with
+a failing test to explain itself.
+
+Password reset remains open, so an employee who forgets their password does not
+need an administrator.
+
 ### Account state takes effect immediately
 
 An account carries a status: `active`, `inactive` or `suspended`. Only `active`

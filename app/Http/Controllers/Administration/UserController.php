@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Administration;
 
-use App\Domain\Access\Enums\RoleName;
+use App\Domain\Access\Models\Role;
 use App\Domain\Audit\Enums\AuditAction;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Identity\Enums\UserStatus;
@@ -19,7 +19,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
-use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
 {
@@ -247,19 +246,13 @@ class UserController extends Controller
      */
     private function roleOptions(): array
     {
-        $descriptions = [];
-
-        foreach (RoleName::all() as $role) {
-            $descriptions[$role->value] = $role->description();
-        }
-
         return Role::query()
             ->orderBy('name')
-            ->pluck('name')
-            ->map(static fn (string $name): array => [
-                'value' => $name,
-                'label' => $name,
-                'description' => $descriptions[$name] ?? null,
+            ->get()
+            ->map(static fn (Role $role): array => [
+                'value' => $role->name,
+                'label' => $role->name,
+                'description' => $role->description(),
             ])
             ->all();
     }

@@ -1,8 +1,10 @@
 <?php
 
+use App\Domain\Access\Models\Role;
 use Spatie\Permission\DefaultTeamResolver;
+// The ERP's own role model, so that route binding and the generated
+// frontend route helpers can resolve it. See the class for why.
 use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 
 return [
 

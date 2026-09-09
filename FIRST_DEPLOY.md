@@ -167,7 +167,10 @@ REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs FROM your_db_user;
 This is what makes the audit trail genuinely tamper-proof rather than
 tamper-proof-by-convention. Without it, the rule lives only in application code.
 
-**b. Create your account.** Run `php artisan tinker`, then paste:
+**b. Create your account.** This is not optional — there is no sign-up page, by
+design, so until you do this the ERP has no users and nobody can get in.
+
+Run `php artisan tinker`, then paste:
 
 ```php
 $user = App\Models\User::create([
@@ -184,8 +187,9 @@ $user->assignRole(App\Domain\Access\Enums\RoleName::SuperAdmin->value);
 Change the name, email and password first. Use a password manager — this account
 can reach everything.
 
-Then sign in and create everyone else through the interface, where each account
-is recorded in the audit trail.
+Then sign in and create everyone else under **Administration → Users**, where
+each account is recorded in the audit trail and you choose the roles it holds.
+Nobody can create their own account.
 
 ---
 

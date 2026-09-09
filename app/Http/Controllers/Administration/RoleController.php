@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Administration;
 
-use App\Domain\Access\Enums\RoleName;
+use App\Domain\Access\Models\Role;
 use App\Domain\Access\PermissionCatalogue;
 use App\Domain\Audit\Enums\AuditAction;
 use App\Domain\Audit\Services\AuditLogger;
@@ -15,7 +15,6 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 /**
@@ -35,12 +34,6 @@ class RoleController extends Controller
     {
         Gate::authorize('role.view');
 
-        $descriptions = [];
-
-        foreach (RoleName::all() as $role) {
-            $descriptions[$role->value] = $role->description();
-        }
-
         $roles = Role::query()
             ->withCount(['users', 'permissions'])
             ->orderBy('name')
@@ -48,10 +41,10 @@ class RoleController extends Controller
             ->map(static fn (Role $role): array => [
                 'id' => $role->id,
                 'name' => $role->name,
-                'description' => $descriptions[$role->name] ?? null,
+                'description' => $role->description(),
                 'users_count' => $role->users_count,
                 'permissions_count' => $role->permissions_count,
-                'is_built_in' => isset($descriptions[$role->name]),
+                'is_built_in' => $role->isBuiltIn(),
             ]);
 
         return Inertia::render('roles/index', [
@@ -68,8 +61,8 @@ class RoleController extends Controller
             'role' => [
                 'id' => $role->id,
                 'name' => $role->name,
-                'description' => $this->descriptionFor($role->name),
-                'is_super_admin' => $role->name === RoleName::SuperAdmin->value,
+                'description' => $role->description(),
+                'is_super_admin' => $role->isSuperAdmin(),
             ],
             'assigned' => $role->permissions->pluck('name')->values()->all(),
             'catalogue' => $this->catalogue(),
@@ -110,17 +103,6 @@ class RoleController extends Controller
         ]);
 
         return to_route('roles.index');
-    }
-
-    private function descriptionFor(string $name): ?string
-    {
-        foreach (RoleName::all() as $role) {
-            if ($role->value === $name) {
-                return $role->description();
-            }
-        }
-
-        return null;
     }
 
     /**

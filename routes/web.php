@@ -49,14 +49,21 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('users/{user}/deactivate', [UserController::class, 'deactivate'])->name('users.deactivate');
     Route::post('users/{user}/activate', [UserController::class, 'activate'])->name('users.activate');
 
+    // whereNumber: the role model comes from a package, so nothing in this
+    // application declares its key type. Constraining it here means the router
+    // rejects a non-numeric id outright, and the generated frontend route
+    // helpers are typed as numbers rather than falling back to strings.
     Route::get('roles', [RoleController::class, 'index'])->name('roles.index');
-    Route::get('roles/{role}/edit', [RoleController::class, 'edit'])->name('roles.edit');
-    Route::put('roles/{role}', [RoleController::class, 'update'])->name('roles.update');
+    Route::get('roles/{role}/edit', [RoleController::class, 'edit'])
+        ->whereNumber('role')->name('roles.edit');
+    Route::put('roles/{role}', [RoleController::class, 'update'])
+        ->whereNumber('role')->name('roles.update');
 
     // The audit trail is readable and nothing else. There is no route that
     // writes to it, by design.
     Route::get('audit', [AuditLogController::class, 'index'])->name('audit.index');
-    Route::get('audit/{auditLog}', [AuditLogController::class, 'show'])->name('audit.show');
+    Route::get('audit/{auditLog}', [AuditLogController::class, 'show'])
+        ->whereNumber('auditLog')->name('audit.show');
 });
 
 require __DIR__.'/settings.php';

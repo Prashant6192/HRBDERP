@@ -77,6 +77,11 @@ export function ItemDetails({
                     <dl className="grid gap-5 sm:grid-cols-2">
                         <DetailItem label="Code">{item.code}</DetailItem>
                         <DetailItem label="Name">{item.name}</DetailItem>
+                        {item.inci_name && (
+                            <DetailItem label="INCI name">
+                                {item.inci_name}
+                            </DetailItem>
+                        )}
                         <DetailItem label="Category">
                             {item.category?.name ?? '—'}
                         </DetailItem>

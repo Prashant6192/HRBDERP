@@ -10,6 +10,78 @@ between them.
 
 ## [Unreleased]
 
+### Added — Formulations (Phase C)
+
+- **Formulas with versions.** A formula is the identity; each version is one
+  recipe of percentages against a reference batch (100 g, 100 ml …). Only a
+  draft can be edited; activating it supersedes the previous active version,
+  and a partial unique index guarantees a formula never has two active
+  recipes. Production will reference the version it was made from.
+- **Second factor in front of every recipe.** The list shows names only.
+  Opening, editing, importing or scaling a recipe requires a formula PIN
+  (4–8 digits, stored hashed, set with the account password), which grants an
+  unlock for a configurable 5–60 minutes bound to the browser session. Five
+  wrong PINs lock the module for 15 minutes. Every attempt, view, scale, edit
+  and import is written to an append-only `formula_access_logs` trail;
+  ingredient rows are deliberately kept out of the general audit log, and
+  recipe responses are sent `Cache-Control: no-store`.
+- **Scaling.** Any version can be worked out for a real batch in any mass or
+  volume unit, with each material also expressed in the unit the store holds
+  it in. A mass↔volume conversion for a material with no density is estimated
+  at 1 g/ml and flagged.
+- **Excel import** (`Formulations → Import`, or `erp:import-formulations`).
+  Reads the two layouts chemists actually use — a column table of INCI, trade
+  name and %, or one cell per line read top to bottom with wrapped names,
+  grades, "QS to 100 ml" and functions — and shows a full plan before writing:
+  which formulas are new, which become a new version, which are identical and
+  skipped, which raw materials will be added to the master data. Ambiguities
+  (re-joined wrapped text, a dropped supplier name, a missing amount, a sheet
+  with no filler) are reported as warnings, not decided silently.
+- **INCI name** on raw materials, searchable and shown on the item screens.
+- New abilities `formula.delete` and `formula.import`; Factory Managers may
+  now create, edit and import formulas. Approval stays with Directors and above.
+- 42 tests: parser layouts, versioning rules, database-level single-active
+  guarantee, PIN lockout and expiry, session binding, audit-log hygiene,
+  import planning and idempotence, console and screen flows.
+
+### Added — Receiving and quality control (Phase B)
+
+- **Goods receipts.** Deliveries are booked in from the delivery note and
+  posted to the ledger. Every posted line becomes a numbered batch
+  (`RM250909-001` …); material that needs QC lands in the quarantine
+  warehouse and opens an inspection, material that does not goes straight to
+  its store.
+- **QC checkpoint.** Approve, reject or hold. Approval moves the whole batch
+  from quarantine to the store through the ledger; rejection leaves it locked
+  in quarantine; a hold can still be approved later.
+- **Batch sticker.** Every approved batch gets a 100 × 70 mm PDF — QC
+  APPROVED, batch number, received / manufactured / expiry dates, quantity,
+  supplier reference — ready for a label printer.
+- **Store screens.** Stock per store with Moderate / Low / Critically low /
+  Out-of-stock levels and an expiring-soon count; goods receipts; the QC
+  queue; batches with their movement history.
+
+### Added — Inventory ledger (Phase A)
+
+- **Immutable ledger.** Every movement is an `inventory_transactions` row with
+  lines; balances are derived, never edited. Receipts, issues, transfers and
+  adjustments all go through one service that locks the balance rows it
+  touches, so two concurrent postings cannot oversell — proven by a test that
+  forks real processes against PostgreSQL.
+- **Lots, reservations, alert levels.** Batches carry QC status and expiry;
+  reservations hold stock for production and are released or consumed under
+  the same locks; each item's minimum stock and reorder level define its
+  Critical / Low / Moderate bands.
+- **Document numbers** that never repeat or skip, per document type and month.
+
+### Fixed
+
+- Validation rules of the form `Rule::exists(...)->where('flag', false)`
+  flattened `false` to an empty string, which PostgreSQL rejects as a boolean.
+  Such rules now use the closure form.
+- Services typed their date parameters as the mutable `Carbon` while models
+  return `CarbonImmutable`; they now accept any `CarbonInterface`.
+
 ### Added — ERP interface and master data
 
 - **Navigation and dashboard** built from the permission catalogue. Entries a

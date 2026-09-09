@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { FormulaAccess } from './erp';
 import type { Auth } from '@/types/auth';
 import type { BreadcrumbItem } from '@/types/navigation';
 
@@ -9,6 +10,7 @@ export type SharedData = {
     name: string;
     auth: Auth;
     sidebarOpen: boolean;
+    formulaAccess: FormulaAccess | null;
     [key: string]: unknown;
 };
 

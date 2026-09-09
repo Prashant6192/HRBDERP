@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Domain\Audit\Models\AuditLog;
+use App\Domain\Formulation\Models\Formula;
+use App\Domain\Formulation\Models\FormulaVersion;
 use App\Domain\Identity\Models\Department;
 use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\MasterData\Models\PackagingMaterial;
@@ -18,6 +20,8 @@ use App\Domain\Warehousing\Models\Warehouse;
 use App\Models\User;
 use App\Policies\AuditLogPolicy;
 use App\Policies\DepartmentPolicy;
+use App\Policies\FormulaPolicy;
+use App\Policies\FormulaVersionPolicy;
 use App\Policies\GoodsReceiptPolicy;
 use App\Policies\InventoryLotPolicy;
 use App\Policies\PackagingMaterialPolicy;
@@ -48,6 +52,8 @@ class AuthServiceProvider extends ServiceProvider
         Uom::class => UomPolicy::class,
         AuditLog::class => AuditLogPolicy::class,
         GoodsReceipt::class => GoodsReceiptPolicy::class,
+        Formula::class => FormulaPolicy::class,
+        FormulaVersion::class => FormulaVersionPolicy::class,
         QcInspection::class => QcInspectionPolicy::class,
         InventoryLot::class => InventoryLotPolicy::class,
 

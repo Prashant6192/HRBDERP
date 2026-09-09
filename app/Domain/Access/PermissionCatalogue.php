@@ -103,7 +103,7 @@ final class PermissionCatalogue
         'formula' => [
             'label' => 'Formulations',
             'group' => 'Operations',
-            'abilities' => ['view', 'create', 'edit', 'approve', 'archive', 'export'],
+            'abilities' => ['view', 'create', 'edit', 'delete', 'approve', 'archive', 'import', 'export'],
         ],
         'production' => [
             'label' => 'Production',

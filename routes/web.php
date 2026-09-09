@@ -6,6 +6,10 @@ use App\Http\Controllers\Administration\AuditLogController;
 use App\Http\Controllers\Administration\RoleController;
 use App\Http\Controllers\Administration\UserController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Formulation\FormulaController;
+use App\Http\Controllers\Formulation\FormulaImportController;
+use App\Http\Controllers\Formulation\FormulaSecurityController;
+use App\Http\Controllers\Formulation\FormulaVersionController;
 use App\Http\Controllers\Inventory\LotController;
 use App\Http\Controllers\Inventory\StockController;
 use App\Http\Controllers\MasterData\PackagingMaterialController;
@@ -65,6 +69,42 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('lots', [LotController::class, 'index'])->name('lots.index');
     Route::get('lots/{lot}', [LotController::class, 'show'])->name('lots.show');
     Route::get('lots/{lot}/sticker', [QcInspectionController::class, 'sticker'])->name('lots.sticker');
+
+    // ---- Formulations -----------------------------------------------------
+    // The list and the PIN screens need only formula.view. Anything that
+    // would load a recipe is additionally behind the formula.unlocked
+    // middleware, which sends a locked user to verify their PIN first.
+    Route::get('formulas', [FormulaController::class, 'index'])->name('formulas.index');
+
+    Route::get('formulas/unlock', [FormulaSecurityController::class, 'showUnlock'])->name('formulas.unlock');
+    Route::post('formulas/unlock', [FormulaSecurityController::class, 'unlock'])
+        ->middleware('throttle:10,1')->name('formulas.verify');
+    Route::post('formulas/lock', [FormulaSecurityController::class, 'lock'])->name('formulas.lock');
+    Route::get('formulas/pin', [FormulaSecurityController::class, 'editPin'])->name('formulas.pin.edit');
+    Route::post('formulas/pin', [FormulaSecurityController::class, 'updatePin'])
+        ->middleware('throttle:6,1')->name('formulas.pin.update');
+
+    Route::middleware('formula.unlocked')->group(function (): void {
+        Route::get('formulas/import', [FormulaImportController::class, 'create'])->name('formulas.imports.create');
+        Route::post('formulas/import/preview', [FormulaImportController::class, 'preview'])->name('formulas.imports.preview');
+        Route::post('formulas/import', [FormulaImportController::class, 'store'])->name('formulas.imports.store');
+        Route::delete('formulas/import', [FormulaImportController::class, 'destroy'])->name('formulas.imports.destroy');
+
+        Route::get('formulas/create', [FormulaController::class, 'create'])->name('formulas.create');
+        Route::post('formulas', [FormulaController::class, 'store'])->name('formulas.store');
+        Route::get('formulas/{formula}', [FormulaController::class, 'show'])->name('formulas.show');
+        Route::get('formulas/{formula}/edit', [FormulaController::class, 'edit'])->name('formulas.edit');
+        Route::put('formulas/{formula}', [FormulaController::class, 'update'])->name('formulas.update');
+        Route::delete('formulas/{formula}', [FormulaController::class, 'destroy'])->name('formulas.destroy');
+        Route::post('formulas/{formula}/archive', [FormulaController::class, 'archive'])->name('formulas.archive');
+        Route::post('formulas/{formula}/restore', [FormulaController::class, 'restore'])->name('formulas.restore');
+
+        Route::post('formulas/{formula}/versions', [FormulaVersionController::class, 'store'])->name('formulas.versions.store');
+        Route::post('formulas/{formula}/versions/{version}/activate', [FormulaVersionController::class, 'activate'])
+            ->scopeBindings()->name('formulas.versions.activate');
+        Route::delete('formulas/{formula}/versions/{version}', [FormulaVersionController::class, 'destroy'])
+            ->scopeBindings()->name('formulas.versions.destroy');
+    });
 
     // ---- Administration ---------------------------------------------------
     Route::resource('users', UserController::class);

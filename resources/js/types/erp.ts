@@ -57,6 +57,7 @@ export type Item = {
     id: number;
     code: string;
     name: string;
+    inci_name: string | null;
     type: string;
     description: string | null;
     category_id: number | null;
@@ -333,4 +334,182 @@ export type StockMovement = {
         reason: string | null;
     } | null;
     created_at: string;
+};
+
+// ---- Formulations ----------------------------------------------------------
+
+export type FormulaStatus = 'draft' | 'active' | 'archived';
+
+export type FormulaVersionStatus =
+    | 'draft'
+    | 'active'
+    | 'superseded'
+    | 'rejected';
+
+/** What the sidebar and the formula screens know about the second factor. */
+export type FormulaAccess = {
+    unlocked: boolean;
+    expires_at: string | null;
+    minutes_remaining: number;
+    needs_pin: boolean;
+    ttl_minutes: number;
+    require_pin: boolean;
+};
+
+export type FormulaSummary = {
+    id: number;
+    code: string;
+    name: string;
+    status: FormulaStatus;
+    product_id: number | null;
+    product?: { id: number; code: string; name: string } | null;
+    active_version_id: number | null;
+    active_version?: {
+        id: number;
+        version_number: number;
+        activated_at: string | null;
+    } | null;
+    versions_count?: number;
+    description: string | null;
+    created_by?: { id: number; name: string } | null;
+    created_at: string;
+    updated_at: string;
+};
+
+export type FormulaVersionSummary = {
+    id: number;
+    version_number: number;
+    status: FormulaVersionStatus;
+    total_percentage: string;
+    batch_size: string;
+    batch_uom: string | null;
+    change_summary: string | null;
+    source: string;
+    created_at: string | null;
+    created_by: string | null;
+    activated_at: string | null;
+    approved_by: string | null;
+    superseded_at: string | null;
+};
+
+export type FormulaVersionDetail = {
+    id: number;
+    formula_id: number;
+    version_number: number;
+    status: FormulaVersionStatus;
+    batch_size: string;
+    batch_uom_id: number;
+    batch_uom?: { id: number; code: string } | null;
+    total_percentage: string;
+    notes: string | null;
+    change_summary: string | null;
+    source: string;
+    source_reference: string | null;
+    activated_at: string | null;
+    created_at: string;
+};
+
+export type FormulaIngredientRow = {
+    id: number;
+    line_no: number;
+    item_id: number;
+    item_code: string;
+    item_name: string;
+    inci_name: string | null;
+    stock_uom: string | null;
+    percentage: string | null;
+    is_qs: boolean;
+    qs_note: string | null;
+    as_required: boolean;
+    grade: string | null;
+    phase: string | null;
+    purpose: string | null;
+    notes: string | null;
+};
+
+export type ScaledLine = {
+    line_no: number;
+    item_id: number;
+    item_code: string;
+    item_name: string;
+    inci_name: string | null;
+    grade: string | null;
+    purpose: string | null;
+    percentage: string | null;
+    is_qs: boolean;
+    as_required: boolean;
+    quantity: string | null;
+    batch_uom: string;
+    stock_quantity: string | null;
+    stock_uom: string;
+    converted: boolean;
+    assumed_density: boolean;
+};
+
+export type ScaledBatch = {
+    formula_version_id: number;
+    batch_quantity: string;
+    batch_uom: string;
+    fixed_percentage: string;
+    qs_percentage: string | null;
+    complete: boolean;
+    lines: ScaledLine[];
+};
+
+export type ImportPlanLine = {
+    line_no: number;
+    key: string;
+    name: string;
+    inci_name: string | null;
+    trade_name: string | null;
+    percentage: string | null;
+    is_qs: boolean;
+    qs_note: string | null;
+    grade: string | null;
+    purpose: string | null;
+    as_required: boolean;
+    item_id: number | null;
+    item_code: string | null;
+    action: 'match' | 'create';
+    warnings: string[];
+};
+
+export type ImportPlanFormula = {
+    sheet: string;
+    name: string;
+    layout: 'tabular' | 'vertical';
+    batch_size: string;
+    batch_uom: string;
+    action:
+        | 'create'
+        | 'new_version'
+        | 'skip_duplicate'
+        | 'skip_identical'
+        | 'skip_draft';
+    existing_formula_id: number | null;
+    existing_code: string | null;
+    product_id: number | null;
+    product_name: string | null;
+    total_percentage: string;
+    has_qs: boolean;
+    lines: ImportPlanLine[];
+    warnings: string[];
+};
+
+export type ImportPlan = {
+    formulas: ImportPlanFormula[];
+    skipped_sheets: string[];
+    summary: {
+        create: number;
+        new_version: number;
+        skip: number;
+        materials_to_create: number;
+    };
+};
+
+export type PendingImport = {
+    token: string;
+    file_name: string;
+    options: { assume_water_qs: boolean; activate: boolean };
+    plan: ImportPlan;
 };

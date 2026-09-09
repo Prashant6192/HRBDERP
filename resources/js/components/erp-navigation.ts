@@ -1,4 +1,5 @@
 import {
+    Beaker,
     Boxes,
     ClipboardCheck,
     ClipboardList,
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { index as auditIndex } from '@/routes/audit';
+import { index as formulasIndex } from '@/routes/formulas';
 import { index as goodsReceiptsIndex } from '@/routes/goods-receipts';
 import { index as lotsIndex } from '@/routes/lots';
 import { index as qcIndex } from '@/routes/qc';
@@ -86,6 +88,17 @@ export const erpNavigation: ErpNavGroup[] = [
                 href: lotsIndex().url,
                 icon: ClipboardList,
                 permission: 'inventory.view',
+            },
+        ],
+    },
+    {
+        label: 'Formulations',
+        items: [
+            {
+                title: 'Formulas',
+                href: formulasIndex().url,
+                icon: Beaker,
+                permission: 'formula.view',
             },
         ],
     },

@@ -126,7 +126,7 @@ enum RoleName: string
                 'warehouse.view', 'product.view', 'raw_material.view',
                 'packaging_material.view', 'vendor.view', 'uom.view',
                 'inventory.*',
-                'formula.view', 'formula.export',
+                'formula.view', 'formula.create', 'formula.edit', 'formula.import', 'formula.export',
                 'production.*',
                 'purchase.view', 'purchase.create',
                 'qc.view', 'qc.create', 'qc.approve', 'qc.reject',

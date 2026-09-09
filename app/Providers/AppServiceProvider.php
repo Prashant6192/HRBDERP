@@ -5,10 +5,12 @@ namespace App\Providers;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Inertia\Inertia;
 use RuntimeException;
 
 class AppServiceProvider extends ServiceProvider
@@ -26,6 +28,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // ->withToast('success', 'Saved.') on any redirect: the message rides
+        // Inertia's flash bag and the Toaster shows it on the next page.
+        RedirectResponse::macro('withToast', function (string $type, string $message): RedirectResponse {
+            Inertia::flash('toast', ['type' => $type, 'message' => $message]);
+
+            /** @var RedirectResponse $this */
+            return $this;
+        });
+
         $this->configureDefaults();
         $this->configureModels();
         $this->assertDatabaseIsPostgres();

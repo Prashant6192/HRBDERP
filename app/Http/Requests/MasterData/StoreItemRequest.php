@@ -30,6 +30,7 @@ class StoreItemRequest extends FormRequest
         return [
             'code' => ['required', 'string', 'max:64', $this->uniqueCodeRule()],
             'name' => ['required', 'string', 'max:255'],
+            'inci_name' => ['nullable', 'string', 'max:255'],
             'category_id' => ['nullable', 'integer', Rule::exists('item_categories', 'id')],
             'description' => ['nullable', 'string', 'max:2000'],
 

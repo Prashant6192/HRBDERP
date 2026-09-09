@@ -89,6 +89,21 @@ export function ItemForm({
                             />
                         </Field>
 
+                        {isRawMaterial && (
+                            <Field
+                                label="INCI name"
+                                htmlFor="inci_name"
+                                error={errors.inci_name}
+                                hint="The label name, as printed on the product."
+                            >
+                                <Input
+                                    id="inci_name"
+                                    name="inci_name"
+                                    defaultValue={item?.inci_name ?? ''}
+                                />
+                            </Field>
+                        )}
+
                         <Field
                             label="Category"
                             htmlFor="category_id"

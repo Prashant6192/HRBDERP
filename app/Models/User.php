@@ -42,6 +42,8 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string|null $last_login_ip
  * @property string|null $formula_pin_hash
  * @property Carbon|null $formula_pin_set_at
+ * @property int $formula_pin_failed_attempts
+ * @property Carbon|null $formula_pin_locked_until
  * @property bool $must_change_password
  * @property Carbon|null $email_verified_at
  * @property string $password
@@ -68,7 +70,11 @@ class User extends Authenticatable implements PasskeyUser
      *
      * @var list<string>
      */
-    protected array $auditExclude = ['last_login_at', 'last_login_ip'];
+    protected array $auditExclude = [
+        'last_login_at', 'last_login_ip',
+        // PIN bookkeeping is recorded through the formula access trail.
+        'formula_pin_hash', 'formula_pin_set_at', 'formula_pin_failed_attempts', 'formula_pin_locked_until',
+    ];
 
     /**
      * @return array<string, string>
@@ -82,6 +88,8 @@ class User extends Authenticatable implements PasskeyUser
             'deactivated_at' => 'datetime',
             'last_login_at' => 'datetime',
             'formula_pin_set_at' => 'datetime',
+            'formula_pin_failed_attempts' => 'integer',
+            'formula_pin_locked_until' => 'datetime',
             'must_change_password' => 'boolean',
             'status' => UserStatus::class,
         ];

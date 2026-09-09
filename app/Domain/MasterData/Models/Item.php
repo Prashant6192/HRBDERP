@@ -28,6 +28,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int $id
  * @property string $code
  * @property string $name
+ * @property string|null $inci_name
  * @property ItemType $type
  * @property string|null $density_g_per_ml
  * @property Uom $stockUom
@@ -42,7 +43,7 @@ class Item extends Model
     protected $table = 'items';
 
     protected $fillable = [
-        'code', 'name', 'type', 'category_id', 'description',
+        'code', 'name', 'inci_name', 'type', 'category_id', 'description',
         'stock_uom_id', 'purchase_uom_id', 'density_g_per_ml',
         'hsn_code', 'gst_rate', 'standard_cost',
         'brand', 'mrp', 'net_content', 'net_content_uom_id', 'barcode',
@@ -193,6 +194,7 @@ class Item extends Model
         return $query->where(function (Builder $query) use ($term): void {
             $query->where('code', 'ilike', "%{$term}%")
                 ->orWhere('name', 'ilike', "%{$term}%")
+                ->orWhere('inci_name', 'ilike', "%{$term}%")
                 ->orWhere('barcode', 'ilike', "%{$term}%")
                 ->orWhere('brand', 'ilike', "%{$term}%");
         });

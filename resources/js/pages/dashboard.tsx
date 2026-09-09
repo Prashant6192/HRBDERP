@@ -14,7 +14,17 @@ import { Button } from '@/components/ui/button';
 import { usePermissions } from '@/hooks/use-permissions';
 import { index as auditIndex } from '@/routes/audit';
 import { dashboard } from '@/routes';
-import type { AuditEntry } from '@/types';
+/**
+ * Already phrased by the server, which owns the vocabulary of audited actions.
+ * `subject` is null when the entry is about the person who acted.
+ */
+type ActivityEntry = {
+    id: number;
+    actor: string;
+    action: string;
+    subject: string | null;
+    created_at: string | null;
+};
 
 /** Icon names the server sends, resolved to components here. */
 const ICONS: Record<string, LucideIcon> = {
@@ -72,15 +82,7 @@ export default function Dashboard({
     canViewAudit,
 }: {
     stats: Stat[];
-    recentActivity: Pick<
-        AuditEntry,
-        | 'id'
-        | 'user_name'
-        | 'action'
-        | 'auditable_label'
-        | 'auditable_type'
-        | 'created_at'
-    >[];
+    recentActivity: ActivityEntry[];
     canViewAudit: boolean;
 }) {
     const { roles } = usePermissions();
@@ -142,28 +144,30 @@ export default function Dashboard({
                                     >
                                         <span>
                                             <span className="font-medium">
-                                                {entry.user_name ?? 'System'}
+                                                {entry.actor}
                                             </span>{' '}
-                                            <span className="text-muted-foreground">
-                                                {entry.action.replace(
-                                                    /[._]/g,
-                                                    ' ',
-                                                )}
-                                            </span>{' '}
-                                            {entry.auditable_label && (
-                                                <span className="font-medium">
-                                                    {entry.auditable_label}
-                                                </span>
+                                            <span className="text-muted-foreground lowercase">
+                                                {entry.action}
+                                            </span>
+                                            {entry.subject && (
+                                                <>
+                                                    {' — '}
+                                                    <span className="font-medium">
+                                                        {entry.subject}
+                                                    </span>
+                                                </>
                                             )}
                                         </span>
-                                        <time
-                                            className="text-muted-foreground text-xs"
-                                            dateTime={entry.created_at}
-                                        >
-                                            {new Date(
-                                                entry.created_at,
-                                            ).toLocaleString()}
-                                        </time>
+                                        {entry.created_at && (
+                                            <time
+                                                className="text-muted-foreground text-xs"
+                                                dateTime={entry.created_at}
+                                            >
+                                                {new Date(
+                                                    entry.created_at,
+                                                ).toLocaleString()}
+                                            </time>
+                                        )}
                                     </li>
                                 ))}
                             </ul>

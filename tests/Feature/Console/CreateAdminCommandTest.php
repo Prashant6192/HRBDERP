@@ -24,6 +24,20 @@ class CreateAdminCommandTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * The action column is cast to an enum, so read the stored values back.
+     *
+     * @return list<string>
+     */
+    private function auditActions(User $user): array
+    {
+        return $user->auditLogs()
+            ->orderBy('id')
+            ->pluck('action')
+            ->map(static fn ($action): string => $action->value)
+            ->all();
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -165,6 +179,47 @@ class CreateAdminCommandTest extends TestCase
         ])->assertSuccessful();
 
         $this->assertTrue($user->refresh()->isActive());
+    }
+
+    #[Test]
+    public function creating_an_administrator_writes_two_audit_entries_not_three(): void
+    {
+        // Verifying the email address in a second save used to add an
+        // "updated" entry immediately after "created", saying nothing a reader
+        // would want. The audit trail is only useful if it is worth reading.
+        $this->artisan('erp:create-admin', [
+            '--name' => 'Prashant',
+            '--email' => 'owner@hrbd.local',
+            '--password' => 'Str0ng!Passphrase22',
+        ])->assertSuccessful();
+
+        $user = User::where('email', 'owner@hrbd.local')->sole();
+
+        $this->assertSame(
+            ['created', 'roles_changed'],
+            $this->auditActions($user),
+        );
+    }
+
+    #[Test]
+    public function promoting_a_healthy_account_does_not_manufacture_entries(): void
+    {
+        $user = User::factory()->create(['email' => 'existing@hrbd.local']);
+        $user->assignRole(RoleName::Viewer->value);
+
+        $before = $user->auditLogs()->count();
+
+        $this->artisan('erp:create-admin', [
+            '--email' => 'existing@hrbd.local',
+            '--role' => RoleName::SuperAdmin->value,
+            '--promote' => true,
+        ])->assertSuccessful();
+
+        // An account that was never deleted must not be "restored", and one
+        // already active must not be "updated".
+        $written = array_slice($this->auditActions($user), $before);
+
+        $this->assertSame(['roles_changed'], $written);
     }
 
     #[Test]

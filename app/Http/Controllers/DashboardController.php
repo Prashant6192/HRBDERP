@@ -39,14 +39,43 @@ class DashboardController extends Controller
             ])),
 
             'recentActivity' => $user->can('audit.view')
-                ? AuditLog::query()
-                    ->latest('created_at')
-                    ->limit(8)
-                    ->get(['id', 'user_name', 'action', 'auditable_label', 'auditable_type', 'created_at'])
+                ? $this->recentActivity()
                 : [],
 
             'canViewAudit' => $user->can('audit.view'),
         ]);
+    }
+
+    /**
+     * The last few things that happened, phrased as sentences.
+     *
+     * The vocabulary comes from AuditAction rather than from the raw stored
+     * slug, and the subject is dropped when it is the person who acted — an
+     * entry that renders as "Prashant logged in Prashant" tells the reader
+     * less than one that simply says Prashant signed in.
+     *
+     * @return list<array{id: int, actor: string, action: string, subject: string|null, created_at: string|null}>
+     */
+    private function recentActivity(): array
+    {
+        return AuditLog::query()
+            ->latest('created_at')
+            ->limit(8)
+            ->get(['id', 'user_id', 'user_name', 'action', 'auditable_label', 'auditable_type', 'auditable_id', 'created_at'])
+            ->map(function (AuditLog $entry): array {
+                $describesTheActor = $entry->auditable_type === User::class
+                    && $entry->user_id !== null
+                    && $entry->auditable_id === $entry->user_id;
+
+                return [
+                    'id' => $entry->id,
+                    'actor' => $entry->user_name ?? 'System',
+                    'action' => $entry->action->label(),
+                    'subject' => $describesTheActor ? null : $entry->auditable_label,
+                    'created_at' => $entry->created_at?->toIso8601String(),
+                ];
+            })
+            ->all();
     }
 
     /**

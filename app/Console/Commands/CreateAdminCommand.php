@@ -95,22 +95,30 @@ class CreateAdminCommand extends Command
         }
 
         $user = DB::transaction(function () use ($name, $email, $password, $role): User {
-            $user = User::create([
+            // Built and saved once. Creating the record and then verifying the
+            // address in a second save would write a spurious "updated" entry
+            // to the audit trail, immediately after the "created" one, saying
+            // nothing a reader would want.
+            $user = new User;
+
+            $user->forceFill([
                 'name' => $name,
                 'email' => $email,
                 'password' => $password,
                 'status' => UserStatus::Active,
-            ]);
+                'email_verified_at' => now(),
+            ])->save();
 
-            $user->forceFill(['email_verified_at' => now()])->save();
             $user->assignRole($role->name);
 
+            // No actor: nobody was signed in. A console action is the system
+            // acting, and saying so is more honest than attributing it to the
+            // account it happens to be creating.
             $this->auditLogger->log(
                 action: AuditAction::RolesChanged,
                 entity: $user,
                 newValues: ['roles' => [$role->name]],
                 description: 'Administrator created from the console during deployment.',
-                actor: $user,
             );
 
             return $user;
@@ -182,8 +190,18 @@ class CreateAdminCommand extends Command
 
         $before = $user->getRoleNames()->values()->all();
 
-        $user->restore();
-        $user->activate();
+        // Only touch what actually needs changing. Calling restore() and
+        // activate() unconditionally writes "restored" and "updated" entries to
+        // the audit trail for an account that was never deleted or deactivated,
+        // which is noise in the one place that should be worth reading.
+        if ($user->trashed()) {
+            $user->restore();
+        }
+
+        if (! $user->isActive()) {
+            $user->activate();
+        }
+
         $user->syncRoles([$role->name]);
 
         $this->auditLogger->log(
@@ -192,7 +210,6 @@ class CreateAdminCommand extends Command
             oldValues: ['roles' => $before],
             newValues: ['roles' => [$role->name]],
             description: 'Role assigned from the console.',
-            actor: $user,
         );
 
         $this->components->info("{$user->email} now holds the {$role->name} role.");

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Domain\MasterData\Models;
 
 use App\Domain\Audit\Concerns\RecordsAuditTrail;
+use App\Domain\Inventory\Models\InventoryLot;
+use App\Domain\Inventory\Models\StockBalance;
 use App\Domain\MasterData\Enums\ItemType;
 use App\Domain\Measurement\Models\Uom;
 use App\Models\User;
@@ -120,6 +122,22 @@ class Item extends Model
         // would each look for a column of their own name — raw_material_id,
         // packaging_material_id — none of which exist.
         return $this->hasMany(ItemUomConversion::class, 'item_id');
+    }
+
+    /**
+     * @return HasMany<InventoryLot, $this>
+     */
+    public function lots(): HasMany
+    {
+        return $this->hasMany(InventoryLot::class, 'item_id');
+    }
+
+    /**
+     * @return HasMany<StockBalance, $this>
+     */
+    public function balances(): HasMany
+    {
+        return $this->hasMany(StockBalance::class, 'item_id');
     }
 
     /**

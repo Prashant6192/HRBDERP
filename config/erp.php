@@ -76,6 +76,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Stock alerts
+    |--------------------------------------------------------------------------
+    |
+    | Each item carries its own minimum_stock (critical) and reorder_level
+    | (low). The "moderate" band sits above the reorder level; its width is
+    | reorder_level x moderate_multiplier. See StockAlertService.
+    |
+    */
+
+    'stock_alerts' => [
+        'moderate_multiplier' => env('ERP_STOCK_MODERATE_MULTIPLIER', '2'),
+
+        // Lots expiring within this many days are flagged on the dashboard.
+        'expiry_warning_days' => (int) env('ERP_EXPIRY_WARNING_DAYS', 90),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Authentication
     |--------------------------------------------------------------------------
     */

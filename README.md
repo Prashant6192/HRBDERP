@@ -6,16 +6,17 @@ sales, in one Laravel application.
 
 This file is the way in. Each area has its own document:
 
-| Document                                               | What it covers                                           |
-| ------------------------------------------------------ | -------------------------------------------------------- |
-| [ERP_PRODUCT_SPEC.md](ERP_PRODUCT_SPEC.md)             | What the system does, module by module                   |
-| [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)               | Every table, and why it is shaped that way               |
-| [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md)   | Authentication, authorisation, formula protection, audit |
-| [USER_ROLES_PERMISSIONS.md](USER_ROLES_PERMISSIONS.md) | The sixteen roles and what each may do                   |
-| [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md)       | What is built, what is next                              |
-| [DEPLOYMENT.md](DEPLOYMENT.md)                         | Getting it onto a real URL                               |
-| [BACKUP_RESTORE.md](BACKUP_RESTORE.md)                 | Backups, and practising the restore                      |
-| [CHANGELOG.md](CHANGELOG.md)                           | What changed, when                                       |
+| Document                                               | What it covers                                                    |
+| ------------------------------------------------------ | ----------------------------------------------------------------- |
+| [FIRST_DEPLOY.md](FIRST_DEPLOY.md)                     | **Start here to get it online** — a step-by-step first deployment |
+| [ERP_PRODUCT_SPEC.md](ERP_PRODUCT_SPEC.md)             | What the system does, module by module                            |
+| [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)               | Every table, and why it is shaped that way                        |
+| [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md)   | Authentication, authorisation, formula protection, audit          |
+| [USER_ROLES_PERMISSIONS.md](USER_ROLES_PERMISSIONS.md) | The sixteen roles and what each may do                            |
+| [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md)       | What is built, what is next                                       |
+| [DEPLOYMENT.md](DEPLOYMENT.md)                         | Deployment reference: every option and setting                    |
+| [BACKUP_RESTORE.md](BACKUP_RESTORE.md)                 | Backups, and practising the restore                               |
+| [CHANGELOG.md](CHANGELOG.md)                           | What changed, when                                                |
 
 ---
 

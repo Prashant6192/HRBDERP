@@ -59,8 +59,9 @@ Have ready:
    connecting the two later.
 3. Add your payment method when prompted.
 
-**Stop here and tell me when this is done.** There is a branch decision I need
-from you before the next step, covered below.
+**Nothing is needed from me between here and Step 6.** Work straight through;
+if a step does not look like this description, stop and tell me rather than
+improvising.
 
 ---
 
@@ -69,23 +70,21 @@ from you before the next step, covered below.
 1. **Create application** → choose **GitHub** as the source.
 2. Grant access to `Prashant6192/HRBDERP` when GitHub asks.
 3. Select the repository.
-4. **Branch:** see the note below — this is the one thing you need to decide.
+4. **Branch:** select **`main`**.
 
-> ### The branch question
+> ### About the branch
 >
-> All the work so far is on a branch called
-> `claude/code-execution-workflow-r4457n`. There is no `main` branch in the
-> repository yet.
+> `main` now exists and holds everything described here — it was created for
+> exactly this purpose. Development continues on a working branch and lands in
+> `main` when it is ready to go live, so what you deploy is always a deliberate
+> choice rather than whatever was last saved.
 >
-> Deployment platforms expect `main` by default. Two options:
->
-> - **I create `main`** from the current work, and you deploy from `main`. This
->   is the normal arrangement and what I would recommend. I have not done it
->   already because pushing to a branch you did not ask for is not my call.
-> - **You deploy from the existing branch.** It works exactly the same; the
->   branch just has an odd name.
->
-> Tell me which and I will set it up.
+> One optional tidy-up, which you have to do yourself because it is a
+> repository setting: GitHub still lists the old working branch as this repo's
+> _default_. It changes nothing about deployment — you pick the branch in
+> Laravel Cloud regardless — but it makes GitHub open on `main` when you visit
+> it. To change it: **GitHub → the repo → Settings → General → Default
+> branch → switch to `main`**.
 
 ---
 

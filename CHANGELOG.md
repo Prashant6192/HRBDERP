@@ -10,6 +10,34 @@ between them.
 
 ## [Unreleased]
 
+### Added — Planning & Purchase (Phase D)
+
+- **Production plans.** Pick a formula with an active recipe and a batch
+  size; the plan is checked against the stores the moment it is saved. Every
+  raw material is scaled to the batch, expressed in its stock unit and set
+  against what the raw material store can release for production
+  (QC-approved, unexpired, unreserved): required, in store, short, and the
+  store's alert level now and after the run (Moderate / Low / Critically low
+  / Out of stock). Packaging is planned the same way from the product's pack
+  list and net content, in whole pieces. A plan can be re-checked at any time.
+- **Production Material Requests (PMR).** One request per store (raw
+  material, packaging), numbered `PMR-yymm-00001`, listing what the store
+  must provide, the shortfall to order, and the quantity that also brings
+  the store back to its reorder level. Printable as an A4 PDF for the store
+  and purchase. Requests close themselves as deliveries are booked in
+  against them, line by line.
+- **Goods receipts against a PMR.** The receiving screen offers open
+  requests; choosing one fills in the store and the quantities still to come.
+- **Packaging per unit** on each product: bottle, cap, label, a share of a
+  carton — edited on the product screen.
+- New `planning` module (view, create, edit, approve, cancel, export).
+  Factory Managers plan freely; Production Managers plan and raise requests;
+  purchase and the stores see the requests; Directors approve and cancel.
+- 13 tests: requirement arithmetic including alert-level movement and
+  restock quantities, QC-released stock only, unit counting through density,
+  whole-piece packaging, PMR generation per store, delivery closing a PMR,
+  cancellation cascade, and the screens by role.
+
 ### Added — Formulations (Phase C)
 
 - **Formulas with versions.** A formula is the identity; each version is one

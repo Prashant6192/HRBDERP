@@ -14,7 +14,10 @@ use App\Http\Controllers\Inventory\LotController;
 use App\Http\Controllers\Inventory\StockController;
 use App\Http\Controllers\MasterData\PackagingMaterialController;
 use App\Http\Controllers\MasterData\ProductController;
+use App\Http\Controllers\MasterData\ProductPackagingController;
 use App\Http\Controllers\MasterData\RawMaterialController;
+use App\Http\Controllers\Planning\MaterialRequestController;
+use App\Http\Controllers\Planning\ProductionPlanController;
 use App\Http\Controllers\Procurement\GoodsReceiptController;
 use App\Http\Controllers\Procurement\VendorController;
 use App\Http\Controllers\Quality\QcInspectionController;
@@ -69,6 +72,23 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('lots', [LotController::class, 'index'])->name('lots.index');
     Route::get('lots/{lot}', [LotController::class, 'show'])->name('lots.show');
     Route::get('lots/{lot}/sticker', [QcInspectionController::class, 'sticker'])->name('lots.sticker');
+
+    // ---- Planning & Purchase ----------------------------------------------
+    Route::get('plans', [ProductionPlanController::class, 'index'])->name('plans.index');
+    Route::get('plans/create', [ProductionPlanController::class, 'create'])->name('plans.create');
+    Route::post('plans', [ProductionPlanController::class, 'store'])->name('plans.store');
+    Route::get('plans/{plan}', [ProductionPlanController::class, 'show'])->name('plans.show');
+    Route::post('plans/{plan}/check', [ProductionPlanController::class, 'check'])->name('plans.check');
+    Route::post('plans/{plan}/requests', [ProductionPlanController::class, 'requests'])->name('plans.requests');
+    Route::post('plans/{plan}/cancel', [ProductionPlanController::class, 'cancel'])->name('plans.cancel');
+
+    Route::get('material-requests', [MaterialRequestController::class, 'index'])->name('material-requests.index');
+    Route::get('material-requests/{materialRequest}', [MaterialRequestController::class, 'show'])->name('material-requests.show');
+    Route::get('material-requests/{materialRequest}/pdf', [MaterialRequestController::class, 'pdf'])->name('material-requests.pdf');
+    Route::post('material-requests/{materialRequest}/cancel', [MaterialRequestController::class, 'cancel'])->name('material-requests.cancel');
+
+    Route::post('products/{product}/packaging', [ProductPackagingController::class, 'store'])->name('products.packaging.store');
+    Route::delete('products/{product}/packaging/{line}', [ProductPackagingController::class, 'destroy'])->name('products.packaging.destroy');
 
     // ---- Formulations -----------------------------------------------------
     // The list and the PIN screens need only formula.view. Anything that

@@ -22,6 +22,12 @@ class StoreGoodsReceiptRequest extends FormRequest
         return [
             'vendor_id' => ['nullable', 'integer', Rule::exists('vendors', 'id')->whereNull('deleted_at')],
 
+            // Booked in against a material request: its lines close as stock lands.
+            'material_request_id' => [
+                'nullable', 'integer',
+                Rule::exists('material_requests', 'id')->where(fn ($q) => $q->whereIn('status', ['open', 'partially_received'])),
+            ],
+
             // Released stock goes here; it must be a real store, not a quarantine.
             // The closure form keeps `false` a real boolean: the string form of
             // an exists rule would flatten it to '' which Postgres rejects.
@@ -55,6 +61,7 @@ class StoreGoodsReceiptRequest extends FormRequest
     {
         return [
             'warehouse_id.exists' => 'Choose an active store. Stock cannot be destined for a quarantine.',
+            'material_request_id.exists' => 'That material request is no longer open.',
             'lines.required' => 'Add at least one line to the receipt.',
             'lines.*.item_id.required' => 'Choose an item.',
             'lines.*.quantity.gt' => 'Quantity must be greater than zero.',

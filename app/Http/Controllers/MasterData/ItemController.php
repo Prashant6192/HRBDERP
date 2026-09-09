@@ -133,6 +133,7 @@ abstract class ItemController extends Controller
                 'update' => $request->user()->can('update', $item),
                 'delete' => $request->user()->can('delete', $item),
             ],
+            ...$this->extraShowProps($item),
         ]);
     }
 
@@ -175,6 +176,16 @@ abstract class ItemController extends Controller
         ]);
 
         return to_route("{$this->routeName()}.index");
+    }
+
+    /**
+     * Props only one item type's screen needs.
+     *
+     * @return array<string, mixed>
+     */
+    protected function extraShowProps(Item $item): array
+    {
+        return [];
     }
 
     /**

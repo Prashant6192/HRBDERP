@@ -105,6 +105,11 @@ final class PermissionCatalogue
             'group' => 'Operations',
             'abilities' => ['view', 'create', 'edit', 'delete', 'approve', 'archive', 'import', 'export'],
         ],
+        'planning' => [
+            'label' => 'Planning & Purchase',
+            'group' => 'Operations',
+            'abilities' => ['view', 'create', 'edit', 'approve', 'cancel', 'export'],
+        ],
         'production' => [
             'label' => 'Production',
             'group' => 'Operations',

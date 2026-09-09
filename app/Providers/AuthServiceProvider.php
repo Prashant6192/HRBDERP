@@ -13,6 +13,8 @@ use App\Domain\MasterData\Models\PackagingMaterial;
 use App\Domain\MasterData\Models\Product;
 use App\Domain\MasterData\Models\RawMaterial;
 use App\Domain\Measurement\Models\Uom;
+use App\Domain\Planning\Models\MaterialRequest;
+use App\Domain\Planning\Models\ProductionPlan;
 use App\Domain\Procurement\Models\GoodsReceipt;
 use App\Domain\Procurement\Models\Vendor;
 use App\Domain\Quality\Models\QcInspection;
@@ -24,7 +26,9 @@ use App\Policies\FormulaPolicy;
 use App\Policies\FormulaVersionPolicy;
 use App\Policies\GoodsReceiptPolicy;
 use App\Policies\InventoryLotPolicy;
+use App\Policies\MaterialRequestPolicy;
 use App\Policies\PackagingMaterialPolicy;
+use App\Policies\ProductionPlanPolicy;
 use App\Policies\ProductPolicy;
 use App\Policies\QcInspectionPolicy;
 use App\Policies\RawMaterialPolicy;
@@ -54,6 +58,8 @@ class AuthServiceProvider extends ServiceProvider
         GoodsReceipt::class => GoodsReceiptPolicy::class,
         Formula::class => FormulaPolicy::class,
         FormulaVersion::class => FormulaVersionPolicy::class,
+        ProductionPlan::class => ProductionPlanPolicy::class,
+        MaterialRequest::class => MaterialRequestPolicy::class,
         QcInspection::class => QcInspectionPolicy::class,
         InventoryLot::class => InventoryLotPolicy::class,
 

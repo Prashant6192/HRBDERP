@@ -513,3 +513,152 @@ export type PendingImport = {
     options: { assume_water_qs: boolean; activate: boolean };
     plan: ImportPlan;
 };
+
+// ---- Planning & Purchase ---------------------------------------------------
+
+export type ProductionPlanStatus =
+    | 'draft'
+    | 'checked'
+    | 'requested'
+    | 'in_production'
+    | 'completed'
+    | 'cancelled';
+
+export type MaterialRequestStatus =
+    | 'open'
+    | 'partially_received'
+    | 'fulfilled'
+    | 'cancelled';
+
+export type StoreKind = 'raw_material' | 'packaging';
+
+export type ProductPackagingLine = {
+    id: number;
+    packaging_material_id: number;
+    code: string;
+    name: string;
+    uom: string | null;
+    quantity_per_unit: string;
+    notes: string | null;
+};
+
+export type ProductionPlan = {
+    id: number;
+    number: string;
+    formula_id: number;
+    formula?: { id: number; code: string; name: string } | null;
+    formula_version_id: number;
+    formula_version?: {
+        id: number;
+        version_number: number;
+        batch_size: string;
+        batch_uom?: { id: number; code: string } | null;
+    } | null;
+    product_id: number | null;
+    product?: {
+        id: number;
+        code: string;
+        name: string;
+        net_content?: string | null;
+        net_content_uom?: { id: number; code: string } | null;
+    } | null;
+    planned_quantity: string;
+    planned_uom?: { id: number; code: string } | null;
+    planned_units: number | null;
+    status: ProductionPlanStatus;
+    planned_start_date: string | null;
+    notes: string | null;
+    warnings: string[] | null;
+    created_by?: { id: number; name: string } | null;
+    checked_at: string | null;
+    requested_at: string | null;
+    cancelled_at: string | null;
+    created_at: string;
+    short_lines_count?: number;
+    material_requests_count?: number;
+};
+
+export type RequirementLineRow = {
+    id: number;
+    line_no: number;
+    store_kind: StoreKind;
+    item_id: number;
+    item_code: string;
+    item_name: string;
+    item_type: string;
+    uom: string;
+    percentage: string | null;
+    is_qs: boolean;
+    as_required: boolean;
+    required: string;
+    available: string;
+    shortage: string;
+    restock: string;
+    level_now: StockAlertLevel;
+    level_after: StockAlertLevel;
+    reorder_level: string | null;
+    minimum_stock: string | null;
+    notes: string[];
+};
+
+export type MaterialRequestSummary = {
+    id: number;
+    number: string;
+    store_kind: StoreKind;
+    store_label: string;
+    warehouse: string | null;
+    status: MaterialRequestStatus;
+    status_label: string;
+    needed_by: string | null;
+};
+
+export type MaterialRequest = {
+    id: number;
+    number: string;
+    production_plan_id: number;
+    plan?: {
+        id: number;
+        number: string;
+        formula?: { id: number; code: string; name: string } | null;
+        product?: { id: number; code: string; name: string } | null;
+        planned_quantity: string;
+        planned_uom?: { id: number; code: string } | null;
+        planned_units?: number | null;
+        planned_start_date?: string | null;
+        status?: ProductionPlanStatus;
+    } | null;
+    store_kind: StoreKind;
+    warehouse?: { id: number; code: string; name: string } | null;
+    status: MaterialRequestStatus;
+    needed_by: string | null;
+    notes: string | null;
+    requested_by?: { id: number; name: string } | null;
+    requested_at: string;
+    fulfilled_at: string | null;
+    cancelled_at: string | null;
+    lines_count?: number;
+    short_lines_count?: number;
+    goods_receipts?: {
+        id: number;
+        number: string;
+        status: string;
+        received_at: string;
+    }[];
+};
+
+export type MaterialRequestLineRow = {
+    id: number;
+    line_no: number;
+    item_id: number;
+    item_code: string;
+    item_name: string;
+    uom: string;
+    required: string;
+    available: string;
+    to_order: string;
+    restock: string;
+    received: string;
+    outstanding: string;
+    covered: boolean;
+    alert_level: StockAlertLevel;
+};

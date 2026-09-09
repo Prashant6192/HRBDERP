@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Procurement\Models;
 
 use App\Domain\Audit\Concerns\RecordsAuditTrail;
+use App\Domain\Planning\Models\MaterialRequest;
 use App\Domain\Procurement\Enums\GoodsReceiptStatus;
 use App\Domain\Warehousing\Models\Warehouse;
 use App\Models\User;
@@ -28,7 +29,7 @@ class GoodsReceipt extends Model
     use RecordsAuditTrail;
 
     protected $fillable = [
-        'number', 'vendor_id', 'warehouse_id', 'received_at', 'invoice_ref',
+        'number', 'vendor_id', 'material_request_id', 'warehouse_id', 'received_at', 'invoice_ref',
         'status', 'notes', 'received_by', 'created_by', 'posted_at',
     ];
 
@@ -60,6 +61,14 @@ class GoodsReceipt extends Model
     public function vendor(): BelongsTo
     {
         return $this->belongsTo(Vendor::class, 'vendor_id');
+    }
+
+    /**
+     * @return BelongsTo<MaterialRequest, $this>
+     */
+    public function materialRequest(): BelongsTo
+    {
+        return $this->belongsTo(MaterialRequest::class, 'material_request_id');
     }
 
     /**

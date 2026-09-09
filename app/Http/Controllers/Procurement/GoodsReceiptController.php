@@ -6,6 +6,8 @@ namespace App\Http\Controllers\Procurement;
 
 use App\Domain\MasterData\Models\Item;
 use App\Domain\Measurement\Models\Uom;
+use App\Domain\Planning\Models\MaterialRequest;
+use App\Domain\Planning\Models\MaterialRequestLine;
 use App\Domain\Procurement\Enums\GoodsReceiptStatus;
 use App\Domain\Procurement\Models\GoodsReceipt;
 use App\Domain\Procurement\Models\Vendor;
@@ -78,6 +80,25 @@ class GoodsReceiptController extends Controller
             'uoms' => Uom::query()->active()->where('requires_item_factor', false)->orderBy('dimension')->orderBy('code')->get()
                 ->map(fn (Uom $u) => ['value' => $u->id, 'label' => $u->code, 'dimension' => $u->dimension->value])->all(),
             'today' => now()->toDateString(),
+
+            // Open material requests a delivery may be booked in against;
+            // choosing one pre-fills the store and the lines still to come.
+            'materialRequests' => MaterialRequest::query()->open()
+                ->with(['plan:id,number,formula_id', 'plan.formula:id,name', 'lines' => fn ($q) => $q->orderBy('line_no'), 'lines.item:id,code,name,stock_uom_id'])
+                ->orderByDesc('requested_at')
+                ->get()
+                ->map(static fn (MaterialRequest $r): array => [
+                    'value' => $r->id,
+                    'label' => "{$r->number} · {$r->plan->formula->name} ({$r->store_kind->shortLabel()})",
+                    'warehouse_id' => $r->warehouse_id,
+                    'lines' => $r->lines->map(static fn (MaterialRequestLine $l): array => [
+                        'item_id' => $l->item_id,
+                        'uom_id' => $l->uom_id,
+                        'outstanding' => $l->outstanding()->__toString(),
+                        'required' => $l->required_quantity,
+                    ])->all(),
+                ])->all(),
+            'selectedMaterialRequest' => request()->integer('material_request') ?: null,
         ]);
     }
 

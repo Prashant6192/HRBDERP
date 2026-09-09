@@ -13,6 +13,7 @@ use App\Domain\Inventory\Services\SequenceService;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\Measurement\Models\Uom;
 use App\Domain\Measurement\Services\UnitConversionService;
+use App\Domain\Planning\Services\MaterialRequestService;
 use App\Domain\Procurement\Enums\GoodsReceiptStatus;
 use App\Domain\Procurement\Models\GoodsReceipt;
 use App\Domain\Quality\Models\QcInspection;
@@ -38,10 +39,11 @@ class GoodsReceiptService
         private readonly InventoryLedgerService $ledger,
         private readonly UnitConversionService $conversions,
         private readonly WarehouseResolver $warehouses,
+        private readonly MaterialRequestService $materialRequests,
     ) {}
 
     /**
-     * @param  array{vendor_id?: int|null, warehouse_id: int, received_at: string, invoice_ref?: string|null, notes?: string|null}  $attributes
+     * @param  array{vendor_id?: int|null, material_request_id?: int|null, warehouse_id: int, received_at: string, invoice_ref?: string|null, notes?: string|null}  $attributes
      * @param  list<array{item_id: int, quantity: string, uom_id: int, unit_price?: string|null, supplier_batch_ref?: string|null, manufactured_at?: string|null, expiry_at?: string|null, notes?: string|null}>  $lines
      */
     public function create(array $attributes, array $lines, ?int $userId = null): GoodsReceipt
@@ -56,6 +58,7 @@ class GoodsReceiptService
             $receipt = GoodsReceipt::create([
                 'number' => $this->sequences->nextNumber('GRN', $receivedAt->format('ym')),
                 'vendor_id' => $attributes['vendor_id'] ?? null,
+                'material_request_id' => $attributes['material_request_id'] ?? null,
                 'warehouse_id' => $attributes['warehouse_id'],
                 'received_at' => $receivedAt->toDateString(),
                 'invoice_ref' => $attributes['invoice_ref'] ?? null,
@@ -174,6 +177,9 @@ class GoodsReceiptService
                 'received_by' => $userId,
                 'posted_at' => now(),
             ]);
+
+            // A delivery against a material request closes its lines.
+            $this->materialRequests->recordReceipt($receipt->load('lines'));
 
             return $receipt;
         });

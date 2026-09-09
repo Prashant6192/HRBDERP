@@ -1,5 +1,7 @@
 import {
     Beaker,
+    CalendarCheck,
+    ClipboardPen,
     Boxes,
     ClipboardCheck,
     ClipboardList,
@@ -19,6 +21,8 @@ import { index as auditIndex } from '@/routes/audit';
 import { index as formulasIndex } from '@/routes/formulas';
 import { index as goodsReceiptsIndex } from '@/routes/goods-receipts';
 import { index as lotsIndex } from '@/routes/lots';
+import { index as materialRequestsIndex } from '@/routes/material-requests';
+import { index as plansIndex } from '@/routes/plans';
 import { index as qcIndex } from '@/routes/qc';
 import { index as stockIndex } from '@/routes/stock';
 import { index as packagingMaterialsIndex } from '@/routes/packaging-materials';
@@ -88,6 +92,23 @@ export const erpNavigation: ErpNavGroup[] = [
                 href: lotsIndex().url,
                 icon: ClipboardList,
                 permission: 'inventory.view',
+            },
+        ],
+    },
+    {
+        label: 'Planning & Purchase',
+        items: [
+            {
+                title: 'Production Plans',
+                href: plansIndex().url,
+                icon: CalendarCheck,
+                permission: 'planning.view',
+            },
+            {
+                title: 'Material Requests',
+                href: materialRequestsIndex().url,
+                icon: ClipboardPen,
+                permission: 'purchase.view',
             },
         ],
     },

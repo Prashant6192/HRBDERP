@@ -1,4 +1,5 @@
 import { Head, useForm } from '@inertiajs/react';
+import { useEffect } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Field, FormSection } from '@/components/form-field';
 import InputError from '@/components/input-error';
@@ -26,6 +27,18 @@ type ItemOption = SelectOption & {
 };
 
 type UomOption = SelectOption & { dimension: string };
+
+type MaterialRequestOption = SelectOption & {
+    warehouse_id: number;
+    lines: {
+        item_id: number;
+        uom_id: number;
+        outstanding: string;
+        required: string;
+    }[];
+};
+
+const NONE = '__none__';
 
 type Line = {
     item_id: string;
@@ -61,15 +74,22 @@ export default function CreateGoodsReceipt({
     items,
     uoms,
     today,
+    materialRequests,
+    selectedMaterialRequest,
 }: {
     vendors: SelectOption[];
     warehouses: (SelectOption & { type: string })[];
     items: ItemOption[];
     uoms: UomOption[];
     today: string;
+    materialRequests: MaterialRequestOption[];
+    selectedMaterialRequest: number | null;
 }) {
     const form = useForm({
         vendor_id: '',
+        material_request_id: selectedMaterialRequest
+            ? String(selectedMaterialRequest)
+            : '',
         warehouse_id: String(warehouses[0]?.value ?? ''),
         received_at: today,
         invoice_ref: '',
@@ -79,6 +99,41 @@ export default function CreateGoodsReceipt({
     });
 
     const errors = form.errors as Record<string, string | undefined>;
+
+    // Booking in against a PMR: take its store and the lines still to come.
+    const applyMaterialRequest = (id: string) => {
+        const request = materialRequests.find((r) => String(r.value) === id);
+
+        if (!request) {
+            form.setData('material_request_id', '');
+            return;
+        }
+
+        const outstanding = request.lines.filter(
+            (l) => Number(l.outstanding) > 0,
+        );
+        const source = outstanding.length > 0 ? outstanding : request.lines;
+
+        form.setData({
+            ...form.data,
+            material_request_id: id,
+            warehouse_id: String(request.warehouse_id),
+            lines: source.map((l) => ({
+                ...emptyLine(),
+                item_id: String(l.item_id),
+                uom_id: String(l.uom_id),
+                quantity: outstanding.length > 0 ? l.outstanding : l.required,
+            })),
+        });
+    };
+
+    useEffect(() => {
+        if (selectedMaterialRequest) {
+            applyMaterialRequest(String(selectedMaterialRequest));
+        }
+        // Only on first render: the request comes from the URL.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const setLine = (index: number, patch: Partial<Line>) => {
         form.setData(
@@ -131,6 +186,47 @@ export default function CreateGoodsReceipt({
                     className="space-y-6"
                 >
                     <FormSection title="Delivery">
+                        {materialRequests.length > 0 && (
+                            <Field
+                                label="Against material request"
+                                htmlFor="material_request_id"
+                                error={errors.material_request_id}
+                                hint="Choosing a PMR fills in its store and the quantities still to come."
+                                className="sm:col-span-2"
+                            >
+                                <Select
+                                    value={
+                                        form.data.material_request_id || NONE
+                                    }
+                                    onValueChange={(v) =>
+                                        applyMaterialRequest(
+                                            v === NONE ? '' : v,
+                                        )
+                                    }
+                                >
+                                    <SelectTrigger
+                                        id="material_request_id"
+                                        className="w-full"
+                                    >
+                                        <SelectValue placeholder="Not against a request" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value={NONE}>
+                                            Not against a request
+                                        </SelectItem>
+                                        {materialRequests.map((r) => (
+                                            <SelectItem
+                                                key={r.value}
+                                                value={String(r.value)}
+                                            >
+                                                {r.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </Field>
+                        )}
+
                         <Field
                             label="Vendor"
                             htmlFor="vendor_id"

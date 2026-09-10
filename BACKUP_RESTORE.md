@@ -117,8 +117,8 @@ is instant; undoing a bad `pg_restore --clean` over live data is not.
 
 ### After any restore
 
-Re-apply both `REVOKE`s — `audit_logs` and `formula_access_logs` — because a
-restore creates the tables afresh under the owning role. Stock balances are
+Run `php artisan erp:lock-audit-trail` again, because a restore creates the
+tables afresh with their privileges intact. Stock balances are
 restored with everything else; if there is any doubt that they agree with the
 ledger, `StockBalanceService::rebuild()` recomputes every position from it.
 

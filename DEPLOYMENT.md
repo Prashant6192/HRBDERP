@@ -119,16 +119,17 @@ php artisan db:seed --force        # units, departments, roles — no demo data 
 `DatabaseSeeder` refuses to create demo accounts when `APP_ENV=production`, so
 this seeds reference data only.
 
-Then apply the audit-trail lock, as the database owner:
+Then lock the append-only tables:
 
-```sql
-REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs FROM hrbderp;
-REVOKE UPDATE, DELETE, TRUNCATE ON formula_access_logs FROM hrbderp;
+```bash
+php artisan erp:lock-audit-trail
 ```
 
-This is what makes the audit trail and the formula access trail genuinely
-append-only rather than append-only-by-convention. Inserts continue to work.
-See [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md#immutability-in-three-layers).
+It revokes `UPDATE`, `DELETE` and `TRUNCATE` on `audit_logs` and
+`formula_access_logs` from the application's own database role, which owns
+them. Inserts continue to work; nothing the application runs can alter or
+remove a row. `--check` reports the state without changing it. See
+[SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md#immutability-in-three-layers).
 
 ### Create the first administrator
 
@@ -208,12 +209,11 @@ if (app()->isProduction()) {
 - [ ] Queue worker running (`php artisan queue:monitor`)
 - [ ] Scheduler firing (`php artisan schedule:list`)
 - [ ] A test file uploads and downloads, and its URL is **not** reachable while signed out
-- [ ] `REVOKE` applied — try `UPDATE audit_logs SET action = 'x'` as the app role and confirm it is denied
+- [ ] `php artisan erp:lock-audit-trail --check` reports both trails locked
 - [ ] Error monitoring receiving a deliberately triggered test event
 - [ ] Backups running, and **a restore rehearsed** — see [BACKUP_RESTORE.md](BACKUP_RESTORE.md)
 - [ ] Laravel Telescope not installed
 - [ ] No account has the password `password`
-- [ ] Both `REVOKE`s applied — `audit_logs` and `formula_access_logs`
 
 ### Setting the factory up
 

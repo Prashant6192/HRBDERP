@@ -171,16 +171,18 @@ so no account with a published password ever exists on your live system.
 
 Open the application's **Console** in Laravel Cloud.
 
-**a. Lock the audit trail.** In the database console:
+**a. Lock the audit trail.** In the **Commands** box (it runs shell commands;
+there is no separate SQL console in Laravel Cloud):
 
-```sql
-REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs FROM your_db_user;
-REVOKE UPDATE, DELETE, TRUNCATE ON formula_access_logs FROM your_db_user;
+```bash
+php artisan erp:lock-audit-trail
 ```
 
-This is what makes the audit trail — and the record of who opened which
-formula — genuinely tamper-proof rather than tamper-proof-by-convention.
-Without it, the rule lives only in application code.
+It reports `audit_logs … locked` and `formula_access_logs … locked`. This is
+what makes the audit trail — and the record of who opened which formula —
+genuinely tamper-proof rather than tamper-proof-by-convention: from now on
+the application can add rows to those tables but never change or remove one.
+`php artisan erp:lock-audit-trail --check` tells you the state at any time.
 
 **b. Create your account.** This is not optional — there is no sign-up page, by
 design, so until you do this the ERP has no users and nobody can get in.

@@ -211,8 +211,7 @@ warehouse it refers to after that warehouse is gone.
    bind code that goes through Eloquent:
 
 ```sql
-REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs FROM hrbderp;
-REVOKE UPDATE, DELETE, TRUNCATE ON formula_access_logs FROM hrbderp;
+php artisan erp:lock-audit-trail   # REVOKE UPDATE, DELETE, TRUNCATE on both trails
 ```
 
 Run it once, after migrating, as the database owner. Inserts continue to work.
@@ -240,7 +239,7 @@ signed URLs. A file must never be reachable by guessing its URL.
 
 ## 6. Production checklist
 
-- [ ] `REVOKE UPDATE, DELETE, TRUNCATE` applied to `formula_access_logs` as well as `audit_logs`
+- [ ] `php artisan erp:lock-audit-trail --check` reports `audit_logs` and `formula_access_logs` locked
 - [ ] `ERP_FORMULA_REQUIRE_PIN=true` and the access TTL within 5–60 minutes
 - [ ] Every person who holds `formula.view` has set their own PIN
 

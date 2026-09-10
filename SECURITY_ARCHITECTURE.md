@@ -250,7 +250,7 @@ Before the system holds real company data:
 - [ ] HTTPS enforced, HSTS enabled
 - [ ] `SESSION_ENCRYPT=true`
 - [ ] Database password not the development default; database not reachable from the public internet
-- [ ] `REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs` applied
+- [ ] `php artisan erp:lock-audit-trail` run (the `REVOKE` on `audit_logs` and `formula_access_logs`)
 - [ ] Object storage buckets private
 - [ ] Laravel Telescope absent
 - [ ] Demo accounts absent — they are seeded only outside production, but confirm

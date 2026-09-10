@@ -123,7 +123,7 @@ restored with everything else; if there is any doubt that they agree with the
 ledger, `StockBalanceService::rebuild()` recomputes every position from it.
 
 ```sql
-REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs FROM hrbderp;
+php artisan erp:lock-audit-trail
 ```
 
 Grants do not always survive a restore. Re-apply this, or the audit trail is

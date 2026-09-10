@@ -18,7 +18,9 @@ use Spatie\Permission\PermissionRegistrar;
  * Run after adding a module or ability to PermissionCatalogue. It is safe to
  * run repeatedly and on a live system: permissions are created but never
  * dropped, so a permission removed from the catalogue is reported rather than
- * deleted out from under whoever currently holds it.
+ * deleted out from under whoever currently holds it. A permission that is new
+ * to the catalogue is handed to the built-in roles whose defaults include it;
+ * nothing else about a role is touched unless --roles is given.
  */
 class SyncPermissionsCommand extends Command
 {
@@ -51,6 +53,8 @@ class SyncPermissionsCommand extends Command
 
             if ($this->option('roles')) {
                 $this->syncRoles($guard);
+            } elseif ($missing !== []) {
+                $this->grantNewPermissions($guard, $missing);
             }
         });
 
@@ -76,6 +80,28 @@ class SyncPermissionsCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Give each built-in role the abilities that are new to the catalogue and
+     * belong in its defaults — without disturbing whatever else an
+     * administrator has granted or withdrawn on the Roles screen.
+     *
+     * @param  list<string>  $added
+     */
+    private function grantNewPermissions(string $guard, array $added): void
+    {
+        foreach (RoleName::all() as $roleName) {
+            $role = Role::firstOrCreate(['name' => $roleName->value, 'guard_name' => $guard]);
+            $gains = array_values(array_intersect($roleName->permissions(), $added));
+
+            if ($gains === []) {
+                continue;
+            }
+
+            $role->givePermissionTo($gains);
+            $this->components->twoColumnDetail($roleName->value, 'gains '.implode(', ', $gains));
+        }
     }
 
     /**

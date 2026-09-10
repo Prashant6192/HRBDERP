@@ -25,13 +25,33 @@ class RolePermissionSeeder extends Seeder
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
+        $added = [];
+
         foreach (PermissionCatalogue::all() as $permission) {
-            Permission::firstOrCreate(['name' => $permission, 'guard_name' => $guard]);
+            $created = Permission::firstOrCreate(['name' => $permission, 'guard_name' => $guard]);
+
+            if ($created->wasRecentlyCreated) {
+                $added[] = $permission;
+            }
         }
 
+        // A role that already exists may have been tuned by an administrator
+        // on the Roles screen. It is not reset: it only gains the abilities
+        // that are new to the catalogue and belong in its defaults.
         foreach (RoleName::all() as $roleName) {
             $role = Role::firstOrCreate(['name' => $roleName->value, 'guard_name' => $guard]);
-            $role->syncPermissions($roleName->permissions());
+
+            if ($role->wasRecentlyCreated || $role->permissions()->count() === 0) {
+                $role->syncPermissions($roleName->permissions());
+
+                continue;
+            }
+
+            $gains = array_values(array_intersect($roleName->permissions(), $added));
+
+            if ($gains !== []) {
+                $role->givePermissionTo($gains);
+            }
         }
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();

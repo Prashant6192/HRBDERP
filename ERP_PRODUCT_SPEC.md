@@ -92,88 +92,126 @@ orders, stock adjustments, write-offs and price overrides. A request, an ordered
 set of steps, a record of who did what, and a final state. A step names a
 required permission or role; workflows are configuration, not schema.
 
-### Inventory ledger — _next_
+### Inventory ledger — _built_
 
 The centre of the system.
 
-Immutable `inventory_transactions` in typed pairs: GRN receipt, purchase return,
-production reservation, consumption and return, transfer out and in, adjustment
-in and out, damage, expiry, sample, sales allocation, marketplace transfer.
-Lots, warehouse locations, and stock reservations.
+Every movement is a row in `inventory_transactions` with typed lines: goods
+receipt, QC release and rejection, production consumption and output, transfer,
+adjustment, damage, expiry, sample, dispatch. Nothing is ever edited; a
+correction is another movement. `stock_balances` is a cache the ledger can
+rebuild at any time.
 
-Current stock is derived from the ledger. Cached balances may be maintained for
-speed; the ledger remains the truth. Every stock-changing operation runs in a
-database transaction with row locking, so that two people reserving the same
-material at the same moment cannot both succeed.
+Each store shows what is on hand, held for production, and free, with a level
+per material from its own thresholds — **Moderate**, **Low**, **Critically
+low**, **Out of stock** — and a count of batches expiring soon. Every
+stock-changing operation runs in a database transaction with row locks, proven
+by a test that forks real processes against PostgreSQL: two people reserving
+the same drum at the same moment cannot both succeed.
 
-### Formulations — _next_
+### Receiving and quality control — _built_
 
-Products have formulas; formulas have versions; versions have ingredients.
+A delivery is booked in from the delivery note and posted. Every line becomes a
+numbered batch (`RM250909-001`). Material that needs QC lands in the quarantine
+store and opens an inspection; material that does not goes straight to its
+store. QC approves (the whole batch moves to the store), rejects (it stays
+locked in quarantine) or holds. Every approved batch has a 100 × 70 mm
+sticker — QC APPROVED, batch number, received / manufactured / expiry, quantity
+— for a label printer. Finished batches from production go through the same
+checkpoint.
 
-A change never overwrites: it creates a new version. Earlier versions are
-archived and stay readable. Exactly one approved version is active at a time.
+### Formulations — _built_
 
-Access requires the permission **and** a second verification that grants a
-short-lived unlock. Every view is recorded.
+Products have formulas; formulas have versions; versions have ingredients as
+percentages of a reference batch, with an optional QS line for the filler.
 
-### Production — _planned_
+A change never overwrites: it creates a draft version which, on activation,
+supersedes the previous one. Exactly one active version exists per formula —
+the database enforces it. Production orders record the version they were made
+from.
 
-Manufacturing orders against a product and a formula version, for a batch size.
+The list shows names only. Opening, editing, scaling or importing a recipe
+requires the formula PIN, which grants a short unlock bound to the browser
+session. Every attempt and every look is recorded in the formula access trail.
+See [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md#3-formula-protection).
 
-`ProductionRequirementService` answers the question that matters before the
-plant starts: _can we make this?_ It calculates ingredient and packaging
-requirements, checks available and QC-released stock, and reports shortages, the
-maximum manufacturable quantity, and the limiting material.
+Recipes arrive by hand or from Excel: the import understands the workbooks
+chemists actually write — a column table of INCI, trade name and %, or one cell
+per line read top to bottom — and shows the full plan (new formulas, new
+versions, raw materials to create, everything it had to guess at) before
+writing anything.
 
-> Product: Hydra Smooth Shampoo · Formula V3 · Requested 500 KG
+### Planning & Purchase — _built_
+
+The manufacturing head picks a formula and a batch size. The plan is checked
+against the stores as it is saved: every raw material scaled to the batch in
+its stock unit, set against what the raw material store can release for
+production — required, in store, short, and the store's alert level now and
+after the run. Packaging is planned from the product's per-unit pack list and
+net content. Warnings say what could not be decided (no density, no pack list,
+no product linked).
+
+Raising requests produces one **Production Material Request** per store —
+raw material and packaging — with the shortfall to order and the quantity that
+also restores the reorder level, printable for the store and purchase.
+Deliveries booked in against a request close its lines as stock lands.
+
+> Plan PLN-2609-00001 · Brightening Body Lotion · 25 kg
 >
-> | Ingredient   | Required | Available | Shortage |
-> | ------------ | -------- | --------- | -------- |
-> | Surfactant A | 75 KG    | 100 KG    | —        |
-> | Surfactant B | 30 KG    | 18 KG     | 12 KG    |
-> | Fragrance    | 2.5 KG   | 5 KG      | —        |
+> | Material         | Required | In store | Short    | Level          |
+> | ---------------- | -------- | -------- | -------- | -------------- |
+> | Purified Water   | 18.85 kg | 0 kg     | 18.85 kg | Out → Out      |
+> | Glycerin         | 0.5 kg   | 2.1 kg   | —        | Low → Critical |
 >
-> **Production possible:** No · **Maximum:** 300 KG · **Limiting material:**
-> Surfactant B · **Shortage:** 12 KG
+> Two requests raised: PMR-2609-00001 (raw material), PMR-2609-00002 (packaging).
 
-`InventoryReservationService` reserves rather than deducts when an order is
-approved: physical stock stays, available stock falls. Reservations convert to
-consumption when production starts, release on cancellation, and handle partial
-production.
+### Manufacturing — _built_
 
-### Quality control — _planned_
+A manufacturing order is opened from a checked plan. **Approve** holds every
+material in its store, earliest-expiring batches first, all or nothing — if
+anything is short the message names each shortfall. **Start** issues the raw
+materials to the kettle through the ledger. **Complete** records output, units
+packed and yield, uses up the packaging, releases anything left and posts the
+finished batch as a lot, into quarantine for QC. **Cancel** releases what is
+held; what the kettle took stays taken.
 
-QC on received materials and finished batches. Material requiring QC lands in
-quarantine and is unavailable until released. Approvals and rejections are
-recorded against the lot.
+### Procurement — _partly built_
 
-### Procurement — _planned_
+Goods receipts, vendors and material requests are built. Purchase orders with
+approval, and supplier price history with its dashboards (last, average,
+previous, change, cheapest supplier, trend), are next.
 
-Purchase orders with approval, goods receipt into the ledger, and supplier price
-history: material, vendor, price, quantity, effective date, currency and GST.
-Dashboards for last, average and previous price, percentage change, cheapest
-supplier and price trend.
+### Dashboard — _built_
+
+A greeting with the day's headlines; in production, plans awaiting production,
+open material requests, awaiting QC, critically low materials, expiring
+batches; each store's items by alert level; what is on the floor and at which
+stage; receiving and QC per day over 7 / 30 / 90 days; units packed per week;
+materials to watch; what is coming up. Every card is gated by the permission of
+the module behind it, and each person can hide the ones they do not need.
 
 ### Costing — _planned_
 
 `ProductCostingService`: raw material, packaging, labour, overhead, wastage and
 configurable costs, producing batch cost, cost per kilogram and cost per unit.
+The consumption each manufacturing order already records is its input.
 
 Historical costing is preserved: a material price rise never rewrites what an
 earlier batch cost.
 
-### Sales and marketplace — _planned_
+### Accounting, dispatch and sales — _planned_
 
-Sales orders and allocation from finished stock. Marketplace imports for Amazon
-and Flipkart, stock transfers to fulfilment centres, and reconciliation.
+Sales orders and allocation from finished stock; dispatch notes; marketplace
+imports for Amazon and Flipkart, stock transfers to fulfilment centres, and
+reconciliation. Shown in the navigation now so the shape of the system is
+visible.
 
-### Reporting, imports and exports — _planned_
+### Reporting, imports and exports — _partly built_
 
-Excel import for opening stock, masters, vendor prices and marketplace sales,
-validated before anything is committed: total rows, valid rows, invalid rows and
-the specific errors, so a bad file can be fixed rather than half-imported.
-Exports for the stock ledger, inventory, purchase orders, production, sales and
-costing. Large files run on the queue.
+The formulation import is built. Excel import for opening stock, masters,
+vendor prices and marketplace sales, validated before anything is committed,
+and exports for the stock ledger, inventory, purchases, production, sales and
+costing, are next. Large files will run on the queue.
 
 ### Notifications — _planned_
 
@@ -182,9 +220,8 @@ Slack can be added later as channels without touching the business logic.
 
 ### Scheduled work — _planned_
 
-Daily low-stock scan, expiry alerts, overdue purchase orders, marketplace
-reconciliation, price-change alerts, production delays, inventory snapshots and
-scheduled reports.
+Daily low-stock scan, expiry alerts, overdue material requests, reconciliation,
+inventory snapshots and scheduled reports.
 
 ---
 

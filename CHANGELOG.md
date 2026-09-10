@@ -10,6 +10,22 @@ between them.
 
 ## [Unreleased]
 
+### Changed — Permissions, seeding and documentation (Phase G)
+
+- **Deploys no longer reset roles.** `db:seed` and `erp:sync-permissions`
+  now hand each built-in role only the abilities that are new to the
+  catalogue and belong in its defaults; whatever an administrator granted or
+  withdrew on the Roles screen stays. `erp:sync-permissions --roles` remains
+  the deliberate reset.
+- **Demo data for a working day** outside production: a delivery passed by
+  QC, an invented recipe with a pack list, a plan short of materials with its
+  two requests, and a batch on the floor — so a fresh development database
+  shows every screen with something on it.
+- Documentation brought up to date with the factory flow: product spec,
+  database schema, security architecture (the formula gates as built), roles
+  (generated from the code), roadmap, deployment, backup and the first-deploy
+  guide's set-up steps.
+
 ### Added — Workflow navigation and the dashboard (Phase F)
 
 - **Navigation in the order work flows**: Store (Raw Material, Packaging and

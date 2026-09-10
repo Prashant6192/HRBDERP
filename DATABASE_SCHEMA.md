@@ -214,10 +214,156 @@ definition.
 
 ---
 
+## Inventory
+
+The ledger is the truth; everything else about stock is derived from it.
+
+### `document_sequences`
+
+One row per numbering key (`grn:2609`, `pmr:2609`, `batch:RM:250909`,
+`formula`), locked `FOR UPDATE` when a number is taken, so numbers never repeat
+and never skip.
+
+### `inventory_lots`
+
+A batch of an item: `batch_number` (unique), supplier reference, vendor,
+manufactured / received / expiry dates, `qc_status` (not_required, pending,
+approved, rejected, on_hold), `initial_quantity`, `unit_cost`, and a
+polymorphic `source` — the goods receipt line or manufacturing order it came
+from.
+
+### `inventory_transactions`, `inventory_transaction_lines`
+
+Append-only. A transaction has a type (`GRN_RECEIPT`, `QC_RELEASE`,
+`QC_REJECTION`, `PRODUCTION_CONSUMPTION`, `PRODUCTION_OUTPUT`,
+`STOCK_TRANSFER`, adjustments, damage, expiry, sample, dispatch), a warehouse,
+a polymorphic `reference`, a reason and `transacted_at`; its lines carry
+`item_id`, `warehouse_id`, `lot_id`, a signed `quantity` in the item's stock
+unit, and `unit_cost`. Nothing here is ever updated.
+
+### `stock_balances`
+
+The cache: `on_hand` and `reserved` per `(item, warehouse, lot)`, unique with
+`NULLS NOT DISTINCT` so an unbatched position is one row. `CHECK (on_hand >= 0
+AND reserved >= 0 AND reserved <= on_hand)`. `StockBalanceService::rebuild()`
+recomputes every row from the ledger.
+
+### `stock_reservations`
+
+Stock held for something — a manufacturing order — per lot: `quantity`,
+`consumed_quantity`, status (active, consumed, released), a polymorphic
+`reservable`. Consuming lowers the reservation first, then posts the ledger
+line, in one transaction.
+
+---
+
+## Receiving and quality
+
+### `goods_receipts`, `goods_receipt_lines`
+
+A delivery: number `GRN-yymm-00001`, vendor, destination warehouse, optional
+`material_request_id`, `received_at`, status (draft, received, cancelled),
+`posted_at`. Lines carry the quantity as entered with its unit and the same in
+the stock unit, price, supplier batch, dates, and — once posted — the batch
+number, lot and inspection that were created. `CHECK` keeps quantities positive.
+
+### `qc_inspections`
+
+One per batch that needs a decision: number `QC-yymm-00001`, lot, item, the
+goods receipt line (null for a finished batch from production), quantity,
+status, the store the batch is destined for, who decided and when, remarks,
+and `parameters` (`jsonb`) for test results.
+
+---
+
+## Formulations
+
+### `formulas`
+
+The identity: `code` (`FRM-0001`), `name`, optional `product_id`, status
+(draft, active, archived), `active_version_id`. Nothing secret lives here —
+the list screen reads only this table. Soft-deleted.
+
+### `formula_versions`
+
+One recipe: `version_number` (unique per formula), status (draft, active,
+superseded, rejected), the reference batch (`batch_size`, `batch_uom_id`),
+cached `total_percentage`, notes, `change_summary`, `source` (manual, import)
+and `source_reference`, who created, approved, activated and superseded it,
+and when. **A partial unique index on `(formula_id) WHERE status = 'active'`
+guarantees one active recipe per formula.**
+
+### `formula_ingredients`
+
+`line_no`, `item_id` (a raw material), `inci_name` as written at the time,
+`percentage` (nullable), `is_qs`, `qs_note`, `grade`, `phase`, `purpose`.
+`percentage` null with `is_qs` is the filler to 100 %; null without it is "as
+required". `CHECK (percentage BETWEEN 0 AND 100)`. **Not audited** through the
+general audit log — see SECURITY_ARCHITECTURE.md.
+
+### `formula_unlocks`, `formula_access_logs`
+
+An unlock is a short-lived grant: `user_id`, a hash of the session's token,
+`unlocked_at`, `expires_at`, `revoked_at`, IP and agent. The access log is the
+append-only security trail: user, formula, version, `action` (unlocked,
+unlock_failed, locked_out, locked, pin_set, viewed, scaled, edited, activated,
+imported), IP, agent, `context`, `occurred_at`. The model refuses updates and
+deletes; production should also `REVOKE` them.
+
+`users` carries `formula_pin_hash`, `formula_pin_set_at`,
+`formula_pin_failed_attempts` and `formula_pin_locked_until`; `items` carries
+`inci_name`.
+
+---
+
+## Planning and purchase
+
+### `product_packaging_lines`
+
+What each unit of a product is packed in: `packaging_material_id`,
+`quantity_per_unit` (`CHECK > 0`; 0.02 for a carton of fifty), unique per
+product and material.
+
+### `production_plans`, `production_plan_lines`
+
+A plan: `PLN-yymm-00001`, formula and the version at planning time, product,
+`planned_quantity` in `planned_uom_id`, `planned_units`, status (draft,
+checked, requested, in_production, completed, cancelled), `planned_start_date`,
+`warnings` (`jsonb`), `checked_at`, `requested_at`. Lines are the requirement
+as at `checked_at`: `store_kind` (raw_material, packaging), item, stock unit,
+percentage, `required_quantity`, `available_quantity`, `shortage_quantity`,
+`restock_quantity`, `level_now`, `level_after`, `notes`.
+
+### `material_requests`, `material_request_lines`
+
+A PMR: `PMR-yymm-00001`, plan, `store_kind`, warehouse, status (open,
+partially_received, fulfilled, cancelled), `needed_by`, who raised it. Lines:
+item, unit, `required_quantity`, `available_quantity`, `quantity_to_order`,
+`restock_quantity`, `received_quantity` (advanced by goods receipts against
+the request), `alert_level`.
+
+---
+
+## Manufacturing
+
+### `manufacturing_orders`, `manufacturing_order_lines`
+
+An order: `MO-yymm-00001`, plan, formula and version, product, planned quantity
+and units, status (draft, approved, in_progress, completed, cancelled), and the
+result — `output_quantity`, `output_units`, `yield_percentage`,
+`output_lot_id`, `manufactured_at` — with who approved, started and completed
+it. Lines: the material list with `planned_quantity`, `reserved_quantity` and
+`consumed_quantity` in the stock unit. Reservations and ledger lines reference
+the order polymorphically.
+
+---
+
 ## Still to come
 
-The inventory ledger is the next and most important addition. Its shape is
-already decided — see [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md) — and the
-principle is that **`stock_quantity` is never an editable column.** Stock is
-derived from immutable `inventory_transactions`; cached balances may exist for
-speed, but the ledger is the truth.
+Purchase orders and vendor price history, costing (batch, per kilogram, per
+unit — built on the consumption each order already records), sales orders and
+dispatch, and the approval workflows that will sit on the existing
+`approvals` tables. See [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md).
+
+The rule that survives all of it: **`stock_quantity` is never an editable
+column.** Stock is derived from immutable `inventory_transactions`.

@@ -113,62 +113,79 @@ is gated more tightly than `user.edit`.
 Product formulations are the company's principal trade secret. Holding
 `formula.view` is necessary but **not sufficient**.
 
-> **Status:** the security model below is designed and its configuration is in
-> place (`config/erp.php`, the `formula_pin_hash` column, `User::setFormulaPin`
-> and `verifyFormulaPin`, and the audit actions). The formulation module itself
-> is the next thing to be built — see
-> [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md). This section is the
-> specification that module will be built against, not a description of code
-> that already runs.
-
 ### Three gates
 
 To see a formulation a user must:
 
 1. Be authenticated with an active account.
-2. Hold `formula.view`.
-3. Clear a **second verification** — a dedicated formula PIN, or a
-   re-entry of their account password, configurable by `ERP_FORMULA_REQUIRE_PIN`.
+2. Hold `formula.view` — which opens only the list of formula names, codes
+   and statuses. No ingredient is loaded for that screen.
+3. Clear a **second verification**: the formula PIN (4–8 digits), or a
+   re-entry of the account password when `ERP_FORMULA_REQUIRE_PIN=false`.
 
-Clearing the third gate grants a short-lived unlock, defaulting to 20 minutes
-and bounded to between 5 and 60 by `config/erp.php` so the setting cannot be
-widened into a permanent unlock. When it expires, verification is required
-again.
+The third gate is the `formula.unlocked` middleware (`EnsureFormulaUnlocked`)
+on every route that would load a recipe — viewing, editing, scaling,
+importing. A user without a current unlock is sent to verify (or to set a PIN
+first), with the page they wanted remembered.
 
-The PIN is hashed exactly as a password is. It is never stored in readable
-form, never returned by any endpoint, and is on the model's `$hidden` list so
-it cannot leak through serialisation. Verification fails closed: an account
-with no PIN set returns false rather than throwing, so a caller cannot tell
-"wrong PIN" from "no PIN" by the exception type.
+Clearing it grants an unlock of `ERP_FORMULA_ACCESS_TTL_MINUTES` (default 20),
+clamped by `config/erp.php` to between 5 and 60 so no environment setting can
+turn it into a permanent one. The unlock is bound to the browser session
+through a random token kept in session data and stored hashed on the
+`formula_unlocks` row: another session of the same account — a phone, a
+second laptop — must verify for itself. Verifying again anywhere revokes
+every other unlock the account holds. Locking, changing the PIN and an
+administrator's PIN reset all revoke it early.
 
-Failed verifications are throttled — five attempts, then a fifteen-minute
-lockout — and each one is written to the audit trail.
+The PIN is set with the account password and hashed exactly as a password is.
+It is never stored in readable form, never returned by any endpoint, and is on
+the model's `$hidden` list. Verification fails closed: an account with no PIN
+returns false rather than throwing, so a caller cannot tell "wrong PIN" from
+"no PIN" by the exception type. Five failed attempts lock the module for
+fifteen minutes; the unlock endpoint is additionally rate-limited.
+
+### The access trail
+
+`formula_access_logs` records every unlock, failed attempt, lockout, lock,
+PIN change, view, scaling, edit, activation and import, with formula, version,
+IP and user agent. The model refuses updates and deletes; production should
+`REVOKE UPDATE, DELETE, TRUNCATE` on it as on `audit_logs`. Security events
+(unlock, failure, PIN change) are also written to the general audit trail;
+views are not, so the audit timeline does not double as a record of who
+studies which recipe.
 
 ### Where formula data must not appear
 
-Authorisation happens **before** the server loads formulation data, not after.
-The following are explicit non-goals of any formulation endpoint:
+Authorisation happens **before** the server loads formulation data, and the
+implementation keeps recipes out of:
 
-- HTML source and the Inertia page payload
-- Frontend JavaScript, and anything reachable from the browser console
-- API responses to unauthorised callers
-- Debug logs and exception pages
-- Notifications and their previews
-- Exports and reports
-- Search results and autocomplete
-- Laravel Telescope — which must not be installed in production at all
+- the formula list and every other screen — only the unlocked recipe screens
+  carry ingredients, and their responses are sent
+  `Cache-Control: no-store` so no proxy or back-forward cache keeps them;
+- the general audit log — `FormulaIngredient` is deliberately not audited,
+  because an old/new diff of that row *is* the recipe, and the audit log is
+  readable by roles that may not see formulations; a test asserts no
+  percentage or ingredient reaches it;
+- the frontend bundle, logs, notifications and exception pages (`APP_DEBUG`
+  must be `false` in production; Laravel Telescope must not be installed);
+- uploaded import workbooks — held in private storage under a random token
+  only while the plan is reviewed, and deleted the moment the import commits
+  or is discarded; the plan itself is never written to a log.
 
-`APP_DEBUG` must be `false` in production. A Laravel exception page renders
-local variables, and a stack trace through the formulation service would
-display the very data this section exists to protect.
+What **does** carry quantities, by design, are production plans, material
+requests and manufacturing orders: the store must know how many kilograms of
+each material a batch takes, and purchase must know what to order. Those
+screens sit behind `planning.view`, `purchase.view` and `production.view`,
+which the Designer and no outside party hold. They show quantities for one
+batch; they do not show the recipe, and they are the normal working papers of
+any factory.
 
 ### Versioning
 
-Formulations are versioned, never overwritten. A change creates a new version;
-earlier versions are archived and stay readable. Only one approved version is
-active at a time. Every view of a formulation is recorded — "Director viewed
-Hydra Smooth Shampoo V4" is an audit entry in its own right, which is why
-`AuditAction::FormulaViewed` exists separately from `Updated`.
+Formulations are versioned, never overwritten. A change is a new draft
+version that supersedes the active one on activation; earlier versions stay
+readable. The database guarantees one active version per formula with a
+partial unique index. Every view of a version is a row in the access trail.
 
 ---
 
@@ -195,6 +212,7 @@ warehouse it refers to after that warehouse is gone.
 
 ```sql
 REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs FROM hrbderp;
+REVOKE UPDATE, DELETE, TRUNCATE ON formula_access_logs FROM hrbderp;
 ```
 
 Run it once, after migrating, as the database owner. Inserts continue to work.
@@ -221,6 +239,10 @@ signed URLs. A file must never be reachable by guessing its URL.
 ---
 
 ## 6. Production checklist
+
+- [ ] `REVOKE UPDATE, DELETE, TRUNCATE` applied to `formula_access_logs` as well as `audit_logs`
+- [ ] `ERP_FORMULA_REQUIRE_PIN=true` and the access TTL within 5–60 minutes
+- [ ] Every person who holds `formula.view` has set their own PIN
 
 Before the system holds real company data:
 

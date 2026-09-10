@@ -1,8 +1,14 @@
 # HRBD ERP
 
 An enterprise resource planning system for a cosmetics and personal-care
-manufacturer: materials, formulations, production, inventory, procurement and
-sales, in one Laravel application.
+manufacturer, in one Laravel application. Today it runs the factory from
+delivery to finished batch: goods receipts with a QC checkpoint and printed
+batch stickers, an immutable inventory ledger with three-level stock alerts,
+PIN-protected versioned formulations with Excel import, production planning
+that checks the stores and raises material requests, manufacturing orders
+that reserve, consume and post finished batches, and a dashboard that shows
+where the plant stands. Costing, dispatch and accounting come next — see
+[DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md).
 
 This file is the way in. Each area has its own document:
 
@@ -35,7 +41,9 @@ This file is the way in. Each area has its own document:
 | Authorisation        | spatie/laravel-permission, with Laravel policies and gates |
 | Cache, queues, locks | Redis in production; database drivers in development       |
 | Exact arithmetic     | brick/math over PostgreSQL `NUMERIC`                       |
-| Spreadsheets         | maatwebsite/excel                                          |
+| Spreadsheets         | maatwebsite/excel + PhpSpreadsheet (formulation import)    |
+| PDF                  | barryvdh/laravel-dompdf (batch stickers, material requests) |
+| Charts               | recharts                                                   |
 
 ---
 
@@ -102,8 +110,10 @@ on the server, not by hiding buttons.
 | `npm run types:check`                      | TypeScript, without emitting                           |
 | `php artisan migrate`                      | Applies new migrations                                 |
 | `php artisan db:seed`                      | Reference data, plus demo data outside production      |
-| `php artisan erp:sync-permissions`         | Creates any permission added to the catalogue          |
-| `php artisan erp:sync-permissions --roles` | Also resets built-in roles to their defaults           |
+| `php artisan erp:sync-permissions`         | Creates new catalogue permissions and hands them to the roles that should have them |
+| `php artisan erp:sync-permissions --roles` | Also resets built-in roles to their defaults (undoes Roles-screen edits) |
+| `php artisan erp:create-admin`             | Creates or promotes the first administrator            |
+| `php artisan erp:import-formulations FILE` | Imports a formulation workbook (`--dry-run` to preview) |
 
 ### Commands that destroy data
 

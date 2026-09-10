@@ -175,10 +175,12 @@ Open the application's **Console** in Laravel Cloud.
 
 ```sql
 REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs FROM your_db_user;
+REVOKE UPDATE, DELETE, TRUNCATE ON formula_access_logs FROM your_db_user;
 ```
 
-This is what makes the audit trail genuinely tamper-proof rather than
-tamper-proof-by-convention. Without it, the rule lives only in application code.
+This is what makes the audit trail — and the record of who opened which
+formula — genuinely tamper-proof rather than tamper-proof-by-convention.
+Without it, the rule lives only in application code.
 
 **b. Create your account.** This is not optional — there is no sign-up page, by
 design, so until you do this the ERP has no users and nobody can get in.
@@ -226,6 +228,30 @@ Nobody can create their own account.
 - [ ] Open it on your phone. The navigation collapses and the tables scroll
 
 If all eight pass, it is live and working.
+
+## Step 9 — Set the factory up
+
+In this order, as Super Admin:
+
+1. **Master Data → Warehouses**: create four — a *Raw Material Store*, a
+   *Packaging Store*, a *Finished Goods Store*, and a *Quarantine store*
+   (tick the quarantine box). Everything else finds them by type.
+2. **Formulations**: set your formula PIN (you are asked the first time), then
+   **Import** your formulation workbook. The preview lists every product it
+   found, the raw materials it will add to the master, and anything it had to
+   guess — read it, then import. Open each formula and **Activate** it once it
+   has been checked; only active recipes can be planned.
+3. **Master Data → Products**: give each product its net content and its
+   packaging-per-unit list (bottle, cap, label, a share of a carton).
+4. **Master Data → Raw Materials**: set *minimum stock* and *reorder level* on
+   the materials that matter. They drive Critically low / Low / Moderate.
+5. **Store → Goods Receipts**: book in what is on the shelves today so every
+   batch has a number, a QC decision and a sticker.
+
+Then the day-to-day flow is: **Production Plans** (check the stores, raise
+material requests) → **Goods Receipts** against those requests → **QC
+Checkpoint** → **Manufacturing Orders** (approve, start, complete) → QC on the
+finished batch → Finished Goods Store.
 
 ---
 

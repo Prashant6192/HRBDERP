@@ -36,6 +36,7 @@ class DatabaseSeeder extends Seeder
         }
 
         $this->call(DemoDataSeeder::class);
+        $this->call(DemoOperationsSeeder::class);
 
         $this->command?->info('Demo accounts created. Password for all of them: "password".');
     }

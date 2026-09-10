@@ -9,8 +9,9 @@ of this document is [rehearsing the restore](#rehearsing-the-restore).
 
 | What                    | Where it lives      | Lost if not backed up                                               |
 | ----------------------- | ------------------- | ------------------------------------------------------------------- |
-| **PostgreSQL database** | The database server | Everything: stock, formulations, batches, orders, the audit trail   |
+| **PostgreSQL database** | The database server | Everything: the ledger, batches, formulations and their access trail, plans, requests, orders, the audit trail |
 | **Uploaded files**      | S3 or R2            | Quotations, invoices, certificates of analysis, QC reports, artwork |
+| **Nothing under `storage/app/private/formula-imports`** | The server | Workbooks waiting for an import to be confirmed — deleted when it is; a restore simply starts the import again |
 | **`APP_KEY`**           | `.env`              | Every session, and anything encrypted                               |
 | **`.env`**              | The server          | Configuration and credentials                                       |
 
@@ -69,7 +70,8 @@ an overwritten or deleted file can be recovered. Cross-region replication if the
 data warrants it.
 
 For local storage, back up `storage/app` alongside the database, at the same
-moment, so the two agree.
+moment, so the two agree. Batch stickers and material-request PDFs are
+generated on request from the database and are not stored.
 
 ---
 
@@ -114,6 +116,11 @@ to be older or emptier than you thought, you still have the original. Renaming
 is instant; undoing a bad `pg_restore --clean` over live data is not.
 
 ### After any restore
+
+Re-apply both `REVOKE`s — `audit_logs` and `formula_access_logs` — because a
+restore creates the tables afresh under the owning role. Stock balances are
+restored with everything else; if there is any doubt that they agree with the
+ledger, `StockBalanceService::rebuild()` recomputes every position from it.
 
 ```sql
 REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs FROM hrbderp;

@@ -123,11 +123,12 @@ Then apply the audit-trail lock, as the database owner:
 
 ```sql
 REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs FROM hrbderp;
+REVOKE UPDATE, DELETE, TRUNCATE ON formula_access_logs FROM hrbderp;
 ```
 
-This is what makes the audit trail genuinely append-only rather than
-append-only-by-convention. Inserts continue to work. See
-[SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md#immutability-in-three-layers).
+This is what makes the audit trail and the formula access trail genuinely
+append-only rather than append-only-by-convention. Inserts continue to work.
+See [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md#immutability-in-three-layers).
 
 ### Create the first administrator
 
@@ -212,6 +213,28 @@ if (app()->isProduction()) {
 - [ ] Backups running, and **a restore rehearsed** — see [BACKUP_RESTORE.md](BACKUP_RESTORE.md)
 - [ ] Laravel Telescope not installed
 - [ ] No account has the password `password`
+- [ ] Both `REVOKE`s applied — `audit_logs` and `formula_access_logs`
+
+### Setting the factory up
+
+Once signed in as Super Admin, in this order:
+
+1. **Warehouses** — one each of type *Raw Material Store*, *Packaging Store*,
+   *Finished Goods Store*, and one ticked *Quarantine store*. Receiving,
+   planning and manufacturing find them by type.
+2. **Raw materials and packaging** — or let the formulation import create the
+   raw materials it meets. Set `minimum_stock` and `reorder_level` on the ones
+   that matter: they define Critically low / Low / Moderate.
+3. **Products** — net content (e.g. 100 ml) and the packaging-per-unit list on
+   each product screen, so plans can count units and raise the packaging
+   request.
+4. **Formula PIN** — every person with `formula.view` sets their own under
+   Formulations → Unlock → *Set or change your PIN*.
+5. **Formulations → Import** the formulation workbook. Review the plan it
+   shows (materials it will create, sheets it skipped, anything it guessed),
+   then import. Activate each version once a chemist has checked it.
+6. Book the opening stock in through **Goods Receipts** so every batch has a
+   number and a QC decision.
 
 ---
 
@@ -223,10 +246,17 @@ git pull
 composer install --no-dev --optimize-autoloader
 npm ci && npm run build
 php artisan migrate --force
+php artisan db:seed --force              # reference data; keeps Roles-screen edits
+php artisan erp:sync-permissions         # new abilities reach the roles that should have them
 php artisan config:cache && php artisan route:cache && php artisan view:cache
 php artisan queue:restart
 php artisan up
 ```
+
+`db:seed` and `erp:sync-permissions` are both safe on a live system: a role an
+administrator has changed is not reset — it only gains abilities that are new
+to the catalogue and belong in its defaults. `erp:sync-permissions --roles` is
+the deliberate reset, and is never run by a deploy.
 
 **Take a database backup before any deploy that includes a migration.** A
 migration that drops or transforms a column is not reversible by re-running the

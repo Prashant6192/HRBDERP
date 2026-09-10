@@ -28,80 +28,65 @@ Where the build has got to, and what comes next.
 | Permission-aware navigation and dashboard                                     | Built |
 | Shared DataTable: search, sort, filter, paginate, column visibility           | Built |
 | Seeders: units, departments, roles, and demo data                             | Built |
-| 140 tests against PostgreSQL                                                  | Built |
+| Tests against PostgreSQL from the first commit                                | Built |
+
+---
+
+### Phases A–F — The factory, end to end
+
+| Area                                                                                                   | State |
+| ------------------------------------------------------------------------------------------------------ | ----- |
+| Immutable inventory ledger, lots, cached balances, reservations, gap-free document numbers             | Built |
+| Row-locked postings, proven with forked processes against PostgreSQL                                   | Built |
+| Stock alert levels per item: Moderate / Low / Critically low / Out of stock; expiring-soon             | Built |
+| Goods receipts → quarantine → QC approve / reject / hold → store; printable batch sticker              | Built |
+| Formulations: versions with one active recipe (database-enforced), draft editing, archive, delete      | Built |
+| Formula PIN: hashed, 5–60 min unlock bound to the session, lockout, append-only access trail           | Built |
+| Formulation Excel import for both layouts chemists use, with a plan to confirm; console command        | Built |
+| Recipe scaling to any batch in stock units, density fallback flagged                                   | Built |
+| Production plans checked against both stores; Production Material Requests per store; PMR PDF         | Built |
+| Deliveries booked in against a PMR close its lines                                                     | Built |
+| Packaging-per-unit list on products                                                                    | Built |
+| Manufacturing orders: approve → reserve, start → consume, complete → finished lot (QC), cancel         | Built |
+| Navigation in workflow order; dashboard with charts, store donuts, production stage, alerts            | Built |
+| Additive permission sync: new abilities reach the right roles without undoing Roles-screen edits       | Built |
+| 280+ tests against PostgreSQL                                                                          | Built |
 
 ---
 
 ## Next
 
-### Phase 2 — Inventory ledger
-
-The most important thing left, and everything downstream depends on it.
-
-- `inventory_transactions` and `inventory_transaction_lines`, immutable, typed
-- `inventory_lots` with expiry and QC state
-- `stock_reservations`
-- Balances derived from the ledger; cached balances for speed, ledger as truth
-- GRN receipt, adjustment, transfer, damage, expiry and sample flows
-- Every stock-changing operation inside a database transaction with
-  `SELECT … FOR UPDATE`, so two people reserving the same material at the same
-  moment cannot both succeed
-
-**Tests this phase is not done without:** stock balance from the ledger, GRN
-addition, transfers, adjustments, and two concurrent reservations of the same
-stock where exactly one succeeds.
-
-### Phase 3 — Formulations
-
-- `formulas`, `formula_versions`, `formula_ingredients`, `formula_approvals`,
-  `formula_access_logs`
-- Versioning where a change never overwrites, and one active approved version
-- The second-factor unlock specified in
-  [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md#3-formula-protection):
-  PIN or password re-entry, short-lived, admin-configurable, throttled, logged
-- Formula view recorded as its own audit action
-
-**Tests:** permission enforcement, the second factor, unlock expiry, throttling,
-version activation rules, and that formula data appears in no payload an
-unauthorised user can reach.
-
-### Phase 4 — Production
-
-- Manufacturing orders against a product and formula version
-- `ProductionRequirementService` — requirements, availability, shortages,
-  maximum manufacturable quantity, limiting material
-- `InventoryReservationService` — reserve on approval, consume on start,
-  release on cancellation, handle partial production
-- Batch management and traceability
-
-**Tests:** the worked example in
-[ERP_PRODUCT_SPEC.md](ERP_PRODUCT_SPEC.md#production--planned) as a test case,
-plus reservation lifecycle and batch traceability.
-
-### Phase 5 — Quality control and procurement
-
-- QC on received materials and finished batches; quarantine until release
-- Purchase orders with approval, goods receipt into the ledger
-- Supplier price history and the price-change dashboards
-
 ### Phase 6 — Costing
 
-- `ProductCostingService`: materials, packaging, labour, overhead, wastage
-- Batch cost, cost per kilogram, cost per unit
-- Historical costing preserved when prices move
+- `ProductCostingService`: materials (from the consumption each order records),
+  packaging, labour, overhead, wastage
+- Batch cost, cost per kilogram, cost per unit; historical costing preserved
+- Vendor price history and the price-change dashboards
 
-### Phase 7 — Sales, marketplace, reporting
+### Phase 7 — Purchase orders
 
-- Sales orders and allocation
+- Purchase orders raised from material requests, with approval
+- Goods receipts against purchase orders (they already close material requests)
+- Overdue-order alerts
+
+### Phase 8 — Accounting, dispatch and sales
+
+- Sales orders and allocation from finished stock; dispatch notes
 - Amazon and Flipkart imports, marketplace stock, reconciliation
-- Excel import with validation before commit; exports; queued for large files
-- Reports and dashboards
+- Accounting summaries: purchases, production cost, sales
 
-### Phase 8 — Operations
+### Phase 9 — Approvals, notifications, scheduler
 
-- Notifications: in-app first, channels added later
-- Scheduler: low stock, expiry, overdue orders, reconciliation, snapshots
-- Deployment to a real URL, backups, monitoring
+- Approval workflows on the existing engine: formula activation, plan
+  approval, order approval, stock adjustments
+- Notifications in-app first; channels added later
+- Scheduler: low stock, expiry, overdue requests, snapshots
+
+### Phase 10 — Imports, exports, HR
+
+- Excel import for opening stock and masters, validated before commit; exports
+  for ledger, stock, purchases, production; queued for large files
+- Departments and employee records beyond accounts
 
 ---
 
@@ -112,12 +97,13 @@ Things deliberately left, so they are not forgotten:
 | Item                                  | Why                                                                                                                    | What to do                                                                                                                                       |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Larastan not installed**            | `phpstan/phpstan` is published only as a pre-built archive from an endpoint the current build environment cannot reach | `composer require --dev larastan/larastan phpstan/phpstan` on a normal network. `phpstan.neon` and the `types:check` script are already in place |
-| **Exports not implemented**           | The buttons were removed rather than left inert                                                                        | Build them in phase 7 with `maatwebsite/excel`, queued for large sets                                                                            |
-| **Imports not implemented**           | Same                                                                                                                   | Phase 7. Validate fully before committing anything                                                                                               |
+| **Exports not implemented**           | The buttons were removed rather than left inert                                                                        | Phase 10 with `maatwebsite/excel`, queued for large sets                                                                                         |
+| **Only the formulation import exists**| Opening stock, masters and price imports are not yet built                                                             | Phase 10. Validate fully before committing anything, as the formulation import does                                                              |
+| **Approvals not yet on the engine**   | Formula activation and order approval are single-permission actions                                                    | Phase 9: route them through `approvals` so multi-step sign-off is configuration                                                                  |
+| **Density is assumed where missing**  | A mass↔volume conversion for a material with no density is planned at 1 g/ml and flagged                              | Enter densities on the raw materials that matter; the flag disappears when the figure is real                                                    |
 | **Item categories have no screen**    | Seeded and selectable, but not yet maintainable in the interface                                                       | Add CRUD when the master-data modules next get attention                                                                                         |
 | **Departments have no screen**        | Same                                                                                                                   | Same                                                                                                                                             |
 | **Warehouse locations are read-only** | Visible on the warehouse page, seeded, but not editable                                                                | Add when the inventory ledger needs put-away                                                                                                     |
-| **Approval engine has no workflows**  | Tables and models exist; no workflow is configured yet                                                                 | Phase 3, starting with formula release                                                                                                           |
 | **`user.impersonate` is unused**      | The permission exists; nothing implements it                                                                           | Either build it with full audit logging, or remove it from the catalogue                                                                         |
 | **No SSO**                            | Password sign-in first, as specified                                                                                   | Add Socialite drivers for Google Workspace and Microsoft                                                                                         |
 | **Redis not yet the default**         | Development uses database drivers                                                                                      | Switch cache, queue and locks to Redis in production — see [DEPLOYMENT.md](DEPLOYMENT.md)                                                        |
@@ -130,8 +116,9 @@ The pattern the existing modules follow:
 
 1. **Migration** — `NUMERIC` for anything numeric, `CHECK` constraints for
    anything that must never be nonsense, indexes for anything filtered.
-2. **Permissions** — add the module to `PermissionCatalogue`, run
-   `php artisan erp:sync-permissions --roles`.
+2. **Permissions** — add the module to `PermissionCatalogue` and its
+   abilities to the roles in `RoleName`; `php artisan erp:sync-permissions`
+   (which every deploy runs) hands the new abilities to those roles.
 3. **Domain** — model in `app/Domain/<Module>/Models`, with enums, services and
    actions beside it. Business logic here, not in the controller.
 4. **Policy** — extend `ModulePolicy`; register it in `AuthServiceProvider`

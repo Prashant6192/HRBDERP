@@ -10,18 +10,39 @@ between them.
 
 ## [Unreleased]
 
+### Added — Workflow navigation and the dashboard (Phase F)
+
+- **Navigation in the order work flows**: Store (Raw Material, Packaging and
+  Finished Goods stores, Goods Receipts, Batches) → Quality Control →
+  Planning & Purchase → Manufacturing → Packaging → Accounting → Dispatch →
+  Human Resource → Master Data → Administration. Sections still on the
+  roadmap (Costing, Dispatch) are shown disabled so the shape of the system
+  is visible.
+- **Dashboard** in the card style of the supplied design: a greeting card
+  with the day's headlines and quick actions; key figures (in production,
+  plans awaiting production, open material requests, awaiting QC, critically
+  low materials, expiring batches); each store as a donut of its items by
+  alert level (Healthy / Moderate / Low / Critical / Out of stock); what is
+  in production with its stage; receiving and QC decisions per day over a
+  selectable 7 / 30 / 90 days; units packed per week; materials to watch;
+  expiring batches; what is coming up in the next fortnight; recent
+  activity. Every card is gated by the permission of the module behind it,
+  and each person can hide the cards they do not need (remembered in the
+  browser).
+- **Theme**: warm orange accent on a light blue canvas, in light and dark.
+
 ### Added — Manufacturing (Phase E)
 
 - **Manufacturing orders** opened from a checked plan, taking its material
-  list. *Approve* holds every material in its store, drawing on the
+  list. _Approve_ holds every material in its store, drawing on the
   earliest-expiring QC-approved batches — all or nothing, and if anything is
-  short the message names each shortfall. *Start* issues the held raw
-  materials to the kettle through the ledger. *Complete* records the bulk
+  short the message names each shortfall. _Start_ issues the held raw
+  materials to the kettle through the ledger. _Complete_ records the bulk
   output, units packed and yield, uses up the held packaging, releases
   anything left, and posts the finished batch as a new lot (`FG250909-001`)
   with an expiry from the product's shelf life — into quarantine with a QC
   inspection when the product needs QC, otherwise straight to the finished
-  goods store. *Cancel* releases what is held; what the kettle already took
+  goods store. _Cancel_ releases what is held; what the kettle already took
   stays taken.
 - The plan follows its order: in production on approval, completed on
   completion, back to where it was on cancellation.

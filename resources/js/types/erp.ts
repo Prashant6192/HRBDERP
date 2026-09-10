@@ -752,3 +752,88 @@ export type ManufacturingOrderSummary = {
     started_at: string | null;
     completed_at: string | null;
 };
+
+// ---- Dashboard -------------------------------------------------------------
+
+export type KpiTile = {
+    key: string;
+    label: string;
+    value: number;
+    hint: string | null;
+    icon: string;
+    href: string | null;
+    tone: 'default' | 'warning' | 'danger' | 'success';
+};
+
+export type StoreLevels = {
+    kind: 'raw_material' | 'packaging' | 'finished_goods';
+    label: string;
+    code: string | null;
+    warehouse_id: number | null;
+    items: number;
+    counts: Record<StockAlertLevel, number>;
+    href: string;
+};
+
+export type AttentionRow = {
+    item_id: number;
+    code: string;
+    name: string;
+    type: string;
+    store: string;
+    on_hand: string;
+    uom: string | null;
+    level: StockAlertLevel;
+};
+
+export type ExpiringRow = {
+    lot_id: number;
+    batch_number: string;
+    item: string;
+    code: string;
+    expiry_at: string;
+    days: number;
+    on_hand: string;
+    uom: string | null;
+};
+
+export type ReceivingPoint = {
+    date: string;
+    received: number;
+    approved: number;
+    rejected: number;
+};
+
+export type OutputPoint = {
+    week: string;
+    start: string;
+    units: number;
+    batches: number;
+};
+
+export type InProductionRow = {
+    id: number;
+    number: string;
+    product: string | null;
+    formula: string | null;
+    batch: string;
+    status: ManufacturingOrderStatus;
+    started_at: string | null;
+    approved_at: string | null;
+    stage: 1 | 2;
+};
+
+export type UpcomingRow = {
+    date: string;
+    kind: 'plan' | 'pmr';
+    label: string;
+    href: string;
+};
+
+export type ActivityEntry = {
+    id: number;
+    actor: string;
+    action: string;
+    subject: string | null;
+    created_at: string | null;
+};

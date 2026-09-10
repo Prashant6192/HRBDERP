@@ -1,114 +1,184 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
+import { useMemo, type ReactNode } from 'react';
 import {
-    Boxes,
-    FlaskConical,
-    Package,
-    ScrollText,
-    Truck,
-    Users,
-    Warehouse,
-    type LucideIcon,
-} from 'lucide-react';
-import { PageHeader } from '@/components/page-header';
+    OutputChart,
+    ReceivingChart,
+    StoreCard,
+} from '@/components/dashboard/charts';
+import { CustomiseMenu } from '@/components/dashboard/customise-menu';
+import { Hero } from '@/components/dashboard/hero';
+import { KpiTile } from '@/components/dashboard/kpi-tile';
+import {
+    ActivityList,
+    AttentionList,
+    ExpiringList,
+    ProductionList,
+    UpcomingList,
+} from '@/components/dashboard/lists';
 import { Button } from '@/components/ui/button';
-import { usePermissions } from '@/hooks/use-permissions';
-import { index as auditIndex } from '@/routes/audit';
+import {
+    useDashboardCards,
+    type DashboardCardKey,
+} from '@/hooks/use-dashboard-cards';
+import { cn } from '@/lib/utils';
 import { dashboard } from '@/routes';
-/**
- * Already phrased by the server, which owns the vocabulary of audited actions.
- * `subject` is null when the entry is about the person who acted.
- */
-type ActivityEntry = {
-    id: number;
-    actor: string;
-    action: string;
-    subject: string | null;
-    created_at: string | null;
-};
+import { index as auditIndex } from '@/routes/audit';
+import { index as lotsIndex } from '@/routes/lots';
+import { index as manufacturingIndex } from '@/routes/manufacturing';
+import { index as stockIndex } from '@/routes/stock';
+import type {
+    ActivityEntry,
+    AttentionRow,
+    ExpiringRow,
+    InProductionRow,
+    KpiTile as Tile,
+    OutputPoint,
+    ReceivingPoint,
+    StoreLevels,
+    UpcomingRow,
+} from '@/types';
 
-/** Icon names the server sends, resolved to components here. */
-const ICONS: Record<string, LucideIcon> = {
-    'flask-conical': FlaskConical,
-    package: Package,
-    boxes: Boxes,
-    warehouse: Warehouse,
-    truck: Truck,
-    users: Users,
-};
-
-type Stat = {
-    label: string;
-    value: number;
-    icon: string;
-    route: string;
-};
-
-/** Wayfinder route names, so a tile can link to its module. */
-const ROUTE_URLS: Record<string, string> = {
-    'raw-materials.index': '/raw-materials',
-    'packaging-materials.index': '/packaging-materials',
-    'products.index': '/products',
-    'warehouses.index': '/warehouses',
-    'vendors.index': '/vendors',
-    'users.index': '/users',
-};
-
-function StatCard({ stat }: { stat: Stat }) {
-    const Icon = ICONS[stat.icon] ?? Boxes;
-    const href = ROUTE_URLS[stat.route];
-
-    const card = (
-        <div className="bg-card hover:border-primary/40 group rounded-xl border p-5 transition-colors">
-            <div className="flex items-start justify-between">
-                <p className="text-muted-foreground text-sm font-medium">
-                    {stat.label}
-                </p>
-                <span className="bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary flex size-9 items-center justify-center rounded-lg transition-colors">
-                    <Icon className="size-4" />
-                </span>
+function Card({
+    title,
+    description,
+    action,
+    children,
+    className,
+}: {
+    title: string;
+    description?: string;
+    action?: ReactNode;
+    children: ReactNode;
+    className?: string;
+}) {
+    return (
+        <section className={cn('bg-card rounded-2xl border', className)}>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
+                <div>
+                    <h2 className="font-semibold">{title}</h2>
+                    {description && (
+                        <p className="text-muted-foreground text-xs">
+                            {description}
+                        </p>
+                    )}
+                </div>
+                {action}
             </div>
-            <p className="mt-3 text-3xl font-semibold tracking-tight tabular-nums">
-                {stat.value.toLocaleString()}
-            </p>
-        </div>
+            {children}
+        </section>
     );
-
-    return href ? <Link href={href}>{card}</Link> : card;
 }
 
 export default function Dashboard({
-    stats,
+    greeting,
+    headlines,
+    kpis,
+    period,
+    stores,
+    attention,
+    expiring,
+    receiving,
+    output,
+    inProduction,
+    upcoming,
     recentActivity,
-    canViewAudit,
+    quickActions,
 }: {
-    stats: Stat[];
-    recentActivity: ActivityEntry[];
-    canViewAudit: boolean;
+    greeting: {
+        name: string;
+        first_name: string;
+        date: string;
+        roles: string[];
+    };
+    headlines: string[];
+    kpis: Tile[];
+    period: { days: number };
+    stores: StoreLevels[] | null;
+    attention: AttentionRow[] | null;
+    expiring: ExpiringRow[] | null;
+    receiving: ReceivingPoint[] | null;
+    output: OutputPoint[] | null;
+    inProduction: InProductionRow[] | null;
+    upcoming: UpcomingRow[] | null;
+    recentActivity: ActivityEntry[] | null;
+    quickActions: {
+        plan: boolean;
+        receive: boolean;
+        qc: boolean;
+        formulas: boolean;
+    };
 }) {
-    const { roles } = usePermissions();
+    const cards = useDashboardCards();
+
+    const available = useMemo(() => {
+        const keys: DashboardCardKey[] = [];
+        if (kpis.length > 0) keys.push('kpis');
+        if (stores) keys.push('stores');
+        if (inProduction) keys.push('production');
+        if (receiving) keys.push('receiving');
+        if (output) keys.push('output');
+        if (attention) keys.push('attention');
+        if (expiring) keys.push('expiring');
+        if (upcoming) keys.push('upcoming');
+        if (recentActivity) keys.push('activity');
+        return keys;
+    }, [
+        kpis,
+        stores,
+        inProduction,
+        receiving,
+        output,
+        attention,
+        expiring,
+        upcoming,
+        recentActivity,
+    ]);
+
+    const show = (key: DashboardCardKey) =>
+        available.includes(key) && cards.visible(key);
+
+    const changePeriod = (days: number) =>
+        router.get(
+            dashboard().url,
+            { days },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                only: ['receiving', 'period'],
+            },
+        );
+
+    const nothing = available.length === 0;
 
     return (
         <>
             <Head title="Dashboard" />
+            <div className="flex flex-1 flex-col gap-5 p-4 sm:p-6">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-muted-foreground text-sm">
+                        {greeting.roles.length > 0
+                            ? `Signed in as ${greeting.roles.join(', ')}`
+                            : 'No role assigned yet'}
+                    </p>
+                    {!nothing && (
+                        <CustomiseMenu
+                            available={available}
+                            visible={cards.visible}
+                            toggle={cards.toggle}
+                            reset={cards.reset}
+                        />
+                    )}
+                </div>
 
-            <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
-                <PageHeader
-                    title="Dashboard"
-                    description={
-                        roles.length > 0
-                            ? `Signed in as ${roles.join(', ')}.`
-                            : undefined
-                    }
+                <Hero
+                    firstName={greeting.first_name}
+                    date={greeting.date}
+                    headlines={headlines}
+                    actions={quickActions}
                 />
 
-                {stats.length > 0 ? (
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-                        {stats.map((stat) => (
-                            <StatCard key={stat.label} stat={stat} />
-                        ))}
-                    </div>
-                ) : (
-                    <div className="bg-card rounded-xl border p-10 text-center">
+                {nothing && (
+                    <div className="bg-card rounded-2xl border p-10 text-center">
                         <p className="font-medium">Nothing assigned yet</p>
                         <p className="text-muted-foreground mt-1 text-sm">
                             Your account does not yet have access to any ERP
@@ -117,73 +187,141 @@ export default function Dashboard({
                     </div>
                 )}
 
-                {canViewAudit && (
-                    <section className="bg-card rounded-xl border">
-                        <div className="flex items-center justify-between border-b px-5 py-4">
-                            <div className="flex items-center gap-2">
-                                <ScrollText className="text-muted-foreground size-4" />
-                                <h2 className="font-semibold">
-                                    Recent activity
-                                </h2>
-                            </div>
-                            <Button variant="ghost" size="sm" asChild>
-                                <Link href={auditIndex()}>View all</Link>
-                            </Button>
-                        </div>
-
-                        {recentActivity.length === 0 ? (
-                            <p className="text-muted-foreground p-5 text-sm">
-                                Nothing has been recorded yet.
-                            </p>
-                        ) : (
-                            <ul className="divide-y">
-                                {recentActivity.map((entry) => (
-                                    <li
-                                        key={entry.id}
-                                        className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-sm"
-                                    >
-                                        <span>
-                                            <span className="font-medium">
-                                                {entry.actor}
-                                            </span>{' '}
-                                            <span className="text-muted-foreground lowercase">
-                                                {entry.action}
-                                            </span>
-                                            {entry.subject && (
-                                                <>
-                                                    {' — '}
-                                                    <span className="font-medium">
-                                                        {entry.subject}
-                                                    </span>
-                                                </>
-                                            )}
-                                        </span>
-                                        {entry.created_at && (
-                                            <time
-                                                className="text-muted-foreground text-xs"
-                                                dateTime={entry.created_at}
-                                            >
-                                                {new Date(
-                                                    entry.created_at,
-                                                ).toLocaleString()}
-                                            </time>
-                                        )}
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </section>
+                {show('kpis') && (
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                        {kpis.map((tile) => (
+                            <KpiTile key={tile.key} tile={tile} />
+                        ))}
+                    </div>
                 )}
+
+                {show('stores') && stores && (
+                    <div className="grid gap-4 lg:grid-cols-3">
+                        {stores.map((store) => (
+                            <StoreCard key={store.kind} store={store} />
+                        ))}
+                    </div>
+                )}
+
+                <div className="grid gap-4 xl:grid-cols-3">
+                    {show('production') && inProduction && (
+                        <Card
+                            title="In production"
+                            description="Batches approved or on the floor."
+                            className="xl:col-span-1"
+                            action={
+                                <Button variant="ghost" size="sm" asChild>
+                                    <Link href={manufacturingIndex()}>
+                                        All orders
+                                    </Link>
+                                </Button>
+                            }
+                        >
+                            <ProductionList rows={inProduction} />
+                        </Card>
+                    )}
+
+                    {show('receiving') && receiving && (
+                        <Card
+                            title="Receiving & QC"
+                            description="Delivery lines booked in, and QC decisions, per day."
+                            className={
+                                inProduction && show('production')
+                                    ? 'xl:col-span-2'
+                                    : 'xl:col-span-3'
+                            }
+                            action={
+                                <div className="flex gap-1">
+                                    {[7, 30, 90].map((d) => (
+                                        <Button
+                                            key={d}
+                                            size="sm"
+                                            variant={
+                                                period.days === d
+                                                    ? 'default'
+                                                    : 'ghost'
+                                            }
+                                            onClick={() => changePeriod(d)}
+                                        >
+                                            {d}d
+                                        </Button>
+                                    ))}
+                                </div>
+                            }
+                        >
+                            <div className="px-3 pt-4 pb-2">
+                                <ReceivingChart data={receiving} />
+                            </div>
+                        </Card>
+                    )}
+                </div>
+
+                <div className="grid gap-4 xl:grid-cols-3">
+                    {show('output') && output && (
+                        <Card
+                            title="Production output"
+                            description="Units packed per week, last 12 weeks."
+                            className="xl:col-span-2"
+                        >
+                            <div className="px-3 pt-4 pb-2">
+                                <OutputChart data={output} />
+                            </div>
+                        </Card>
+                    )}
+
+                    {show('attention') && attention && (
+                        <Card
+                            title="Materials to watch"
+                            description="Low, critically low or out of stock."
+                            action={
+                                <Button variant="ghost" size="sm" asChild>
+                                    <Link href={stockIndex()}>Stock</Link>
+                                </Button>
+                            }
+                        >
+                            <AttentionList rows={attention} />
+                        </Card>
+                    )}
+                </div>
+
+                <div className="grid gap-4 xl:grid-cols-3">
+                    {show('expiring') && expiring && (
+                        <Card
+                            title="Expiring batches"
+                            action={
+                                <Button variant="ghost" size="sm" asChild>
+                                    <Link href={lotsIndex()}>Batches</Link>
+                                </Button>
+                            }
+                        >
+                            <ExpiringList rows={expiring} />
+                        </Card>
+                    )}
+
+                    {show('upcoming') && upcoming && (
+                        <Card title="Coming up" description="Next two weeks.">
+                            <UpcomingList rows={upcoming} />
+                        </Card>
+                    )}
+
+                    {show('activity') && recentActivity && (
+                        <Card
+                            title="Recent activity"
+                            action={
+                                <Button variant="ghost" size="sm" asChild>
+                                    <Link href={auditIndex()}>View all</Link>
+                                </Button>
+                            }
+                        >
+                            <ActivityList rows={recentActivity} />
+                        </Card>
+                    )}
+                </div>
             </div>
         </>
     );
 }
 
 Dashboard.layout = {
-    breadcrumbs: [
-        {
-            title: 'Dashboard',
-            href: dashboard(),
-        },
-    ],
+    breadcrumbs: [{ title: 'Dashboard', href: dashboard() }],
 };

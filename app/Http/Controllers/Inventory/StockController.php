@@ -35,6 +35,12 @@ class StockController extends Controller
         $selected = $request->integer('warehouse') > 0
             ? $warehouses->firstWhere('id', $request->integer('warehouse'))
             : null;
+
+        // The navigation names stores by what they hold, not by id.
+        if ($selected === null && ($storeType = WarehouseType::tryFrom((string) $request->query('store'))) !== null) {
+            $selected = $warehouses->first(fn (Warehouse $w) => ! $w->is_quarantine && $w->type === $storeType);
+        }
+
         // Land on the raw material store by default: it is where the day starts.
         $selected ??= $warehouses->first(fn (Warehouse $w) => ! $w->is_quarantine && $w->type === WarehouseType::RawMaterial)
             ?? $warehouses->firstWhere('is_quarantine', false)

@@ -1,13 +1,13 @@
 import {
     Beaker,
-    Factory,
-    CalendarCheck,
-    ClipboardPen,
     Boxes,
+    Calculator,
+    CalendarCheck,
     ClipboardCheck,
     ClipboardList,
+    ClipboardPen,
+    Factory,
     FlaskConical,
-    Layers,
     LayoutGrid,
     Package,
     PackageCheck,
@@ -24,13 +24,13 @@ import { index as goodsReceiptsIndex } from '@/routes/goods-receipts';
 import { index as lotsIndex } from '@/routes/lots';
 import { index as manufacturingIndex } from '@/routes/manufacturing';
 import { index as materialRequestsIndex } from '@/routes/material-requests';
-import { index as plansIndex } from '@/routes/plans';
-import { index as qcIndex } from '@/routes/qc';
-import { index as stockIndex } from '@/routes/stock';
 import { index as packagingMaterialsIndex } from '@/routes/packaging-materials';
+import { index as plansIndex } from '@/routes/plans';
 import { index as productsIndex } from '@/routes/products';
+import { index as qcIndex } from '@/routes/qc';
 import { index as rawMaterialsIndex } from '@/routes/raw-materials';
 import { index as rolesIndex } from '@/routes/roles';
+import { index as stockIndex } from '@/routes/stock';
 import { index as usersIndex } from '@/routes/users';
 import { index as vendorsIndex } from '@/routes/vendors';
 import { index as warehousesIndex } from '@/routes/warehouses';
@@ -42,6 +42,10 @@ export type ErpNavItem = {
     icon: LucideIcon;
     /** The permission that makes this destination worth showing. */
     permission?: string;
+    /** Match the current page on the full URL (path and query), not the path alone. */
+    exact?: boolean;
+    /** On the roadmap: shown so the shape of the system is visible, not yet a page. */
+    comingSoon?: boolean;
 };
 
 export type ErpNavGroup = {
@@ -50,7 +54,9 @@ export type ErpNavGroup = {
 };
 
 /**
- * The ERP's navigation, grouped the way the business is organised.
+ * The ERP's navigation, in the order work flows through the factory:
+ * store → quality → planning & purchase → manufacturing → packaging →
+ * accounting → dispatch, with people and master data behind them.
  *
  * Each entry names the permission that makes it reachable. Entries the signed
  * -in user cannot use are not rendered — but that is presentation only. The
@@ -72,10 +78,25 @@ export const erpNavigation: ErpNavGroup[] = [
         label: 'Store',
         items: [
             {
-                title: 'Stock',
-                href: stockIndex().url,
-                icon: Layers,
+                title: 'Raw Material Store',
+                href: stockIndex({ query: { store: 'raw_material' } }).url,
+                icon: FlaskConical,
                 permission: 'inventory.view',
+                exact: true,
+            },
+            {
+                title: 'Packaging Store',
+                href: stockIndex({ query: { store: 'packaging' } }).url,
+                icon: Package,
+                permission: 'inventory.view',
+                exact: true,
+            },
+            {
+                title: 'Finished Goods Store',
+                href: stockIndex({ query: { store: 'finished_goods' } }).url,
+                icon: Boxes,
+                permission: 'inventory.view',
+                exact: true,
             },
             {
                 title: 'Goods Receipts',
@@ -84,16 +105,21 @@ export const erpNavigation: ErpNavGroup[] = [
                 permission: 'purchase.view',
             },
             {
-                title: 'Quality Control',
-                href: qcIndex().url,
-                icon: ClipboardCheck,
-                permission: 'qc.view',
-            },
-            {
                 title: 'Batches',
                 href: lotsIndex().url,
                 icon: ClipboardList,
                 permission: 'inventory.view',
+            },
+        ],
+    },
+    {
+        label: 'Quality Control',
+        items: [
+            {
+                title: 'QC Checkpoint',
+                href: qcIndex().url,
+                icon: ClipboardCheck,
+                permission: 'qc.view',
             },
         ],
     },
@@ -112,6 +138,12 @@ export const erpNavigation: ErpNavGroup[] = [
                 icon: ClipboardPen,
                 permission: 'purchase.view',
             },
+            {
+                title: 'Vendors',
+                href: vendorsIndex().url,
+                icon: Truck,
+                permission: 'vendor.view',
+            },
         ],
     },
     {
@@ -122,17 +154,61 @@ export const erpNavigation: ErpNavGroup[] = [
                 href: manufacturingIndex().url,
                 icon: Factory,
                 permission: 'production.view',
+                exact: true,
             },
-        ],
-    },
-    {
-        label: 'Formulations',
-        items: [
             {
                 title: 'Formulas',
                 href: formulasIndex().url,
                 icon: Beaker,
                 permission: 'formula.view',
+            },
+        ],
+    },
+    {
+        label: 'Packaging',
+        items: [
+            {
+                title: 'Batches to Pack',
+                href: manufacturingIndex({ query: { status: 'in_progress' } })
+                    .url,
+                icon: PackageCheck,
+                permission: 'production.view',
+                exact: true,
+            },
+        ],
+    },
+    {
+        label: 'Accounting',
+        items: [
+            {
+                title: 'Costing',
+                href: '#',
+                icon: Calculator,
+                permission: 'costing.view',
+                comingSoon: true,
+            },
+        ],
+    },
+    {
+        label: 'Dispatch',
+        items: [
+            {
+                title: 'Dispatch',
+                href: '#',
+                icon: Truck,
+                permission: 'sales.view',
+                comingSoon: true,
+            },
+        ],
+    },
+    {
+        label: 'Human Resource',
+        items: [
+            {
+                title: 'Employees',
+                href: usersIndex().url,
+                icon: Users,
+                permission: 'user.view',
             },
         ],
     },
@@ -146,7 +222,7 @@ export const erpNavigation: ErpNavGroup[] = [
                 permission: 'raw_material.view',
             },
             {
-                title: 'Packaging',
+                title: 'Packaging Materials',
                 href: packagingMaterialsIndex().url,
                 icon: Package,
                 permission: 'packaging_material.view',
@@ -163,25 +239,13 @@ export const erpNavigation: ErpNavGroup[] = [
                 icon: Warehouse,
                 permission: 'warehouse.view',
             },
-            {
-                title: 'Vendors',
-                href: vendorsIndex().url,
-                icon: Truck,
-                permission: 'vendor.view',
-            },
         ],
     },
     {
         label: 'Administration',
         items: [
             {
-                title: 'Users',
-                href: usersIndex().url,
-                icon: Users,
-                permission: 'user.view',
-            },
-            {
-                title: 'Roles',
+                title: 'Roles & Permissions',
                 href: rolesIndex().url,
                 icon: ShieldCheck,
                 permission: 'role.view',

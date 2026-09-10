@@ -5,44 +5,56 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Domain\Audit\Models\AuditLog;
-use App\Domain\MasterData\Models\PackagingMaterial;
-use App\Domain\MasterData\Models\Product;
-use App\Domain\MasterData\Models\RawMaterial;
-use App\Domain\Procurement\Models\Vendor;
-use App\Domain\Warehousing\Models\Warehouse;
+use App\Domain\Reporting\Services\DashboardService;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * The landing screen.
+ * The first screen of the day.
  *
- * Every figure on it is behind the permission that governs the module it comes
- * from, so two people signing in see different dashboards — and neither of
- * them learns a count they are not entitled to.
+ * Every card is gated by the permission of the module it summarises, so a
+ * figure never appears in front of someone who could not open the screen
+ * behind it. Cards the user may not see are sent as null and not rendered.
  */
 class DashboardController extends Controller
 {
+    public function __construct(private readonly DashboardService $dashboard) {}
+
     public function __invoke(Request $request): Response
     {
         $user = $request->user();
+        $days = in_array($request->integer('days'), [7, 30, 90], strict: true) ? $request->integer('days') : 30;
+
+        $kpis = $this->dashboard->kpis($user);
 
         return Inertia::render('dashboard', [
-            'stats' => array_values(array_filter([
-                $this->stat($user, 'raw_material.view', 'Raw Materials', fn () => RawMaterial::active()->count(), 'flask-conical', 'raw-materials.index'),
-                $this->stat($user, 'packaging_material.view', 'Packaging Materials', fn () => PackagingMaterial::active()->count(), 'package', 'packaging-materials.index'),
-                $this->stat($user, 'product.view', 'Finished Goods', fn () => Product::active()->count(), 'boxes', 'products.index'),
-                $this->stat($user, 'warehouse.view', 'Warehouses', fn () => Warehouse::active()->count(), 'warehouse', 'warehouses.index'),
-                $this->stat($user, 'vendor.view', 'Active Vendors', fn () => Vendor::active()->count(), 'truck', 'vendors.index'),
-                $this->stat($user, 'user.view', 'Employees', fn () => User::active()->count(), 'users', 'users.index'),
-            ])),
+            'greeting' => [
+                'name' => $user->name,
+                'first_name' => explode(' ', trim($user->name))[0],
+                'date' => now()->toIso8601String(),
+                'roles' => $user->getRoleNames()->values()->all(),
+            ],
+            'headlines' => $this->dashboard->headlines($kpis),
+            'kpis' => $kpis,
+            'period' => ['days' => $days],
 
-            'recentActivity' => $user->can('audit.view')
-                ? $this->recentActivity()
-                : [],
+            'stores' => fn () => $user->can('inventory.view') ? $this->dashboard->storeLevels() : null,
+            'attention' => fn () => $user->can('inventory.view') ? $this->dashboard->attention() : null,
+            'expiring' => fn () => $user->can('inventory.view') ? $this->dashboard->expiring() : null,
+            'receiving' => fn () => $user->can('inventory.view') || $user->can('qc.view') ? $this->dashboard->receiving($days) : null,
+            'output' => fn () => $user->can('production.view') ? $this->dashboard->output() : null,
+            'inProduction' => fn () => $user->can('production.view') ? $this->dashboard->inProduction() : null,
+            'upcoming' => fn () => $user->can('planning.view') || $user->can('purchase.view') ? $this->dashboard->upcoming($user) : null,
 
-            'canViewAudit' => $user->can('audit.view'),
+            'recentActivity' => fn () => $user->can('audit.view') ? $this->recentActivity() : null,
+            'quickActions' => [
+                'plan' => $user->can('planning.create'),
+                'receive' => $user->can('purchase.receive'),
+                'qc' => $user->can('qc.view'),
+                'formulas' => $user->can('formula.view'),
+            ],
         ]);
     }
 
@@ -76,27 +88,5 @@ class DashboardController extends Controller
                 ];
             })
             ->all();
-    }
-
-    /**
-     * Build a dashboard tile, or nothing at all if the user may not see it.
-     *
-     * The count is a closure so that a query is never run for a figure that is
-     * about to be filtered out.
-     *
-     * @return array{label: string, value: int, icon: string, route: string}|null
-     */
-    private function stat(User $user, string $permission, string $label, callable $count, string $icon, string $route): ?array
-    {
-        if (! $user->can($permission)) {
-            return null;
-        }
-
-        return [
-            'label' => $label,
-            'value' => $count(),
-            'icon' => $icon,
-            'route' => $route,
-        ];
     }
 }

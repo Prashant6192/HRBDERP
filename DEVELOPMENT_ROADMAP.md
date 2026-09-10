@@ -34,23 +34,23 @@ Where the build has got to, and what comes next.
 
 ### Phases A–F — The factory, end to end
 
-| Area                                                                                                   | State |
-| ------------------------------------------------------------------------------------------------------ | ----- |
-| Immutable inventory ledger, lots, cached balances, reservations, gap-free document numbers             | Built |
-| Row-locked postings, proven with forked processes against PostgreSQL                                   | Built |
-| Stock alert levels per item: Moderate / Low / Critically low / Out of stock; expiring-soon             | Built |
-| Goods receipts → quarantine → QC approve / reject / hold → store; printable batch sticker              | Built |
-| Formulations: versions with one active recipe (database-enforced), draft editing, archive, delete      | Built |
-| Formula PIN: hashed, 5–60 min unlock bound to the session, lockout, append-only access trail           | Built |
-| Formulation Excel import for both layouts chemists use, with a plan to confirm; console command        | Built |
-| Recipe scaling to any batch in stock units, density fallback flagged                                   | Built |
-| Production plans checked against both stores; Production Material Requests per store; PMR PDF         | Built |
-| Deliveries booked in against a PMR close its lines                                                     | Built |
-| Packaging-per-unit list on products                                                                    | Built |
-| Manufacturing orders: approve → reserve, start → consume, complete → finished lot (QC), cancel         | Built |
-| Navigation in workflow order; dashboard with charts, store donuts, production stage, alerts            | Built |
-| Additive permission sync: new abilities reach the right roles without undoing Roles-screen edits       | Built |
-| 280+ tests against PostgreSQL                                                                          | Built |
+| Area                                                                                              | State |
+| ------------------------------------------------------------------------------------------------- | ----- |
+| Immutable inventory ledger, lots, cached balances, reservations, gap-free document numbers        | Built |
+| Row-locked postings, proven with forked processes against PostgreSQL                              | Built |
+| Stock alert levels per item: Moderate / Low / Critically low / Out of stock; expiring-soon        | Built |
+| Goods receipts → quarantine → QC approve / reject / hold → store; printable batch sticker         | Built |
+| Formulations: versions with one active recipe (database-enforced), draft editing, archive, delete | Built |
+| Formula PIN: hashed, 5–60 min unlock bound to the session, lockout, append-only access trail      | Built |
+| Formulation Excel import for both layouts chemists use, with a plan to confirm; console command   | Built |
+| Recipe scaling to any batch in stock units, density fallback flagged                              | Built |
+| Production plans checked against both stores; Production Material Requests per store; PMR PDF     | Built |
+| Deliveries booked in against a PMR close its lines                                                | Built |
+| Packaging-per-unit list on products                                                               | Built |
+| Manufacturing orders: approve → reserve, start → consume, complete → finished lot (QC), cancel    | Built |
+| Navigation in workflow order; dashboard with charts, store donuts, production stage, alerts       | Built |
+| Additive permission sync: new abilities reach the right roles without undoing Roles-screen edits  | Built |
+| 280+ tests against PostgreSQL                                                                     | Built |
 
 ---
 
@@ -94,19 +94,19 @@ Where the build has got to, and what comes next.
 
 Things deliberately left, so they are not forgotten:
 
-| Item                                  | Why                                                                                                                    | What to do                                                                                                                                       |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Larastan not installed**            | `phpstan/phpstan` is published only as a pre-built archive from an endpoint the current build environment cannot reach | `composer require --dev larastan/larastan phpstan/phpstan` on a normal network. `phpstan.neon` and the `types:check` script are already in place |
-| **Exports not implemented**           | The buttons were removed rather than left inert                                                                        | Phase 10 with `maatwebsite/excel`, queued for large sets                                                                                         |
-| **Only the formulation import exists**| Opening stock, masters and price imports are not yet built                                                             | Phase 10. Validate fully before committing anything, as the formulation import does                                                              |
-| **Approvals not yet on the engine**   | Formula activation and order approval are single-permission actions                                                    | Phase 9: route them through `approvals` so multi-step sign-off is configuration                                                                  |
-| **Density is assumed where missing**  | A mass↔volume conversion for a material with no density is planned at 1 g/ml and flagged                              | Enter densities on the raw materials that matter; the flag disappears when the figure is real                                                    |
-| **Item categories have no screen**    | Seeded and selectable, but not yet maintainable in the interface                                                       | Add CRUD when the master-data modules next get attention                                                                                         |
-| **Departments have no screen**        | Same                                                                                                                   | Same                                                                                                                                             |
-| **Warehouse locations are read-only** | Visible on the warehouse page, seeded, but not editable                                                                | Add when the inventory ledger needs put-away                                                                                                     |
-| **`user.impersonate` is unused**      | The permission exists; nothing implements it                                                                           | Either build it with full audit logging, or remove it from the catalogue                                                                         |
-| **No SSO**                            | Password sign-in first, as specified                                                                                   | Add Socialite drivers for Google Workspace and Microsoft                                                                                         |
-| **Redis not yet the default**         | Development uses database drivers                                                                                      | Switch cache, queue and locks to Redis in production — see [DEPLOYMENT.md](DEPLOYMENT.md)                                                        |
+| Item                                   | Why                                                                                                                    | What to do                                                                                                                                       |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Larastan not installed**             | `phpstan/phpstan` is published only as a pre-built archive from an endpoint the current build environment cannot reach | `composer require --dev larastan/larastan phpstan/phpstan` on a normal network. `phpstan.neon` and the `types:check` script are already in place |
+| **Exports not implemented**            | The buttons were removed rather than left inert                                                                        | Phase 10 with `maatwebsite/excel`, queued for large sets                                                                                         |
+| **Only the formulation import exists** | Opening stock, masters and price imports are not yet built                                                             | Phase 10. Validate fully before committing anything, as the formulation import does                                                              |
+| **Approvals not yet on the engine**    | Formula activation and order approval are single-permission actions                                                    | Phase 9: route them through `approvals` so multi-step sign-off is configuration                                                                  |
+| **Density is assumed where missing**   | A mass↔volume conversion for a material with no density is planned at 1 g/ml and flagged                               | Enter densities on the raw materials that matter; the flag disappears when the figure is real                                                    |
+| **Item categories have no screen**     | Seeded and selectable, but not yet maintainable in the interface                                                       | Add CRUD when the master-data modules next get attention                                                                                         |
+| **Departments have no screen**         | Same                                                                                                                   | Same                                                                                                                                             |
+| **Warehouse locations are read-only**  | Visible on the warehouse page, seeded, but not editable                                                                | Add when the inventory ledger needs put-away                                                                                                     |
+| **`user.impersonate` is unused**       | The permission exists; nothing implements it                                                                           | Either build it with full audit logging, or remove it from the catalogue                                                                         |
+| **No SSO**                             | Password sign-in first, as specified                                                                                   | Add Socialite drivers for Google Workspace and Microsoft                                                                                         |
+| **Redis not yet the default**          | Development uses database drivers                                                                                      | Switch cache, queue and locks to Redis in production — see [DEPLOYMENT.md](DEPLOYMENT.md)                                                        |
 
 ---
 

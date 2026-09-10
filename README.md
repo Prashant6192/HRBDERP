@@ -28,22 +28,22 @@ This file is the way in. Each area has its own document:
 
 ## The stack
 
-| Layer                | Choice                                                     |
-| -------------------- | ---------------------------------------------------------- |
-| Framework            | Laravel 13                                                 |
-| Language             | PHP 8.3+ (developed on 8.4)                                |
-| Database             | PostgreSQL 16                                              |
-| ORM                  | Eloquent, with migrations for every table                  |
-| Frontend             | Inertia 3 + React 19 + TypeScript                          |
-| Styling              | Tailwind CSS 4                                             |
-| Build                | Vite                                                       |
-| Authentication       | Laravel Fortify (two-factor and passkeys ready)            |
-| Authorisation        | spatie/laravel-permission, with Laravel policies and gates |
-| Cache, queues, locks | Redis in production; database drivers in development       |
-| Exact arithmetic     | brick/math over PostgreSQL `NUMERIC`                       |
-| Spreadsheets         | maatwebsite/excel + PhpSpreadsheet (formulation import)    |
+| Layer                | Choice                                                      |
+| -------------------- | ----------------------------------------------------------- |
+| Framework            | Laravel 13                                                  |
+| Language             | PHP 8.3+ (developed on 8.4)                                 |
+| Database             | PostgreSQL 16                                               |
+| ORM                  | Eloquent, with migrations for every table                   |
+| Frontend             | Inertia 3 + React 19 + TypeScript                           |
+| Styling              | Tailwind CSS 4                                              |
+| Build                | Vite                                                        |
+| Authentication       | Laravel Fortify (two-factor and passkeys ready)             |
+| Authorisation        | spatie/laravel-permission, with Laravel policies and gates  |
+| Cache, queues, locks | Redis in production; database drivers in development        |
+| Exact arithmetic     | brick/math over PostgreSQL `NUMERIC`                        |
+| Spreadsheets         | maatwebsite/excel + PhpSpreadsheet (formulation import)     |
 | PDF                  | barryvdh/laravel-dompdf (batch stickers, material requests) |
-| Charts               | recharts                                                   |
+| Charts               | recharts                                                    |
 
 ---
 
@@ -100,21 +100,21 @@ on the server, not by hiding buttons.
 
 ## Everyday commands
 
-| Command                                    | What it does                                           |
-| ------------------------------------------ | ------------------------------------------------------ |
-| `composer dev`                             | Runs the app, queue worker, log tail and Vite together |
-| `composer test`                            | Formatting check, then the full test suite             |
-| `php artisan test`                         | Just the tests                                         |
-| `vendor/bin/pint`                          | Formats PHP to the project style                       |
-| `npm run check:fix`                        | Formats and lints the frontend                         |
-| `npm run types:check`                      | TypeScript, without emitting                           |
-| `php artisan migrate`                      | Applies new migrations                                 |
-| `php artisan db:seed`                      | Reference data, plus demo data outside production      |
-| `php artisan erp:sync-permissions`         | Creates new catalogue permissions and hands them to the roles that should have them |
-| `php artisan erp:sync-permissions --roles` | Also resets built-in roles to their defaults (undoes Roles-screen edits) |
-| `php artisan erp:create-admin`             | Creates or promotes the first administrator            |
+| Command                                    | What it does                                                                                 |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `composer dev`                             | Runs the app, queue worker, log tail and Vite together                                       |
+| `composer test`                            | Formatting check, then the full test suite                                                   |
+| `php artisan test`                         | Just the tests                                                                               |
+| `vendor/bin/pint`                          | Formats PHP to the project style                                                             |
+| `npm run check:fix`                        | Formats and lints the frontend                                                               |
+| `npm run types:check`                      | TypeScript, without emitting                                                                 |
+| `php artisan migrate`                      | Applies new migrations                                                                       |
+| `php artisan db:seed`                      | Reference data, plus demo data outside production                                            |
+| `php artisan erp:sync-permissions`         | Creates new catalogue permissions and hands them to the roles that should have them          |
+| `php artisan erp:sync-permissions --roles` | Also resets built-in roles to their defaults (undoes Roles-screen edits)                     |
+| `php artisan erp:create-admin`             | Creates or promotes the first administrator                                                  |
 | `php artisan erp:lock-audit-trail`         | Makes the audit and formula access trails append-only at the database (`--check` to inspect) |
-| `php artisan erp:import-formulations FILE` | Imports a formulation workbook (`--dry-run` to preview) |
+| `php artisan erp:import-formulations FILE` | Imports a formulation workbook (`--dry-run` to preview)                                      |
 
 ### Commands that destroy data
 

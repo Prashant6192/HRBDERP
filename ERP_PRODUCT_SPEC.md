@@ -158,10 +158,10 @@ Deliveries booked in against a request close its lines as stock lands.
 
 > Plan PLN-2609-00001 · Brightening Body Lotion · 25 kg
 >
-> | Material         | Required | In store | Short    | Level          |
-> | ---------------- | -------- | -------- | -------- | -------------- |
-> | Purified Water   | 18.85 kg | 0 kg     | 18.85 kg | Out → Out      |
-> | Glycerin         | 0.5 kg   | 2.1 kg   | —        | Low → Critical |
+> | Material       | Required | In store | Short    | Level          |
+> | -------------- | -------- | -------- | -------- | -------------- |
+> | Purified Water | 18.85 kg | 0 kg     | 18.85 kg | Out → Out      |
+> | Glycerin       | 0.5 kg   | 2.1 kg   | —        | Low → Critical |
 >
 > Two requests raised: PMR-2609-00001 (raw material), PMR-2609-00002 (packaging).
 

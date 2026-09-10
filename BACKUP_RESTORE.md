@@ -7,13 +7,13 @@ of this document is [rehearsing the restore](#rehearsing-the-restore).
 
 ## What has to be backed up
 
-| What                    | Where it lives      | Lost if not backed up                                               |
-| ----------------------- | ------------------- | ------------------------------------------------------------------- |
-| **PostgreSQL database** | The database server | Everything: the ledger, batches, formulations and their access trail, plans, requests, orders, the audit trail |
-| **Uploaded files**      | S3 or R2            | Quotations, invoices, certificates of analysis, QC reports, artwork |
-| **Nothing under `storage/app/private/formula-imports`** | The server | Workbooks waiting for an import to be confirmed — deleted when it is; a restore simply starts the import again |
-| **`APP_KEY`**           | `.env`              | Every session, and anything encrypted                               |
-| **`.env`**              | The server          | Configuration and credentials                                       |
+| What                                                    | Where it lives      | Lost if not backed up                                                                                          |
+| ------------------------------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **PostgreSQL database**                                 | The database server | Everything: the ledger, batches, formulations and their access trail, plans, requests, orders, the audit trail |
+| **Uploaded files**                                      | S3 or R2            | Quotations, invoices, certificates of analysis, QC reports, artwork                                            |
+| **Nothing under `storage/app/private/formula-imports`** | The server          | Workbooks waiting for an import to be confirmed — deleted when it is; a restore simply starts the import again |
+| **`APP_KEY`**                                           | `.env`              | Every session, and anything encrypted                                                                          |
+| **`.env`**                                              | The server          | Configuration and credentials                                                                                  |
 
 The application code is in Git and does not need backing up. Everything above
 does.

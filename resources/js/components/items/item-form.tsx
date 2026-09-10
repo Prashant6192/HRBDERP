@@ -1,4 +1,5 @@
 import { Form } from '@inertiajs/react';
+import { useState } from 'react';
 import { Field, FormSection } from '@/components/form-field';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -44,6 +45,16 @@ export function ItemForm({
 }: ItemFormProps) {
     const isProduct = itemType === 'finished_good';
     const isRawMaterial = itemType === 'raw_material';
+    const isMaterial = !isProduct;
+
+    // The unit every stock figure below is expressed in, named beside each
+    // one so "100" can never be read as anything but 100 KG.
+    const [stockUomId, setStockUomId] = useState(
+        item?.stock_uom_id ? String(item.stock_uom_id) : '',
+    );
+    const stockUnit =
+        uoms.find((u) => String(u.value) === stockUomId)?.label.split(' ')[0] ??
+        'stock unit';
 
     // A pack unit has no size of its own, so offering it as an item's stock
     // unit would produce quantities the conversion service refuses to convert.
@@ -162,11 +173,8 @@ export function ItemForm({
                         >
                             <Select
                                 name="stock_uom_id"
-                                defaultValue={
-                                    item?.stock_uom_id
-                                        ? String(item.stock_uom_id)
-                                        : undefined
-                                }
+                                value={stockUomId}
+                                onValueChange={setStockUomId}
                             >
                                 <SelectTrigger
                                     id="stock_uom_id"
@@ -365,30 +373,43 @@ export function ItemForm({
                         </Field>
                     </FormSection>
 
-                    <FormSection title="Stock control">
+                    <FormSection
+                        title="Stock control"
+                        description={
+                            isMaterial
+                                ? `Figures are in the stock unit (${stockUnit}). They drive the Moderate / Low / Critically low alerts on the store dashboard and the shortfalls on production plans.`
+                                : `Figures are in the stock unit (${stockUnit}).`
+                        }
+                    >
                         <Field
                             label="Reorder level"
                             htmlFor="reorder_level"
+                            required={isMaterial}
                             error={errors.reorder_level}
+                            hint="At or below this the material is Low and should be ordered."
                         >
-                            <Input
+                            <QuantityInput
                                 id="reorder_level"
                                 name="reorder_level"
-                                inputMode="decimal"
+                                unit={stockUnit}
                                 defaultValue={item?.reorder_level ?? ''}
+                                required={isMaterial}
                             />
                         </Field>
 
                         <Field
                             label="Minimum stock"
                             htmlFor="minimum_stock"
+                            required={isMaterial}
                             error={errors.minimum_stock}
+                            hint="At or below this it is Critically low. Must not exceed the reorder level."
                         >
-                            <Input
+                            <QuantityInput
                                 id="minimum_stock"
                                 name="minimum_stock"
-                                inputMode="decimal"
+                                unit={stockUnit}
                                 defaultValue={item?.minimum_stock ?? ''}
+                                required={isMaterial}
                             />
                         </Field>
 
@@ -396,11 +417,12 @@ export function ItemForm({
                             label="Maximum stock"
                             htmlFor="maximum_stock"
                             error={errors.maximum_stock}
+                            hint="Optional. The most the store should hold."
                         >
-                            <Input
+                            <QuantityInput
                                 id="maximum_stock"
                                 name="maximum_stock"
-                                inputMode="decimal"
+                                unit={stockUnit}
                                 defaultValue={item?.maximum_stock ?? ''}
                             />
                         </Field>
@@ -409,6 +431,7 @@ export function ItemForm({
                             label="Lead time (days)"
                             htmlFor="lead_time_days"
                             error={errors.lead_time_days}
+                            hint="How long a delivery takes from ordering."
                         >
                             <Input
                                 id="lead_time_days"
@@ -493,5 +516,22 @@ export function ItemForm({
                 </>
             )}
         </Form>
+    );
+}
+
+/**
+ * A quantity field that names its unit, so a figure is never ambiguous.
+ */
+function QuantityInput({
+    unit,
+    ...props
+}: React.ComponentProps<typeof Input> & { unit: string }) {
+    return (
+        <div className="relative">
+            <Input {...props} inputMode="decimal" className="pr-16" />
+            <span className="text-muted-foreground pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs font-medium uppercase">
+                {unit}
+            </span>
+        </div>
     );
 }

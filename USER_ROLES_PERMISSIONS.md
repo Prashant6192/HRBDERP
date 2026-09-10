@@ -150,308 +150,308 @@ Roles screen.
 
 Unrestricted access, including roles, permissions and settings. Reserved for the system administrator.
 
-| Module | Abilities |
-| ------ | --------- |
-| Users | `view`, `create`, `edit`, `delete`, `export`, `impersonate` |
-| Roles & Permissions | `view`, `create`, `edit`, `delete` |
-| Departments | `view`, `create`, `edit`, `delete` |
-| Audit Log | `view`, `export` |
-| Settings | `view`, `edit` |
-| Warehouses | `view`, `create`, `edit`, `delete`, `export` |
-| Product Master | `view`, `create`, `edit`, `delete`, `export`, `import` |
-| Raw Materials | `view`, `create`, `edit`, `delete`, `export`, `import` |
-| Packaging Materials | `view`, `create`, `edit`, `delete`, `export`, `import` |
-| Vendors | `view`, `create`, `edit`, `delete`, `export` |
-| Units of Measure | `view`, `create`, `edit`, `delete` |
-| Inventory | `view`, `receive`, `adjust`, `transfer`, `reserve`, `consume`, `export` |
-| Formulations | `view`, `create`, `edit`, `delete`, `approve`, `archive`, `import`, `export` |
-| Planning & Purchase | `view`, `create`, `edit`, `approve`, `cancel`, `export` |
-| Production | `view`, `create`, `edit`, `approve`, `consume`, `cancel`, `export` |
-| Procurement | `view`, `create`, `edit`, `approve`, `receive`, `export` |
-| Quality Control | `view`, `create`, `approve`, `reject`, `export` |
-| Sales | `view`, `create`, `edit`, `delete`, `export` |
-| Marketplace | `view`, `import`, `reconcile`, `export` |
-| Costing | `view`, `edit`, `export` |
-| Reports | `view`, `export` |
-| Approvals | `view`, `act` |
+| Module              | Abilities                                                                    |
+| ------------------- | ---------------------------------------------------------------------------- |
+| Users               | `view`, `create`, `edit`, `delete`, `export`, `impersonate`                  |
+| Roles & Permissions | `view`, `create`, `edit`, `delete`                                           |
+| Departments         | `view`, `create`, `edit`, `delete`                                           |
+| Audit Log           | `view`, `export`                                                             |
+| Settings            | `view`, `edit`                                                               |
+| Warehouses          | `view`, `create`, `edit`, `delete`, `export`                                 |
+| Product Master      | `view`, `create`, `edit`, `delete`, `export`, `import`                       |
+| Raw Materials       | `view`, `create`, `edit`, `delete`, `export`, `import`                       |
+| Packaging Materials | `view`, `create`, `edit`, `delete`, `export`, `import`                       |
+| Vendors             | `view`, `create`, `edit`, `delete`, `export`                                 |
+| Units of Measure    | `view`, `create`, `edit`, `delete`                                           |
+| Inventory           | `view`, `receive`, `adjust`, `transfer`, `reserve`, `consume`, `export`      |
+| Formulations        | `view`, `create`, `edit`, `delete`, `approve`, `archive`, `import`, `export` |
+| Planning & Purchase | `view`, `create`, `edit`, `approve`, `cancel`, `export`                      |
+| Production          | `view`, `create`, `edit`, `approve`, `consume`, `cancel`, `export`           |
+| Procurement         | `view`, `create`, `edit`, `approve`, `receive`, `export`                     |
+| Quality Control     | `view`, `create`, `approve`, `reject`, `export`                              |
+| Sales               | `view`, `create`, `edit`, `delete`, `export`                                 |
+| Marketplace         | `view`, `import`, `reconcile`, `export`                                      |
+| Costing             | `view`, `edit`, `export`                                                     |
+| Reports             | `view`, `export`                                                             |
+| Approvals           | `view`, `act`                                                                |
 
 ### Owner
 
 Full visibility of the business including formulations, costing and every report.
 
-| Module | Abilities |
-| ------ | --------- |
-| Users | `view`, `create`, `edit`, `delete`, `export`, `impersonate` |
-| Roles & Permissions | `view`, `create`, `edit`, `delete` |
-| Departments | `view`, `create`, `edit`, `delete` |
-| Audit Log | `view`, `export` |
-| Settings | `view`, `edit` |
-| Warehouses | `view`, `create`, `edit`, `delete`, `export` |
-| Product Master | `view`, `create`, `edit`, `delete`, `export`, `import` |
-| Raw Materials | `view`, `create`, `edit`, `delete`, `export`, `import` |
-| Packaging Materials | `view`, `create`, `edit`, `delete`, `export`, `import` |
-| Vendors | `view`, `create`, `edit`, `delete`, `export` |
-| Units of Measure | `view`, `create`, `edit`, `delete` |
-| Inventory | `view`, `receive`, `adjust`, `transfer`, `reserve`, `consume`, `export` |
-| Formulations | `view`, `create`, `edit`, `delete`, `approve`, `archive`, `import`, `export` |
-| Planning & Purchase | `view`, `create`, `edit`, `approve`, `cancel`, `export` |
-| Production | `view`, `create`, `edit`, `approve`, `consume`, `cancel`, `export` |
-| Procurement | `view`, `create`, `edit`, `approve`, `receive`, `export` |
-| Quality Control | `view`, `create`, `approve`, `reject`, `export` |
-| Sales | `view`, `create`, `edit`, `delete`, `export` |
-| Marketplace | `view`, `import`, `reconcile`, `export` |
-| Costing | `view`, `edit`, `export` |
-| Reports | `view`, `export` |
-| Approvals | `view`, `act` |
+| Module              | Abilities                                                                    |
+| ------------------- | ---------------------------------------------------------------------------- |
+| Users               | `view`, `create`, `edit`, `delete`, `export`, `impersonate`                  |
+| Roles & Permissions | `view`, `create`, `edit`, `delete`                                           |
+| Departments         | `view`, `create`, `edit`, `delete`                                           |
+| Audit Log           | `view`, `export`                                                             |
+| Settings            | `view`, `edit`                                                               |
+| Warehouses          | `view`, `create`, `edit`, `delete`, `export`                                 |
+| Product Master      | `view`, `create`, `edit`, `delete`, `export`, `import`                       |
+| Raw Materials       | `view`, `create`, `edit`, `delete`, `export`, `import`                       |
+| Packaging Materials | `view`, `create`, `edit`, `delete`, `export`, `import`                       |
+| Vendors             | `view`, `create`, `edit`, `delete`, `export`                                 |
+| Units of Measure    | `view`, `create`, `edit`, `delete`                                           |
+| Inventory           | `view`, `receive`, `adjust`, `transfer`, `reserve`, `consume`, `export`      |
+| Formulations        | `view`, `create`, `edit`, `delete`, `approve`, `archive`, `import`, `export` |
+| Planning & Purchase | `view`, `create`, `edit`, `approve`, `cancel`, `export`                      |
+| Production          | `view`, `create`, `edit`, `approve`, `consume`, `cancel`, `export`           |
+| Procurement         | `view`, `create`, `edit`, `approve`, `receive`, `export`                     |
+| Quality Control     | `view`, `create`, `approve`, `reject`, `export`                              |
+| Sales               | `view`, `create`, `edit`, `delete`, `export`                                 |
+| Marketplace         | `view`, `import`, `reconcile`, `export`                                      |
+| Costing             | `view`, `edit`, `export`                                                     |
+| Reports             | `view`, `export`                                                             |
+| Approvals           | `view`, `act`                                                                |
 
 ### Director
 
 Board-level oversight with approval authority across production, procurement and formulations.
 
-| Module | Abilities |
-| ------ | --------- |
-| Users | `view` |
-| Departments | `view` |
-| Audit Log | `view`, `export` |
-| Warehouses | `view` |
-| Product Master | `view` |
-| Raw Materials | `view` |
-| Packaging Materials | `view` |
-| Vendors | `view` |
-| Units of Measure | `view` |
-| Inventory | `view`, `export` |
-| Formulations | `view`, `approve`, `export` |
+| Module              | Abilities                             |
+| ------------------- | ------------------------------------- |
+| Users               | `view`                                |
+| Departments         | `view`                                |
+| Audit Log           | `view`, `export`                      |
+| Warehouses          | `view`                                |
+| Product Master      | `view`                                |
+| Raw Materials       | `view`                                |
+| Packaging Materials | `view`                                |
+| Vendors             | `view`                                |
+| Units of Measure    | `view`                                |
+| Inventory           | `view`, `export`                      |
+| Formulations        | `view`, `approve`, `export`           |
 | Planning & Purchase | `view`, `approve`, `cancel`, `export` |
-| Production | `view`, `approve`, `cancel`, `export` |
-| Procurement | `view`, `approve`, `export` |
-| Quality Control | `view` |
-| Sales | `view`, `export` |
-| Marketplace | `view` |
-| Costing | `view`, `export` |
-| Reports | `view`, `export` |
-| Approvals | `view`, `act` |
+| Production          | `view`, `approve`, `cancel`, `export` |
+| Procurement         | `view`, `approve`, `export`           |
+| Quality Control     | `view`                                |
+| Sales               | `view`, `export`                      |
+| Marketplace         | `view`                                |
+| Costing             | `view`, `export`                      |
+| Reports             | `view`, `export`                      |
+| Approvals           | `view`, `act`                         |
 
 ### Management
 
 Cross-department visibility and approval authority, without administration rights.
 
-| Module | Abilities |
-| ------ | --------- |
-| Users | `view` |
-| Departments | `view` |
-| Audit Log | `view` |
-| Warehouses | `view` |
-| Product Master | `view` |
-| Raw Materials | `view` |
-| Packaging Materials | `view` |
-| Vendors | `view` |
-| Units of Measure | `view` |
-| Inventory | `view`, `export` |
-| Formulations | `view` |
-| Planning & Purchase | `view`, `approve` |
-| Production | `view`, `approve`, `export` |
-| Procurement | `view`, `approve`, `export` |
-| Quality Control | `view` |
-| Sales | `view` |
-| Marketplace | `view` |
-| Costing | `view` |
-| Reports | `view`, `export` |
-| Approvals | `view`, `act` |
+| Module              | Abilities                   |
+| ------------------- | --------------------------- |
+| Users               | `view`                      |
+| Departments         | `view`                      |
+| Audit Log           | `view`                      |
+| Warehouses          | `view`                      |
+| Product Master      | `view`                      |
+| Raw Materials       | `view`                      |
+| Packaging Materials | `view`                      |
+| Vendors             | `view`                      |
+| Units of Measure    | `view`                      |
+| Inventory           | `view`, `export`            |
+| Formulations        | `view`                      |
+| Planning & Purchase | `view`, `approve`           |
+| Production          | `view`, `approve`, `export` |
+| Procurement         | `view`, `approve`, `export` |
+| Quality Control     | `view`                      |
+| Sales               | `view`                      |
+| Marketplace         | `view`                      |
+| Costing             | `view`                      |
+| Reports             | `view`, `export`            |
+| Approvals           | `view`, `act`               |
 
 ### Factory Manager
 
 Runs the plant: production, inventory, quality and the formulations needed to manufacture.
 
-| Module | Abilities |
-| ------ | --------- |
-| Warehouses | `view` |
-| Product Master | `view` |
-| Raw Materials | `view` |
-| Packaging Materials | `view` |
-| Vendors | `view` |
-| Units of Measure | `view` |
-| Inventory | `view`, `receive`, `adjust`, `transfer`, `reserve`, `consume`, `export` |
-| Formulations | `view`, `create`, `edit`, `import`, `export` |
-| Planning & Purchase | `view`, `create`, `edit`, `approve`, `cancel`, `export` |
-| Production | `view`, `create`, `edit`, `approve`, `consume`, `cancel`, `export` |
-| Procurement | `view`, `create` |
-| Quality Control | `view`, `create`, `approve`, `reject` |
-| Costing | `view` |
-| Reports | `view`, `export` |
-| Approvals | `view`, `act` |
+| Module              | Abilities                                                               |
+| ------------------- | ----------------------------------------------------------------------- |
+| Warehouses          | `view`                                                                  |
+| Product Master      | `view`                                                                  |
+| Raw Materials       | `view`                                                                  |
+| Packaging Materials | `view`                                                                  |
+| Vendors             | `view`                                                                  |
+| Units of Measure    | `view`                                                                  |
+| Inventory           | `view`, `receive`, `adjust`, `transfer`, `reserve`, `consume`, `export` |
+| Formulations        | `view`, `create`, `edit`, `import`, `export`                            |
+| Planning & Purchase | `view`, `create`, `edit`, `approve`, `cancel`, `export`                 |
+| Production          | `view`, `create`, `edit`, `approve`, `consume`, `cancel`, `export`      |
+| Procurement         | `view`, `create`                                                        |
+| Quality Control     | `view`, `create`, `approve`, `reject`                                   |
+| Costing             | `view`                                                                  |
+| Reports             | `view`, `export`                                                        |
+| Approvals           | `view`, `act`                                                           |
 
 ### Production Manager
 
 Creates and runs manufacturing orders and consumes materials against them.
 
-| Module | Abilities |
-| ------ | --------- |
-| Warehouses | `view` |
-| Product Master | `view` |
-| Raw Materials | `view` |
-| Packaging Materials | `view` |
-| Units of Measure | `view` |
-| Inventory | `view`, `reserve`, `consume` |
-| Formulations | `view` |
-| Planning & Purchase | `view`, `create`, `edit`, `export` |
-| Production | `view`, `create`, `edit`, `consume`, `export` |
-| Quality Control | `view` |
-| Reports | `view` |
-| Approvals | `view` |
+| Module              | Abilities                                     |
+| ------------------- | --------------------------------------------- |
+| Warehouses          | `view`                                        |
+| Product Master      | `view`                                        |
+| Raw Materials       | `view`                                        |
+| Packaging Materials | `view`                                        |
+| Units of Measure    | `view`                                        |
+| Inventory           | `view`, `reserve`, `consume`                  |
+| Formulations        | `view`                                        |
+| Planning & Purchase | `view`, `create`, `edit`, `export`            |
+| Production          | `view`, `create`, `edit`, `consume`, `export` |
+| Quality Control     | `view`                                        |
+| Reports             | `view`                                        |
+| Approvals           | `view`                                        |
 
 ### Warehouse Manager
 
 Receives, adjusts and transfers stock, and maintains warehouse master data.
 
-| Module | Abilities |
-| ------ | --------- |
-| Warehouses | `view`, `create`, `edit`, `delete`, `export` |
-| Product Master | `view` |
-| Raw Materials | `view` |
-| Packaging Materials | `view` |
-| Units of Measure | `view` |
-| Inventory | `view`, `receive`, `adjust`, `transfer`, `export` |
-| Planning & Purchase | `view` |
-| Production | `view` |
-| Procurement | `view`, `receive` |
-| Quality Control | `view` |
-| Reports | `view`, `export` |
-| Approvals | `view` |
+| Module              | Abilities                                         |
+| ------------------- | ------------------------------------------------- |
+| Warehouses          | `view`, `create`, `edit`, `delete`, `export`      |
+| Product Master      | `view`                                            |
+| Raw Materials       | `view`                                            |
+| Packaging Materials | `view`                                            |
+| Units of Measure    | `view`                                            |
+| Inventory           | `view`, `receive`, `adjust`, `transfer`, `export` |
+| Planning & Purchase | `view`                                            |
+| Production          | `view`                                            |
+| Procurement         | `view`, `receive`                                 |
+| Quality Control     | `view`                                            |
+| Reports             | `view`, `export`                                  |
+| Approvals           | `view`                                            |
 
 ### Purchase Manager
 
 Raises and approves purchase orders and maintains vendors and prices.
 
-| Module | Abilities |
-| ------ | --------- |
-| Warehouses | `view` |
-| Product Master | `view` |
-| Raw Materials | `view`, `create`, `edit`, `export`, `import` |
-| Packaging Materials | `view`, `create`, `edit`, `export`, `import` |
-| Vendors | `view`, `create`, `edit`, `delete`, `export` |
-| Units of Measure | `view` |
-| Inventory | `view` |
-| Planning & Purchase | `view`, `export` |
-| Procurement | `view`, `create`, `edit`, `approve`, `receive`, `export` |
-| Costing | `view` |
-| Reports | `view`, `export` |
-| Approvals | `view`, `act` |
+| Module              | Abilities                                                |
+| ------------------- | -------------------------------------------------------- |
+| Warehouses          | `view`                                                   |
+| Product Master      | `view`                                                   |
+| Raw Materials       | `view`, `create`, `edit`, `export`, `import`             |
+| Packaging Materials | `view`, `create`, `edit`, `export`, `import`             |
+| Vendors             | `view`, `create`, `edit`, `delete`, `export`             |
+| Units of Measure    | `view`                                                   |
+| Inventory           | `view`                                                   |
+| Planning & Purchase | `view`, `export`                                         |
+| Procurement         | `view`, `create`, `edit`, `approve`, `receive`, `export` |
+| Costing             | `view`                                                   |
+| Reports             | `view`, `export`                                         |
+| Approvals           | `view`, `act`                                            |
 
 ### QC Manager
 
 Approves or rejects material and batch quality, and holds stock from release.
 
-| Module | Abilities |
-| ------ | --------- |
-| Warehouses | `view` |
-| Product Master | `view` |
-| Raw Materials | `view` |
-| Packaging Materials | `view` |
-| Vendors | `view` |
-| Units of Measure | `view` |
-| Inventory | `view` |
-| Formulations | `view` |
-| Production | `view` |
-| Procurement | `view` |
-| Quality Control | `view`, `create`, `approve`, `reject`, `export` |
-| Reports | `view`, `export` |
-| Approvals | `view`, `act` |
+| Module              | Abilities                                       |
+| ------------------- | ----------------------------------------------- |
+| Warehouses          | `view`                                          |
+| Product Master      | `view`                                          |
+| Raw Materials       | `view`                                          |
+| Packaging Materials | `view`                                          |
+| Vendors             | `view`                                          |
+| Units of Measure    | `view`                                          |
+| Inventory           | `view`                                          |
+| Formulations        | `view`                                          |
+| Production          | `view`                                          |
+| Procurement         | `view`                                          |
+| Quality Control     | `view`, `create`, `approve`, `reject`, `export` |
+| Reports             | `view`, `export`                                |
+| Approvals           | `view`, `act`                                   |
 
 ### Accounts Manager
 
 Costing, pricing and financial reporting.
 
-| Module | Abilities |
-| ------ | --------- |
-| Warehouses | `view` |
-| Product Master | `view` |
-| Raw Materials | `view` |
-| Packaging Materials | `view` |
-| Vendors | `view` |
-| Units of Measure | `view` |
-| Inventory | `view`, `export` |
-| Production | `view` |
-| Procurement | `view`, `export` |
-| Sales | `view`, `export` |
-| Marketplace | `view` |
-| Costing | `view`, `edit`, `export` |
-| Reports | `view`, `export` |
-| Approvals | `view` |
+| Module              | Abilities                |
+| ------------------- | ------------------------ |
+| Warehouses          | `view`                   |
+| Product Master      | `view`                   |
+| Raw Materials       | `view`                   |
+| Packaging Materials | `view`                   |
+| Vendors             | `view`                   |
+| Units of Measure    | `view`                   |
+| Inventory           | `view`, `export`         |
+| Production          | `view`                   |
+| Procurement         | `view`, `export`         |
+| Sales               | `view`, `export`         |
+| Marketplace         | `view`                   |
+| Costing             | `view`, `edit`, `export` |
+| Reports             | `view`, `export`         |
+| Approvals           | `view`                   |
 
 ### Marketing Manager
 
 Brand, product presentation and marketing reporting.
 
-| Module | Abilities |
-| ------ | --------- |
-| Product Master | `view`, `edit` |
-| Sales | `view`, `export` |
-| Marketplace | `view` |
-| Reports | `view`, `export` |
+| Module         | Abilities        |
+| -------------- | ---------------- |
+| Product Master | `view`, `edit`   |
+| Sales          | `view`, `export` |
+| Marketplace    | `view`           |
+| Reports        | `view`, `export` |
 
 ### E-commerce Manager
 
 Marketplace listings, imports and reconciliation.
 
-| Module | Abilities |
-| ------ | --------- |
-| Product Master | `view` |
-| Inventory | `view` |
-| Sales | `view`, `create`, `edit`, `export` |
-| Marketplace | `view`, `import`, `reconcile`, `export` |
-| Reports | `view`, `export` |
+| Module         | Abilities                               |
+| -------------- | --------------------------------------- |
+| Product Master | `view`                                  |
+| Inventory      | `view`                                  |
+| Sales          | `view`, `create`, `edit`, `export`      |
+| Marketplace    | `view`, `import`, `reconcile`, `export` |
+| Reports        | `view`, `export`                        |
 
 ### Sales Manager
 
 Sales orders, customers and sales reporting.
 
-| Module | Abilities |
-| ------ | --------- |
-| Product Master | `view` |
-| Inventory | `view` |
-| Sales | `view`, `create`, `edit`, `delete`, `export` |
-| Marketplace | `view` |
-| Reports | `view`, `export` |
+| Module         | Abilities                                    |
+| -------------- | -------------------------------------------- |
+| Product Master | `view`                                       |
+| Inventory      | `view`                                       |
+| Sales          | `view`, `create`, `edit`, `delete`, `export` |
+| Marketplace    | `view`                                       |
+| Reports        | `view`, `export`                             |
 
 ### Brand Manager
 
 Product master and brand-level reporting.
 
-| Module | Abilities |
-| ------ | --------- |
-| Product Master | `view`, `create`, `edit`, `export` |
-| Packaging Materials | `view` |
-| Sales | `view` |
-| Marketplace | `view` |
-| Reports | `view` |
+| Module              | Abilities                          |
+| ------------------- | ---------------------------------- |
+| Product Master      | `view`, `create`, `edit`, `export` |
+| Packaging Materials | `view`                             |
+| Sales               | `view`                             |
+| Marketplace         | `view`                             |
+| Reports             | `view`                             |
 
 ### Designer
 
 Packaging artwork and product imagery. No access to formulations or costing.
 
-| Module | Abilities |
-| ------ | --------- |
-| Product Master | `view` |
-| Packaging Materials | `view` |
+| Module              | Abilities |
+| ------------------- | --------- |
+| Product Master      | `view`    |
+| Packaging Materials | `view`    |
 
 ### Viewer
 
 Read-only access to operational data. No formulations.
 
-| Module | Abilities |
-| ------ | --------- |
-| Warehouses | `view` |
-| Product Master | `view` |
-| Raw Materials | `view` |
-| Packaging Materials | `view` |
-| Vendors | `view` |
-| Units of Measure | `view` |
-| Inventory | `view` |
-| Production | `view` |
-| Procurement | `view` |
-| Quality Control | `view` |
-| Sales | `view` |
-| Reports | `view` |
+| Module              | Abilities |
+| ------------------- | --------- |
+| Warehouses          | `view`    |
+| Product Master      | `view`    |
+| Raw Materials       | `view`    |
+| Packaging Materials | `view`    |
+| Vendors             | `view`    |
+| Units of Measure    | `view`    |
+| Inventory           | `view`    |
+| Production          | `view`    |
+| Procurement         | `view`    |
+| Quality Control     | `view`    |
+| Sales               | `view`    |
+| Reports             | `view`    |
 
 ---
 

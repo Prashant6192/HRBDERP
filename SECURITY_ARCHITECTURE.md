@@ -163,7 +163,7 @@ implementation keeps recipes out of:
   carry ingredients, and their responses are sent
   `Cache-Control: no-store` so no proxy or back-forward cache keeps them;
 - the general audit log — `FormulaIngredient` is deliberately not audited,
-  because an old/new diff of that row *is* the recipe, and the audit log is
+  because an old/new diff of that row _is_ the recipe, and the audit log is
   readable by roles that may not see formulations; a test asserts no
   percentage or ingredient reaches it;
 - the frontend bundle, logs, notifications and exception pages (`APP_DEBUG`

@@ -123,6 +123,8 @@ class ItemModuleTest extends TestCase
                 'code' => 'RM-NOPE',
                 'name' => 'Not Mine To Add',
                 'stock_uom_id' => $this->kilogram->id,
+                'reorder_level' => '100',
+                'minimum_stock' => '40',
             ])
             ->assertForbidden();
     }
@@ -135,6 +137,8 @@ class ItemModuleTest extends TestCase
                 'code' => 'rm-2001',
                 'name' => 'Sodium Laureth Sulphate',
                 'stock_uom_id' => $this->kilogram->id,
+                'reorder_level' => '100',
+                'minimum_stock' => '40',
                 'standard_cost' => '118.50',
                 'gst_rate' => '18',
                 'is_active' => true,
@@ -160,6 +164,8 @@ class ItemModuleTest extends TestCase
                 'code' => 'RM-PREC',
                 'name' => 'Precise Material',
                 'stock_uom_id' => $this->kilogram->id,
+                'reorder_level' => '100',
+                'minimum_stock' => '40',
                 'standard_cost' => '1234.5678',
             ]);
 
@@ -177,6 +183,7 @@ class ItemModuleTest extends TestCase
                 'code' => 'RM-BAD',
                 'name' => 'Impossible Levels',
                 'stock_uom_id' => $this->kilogram->id,
+                'reorder_level' => '100',
                 'minimum_stock' => '100',
                 'maximum_stock' => '10',
             ])
@@ -191,6 +198,8 @@ class ItemModuleTest extends TestCase
                 'code' => 'RM-NEG',
                 'name' => 'Negative Cost',
                 'stock_uom_id' => $this->kilogram->id,
+                'reorder_level' => '100',
+                'minimum_stock' => '40',
                 'standard_cost' => '-5',
             ])
             ->assertSessionHasErrors('standard_cost');
@@ -205,6 +214,8 @@ class ItemModuleTest extends TestCase
                 'code' => 'RM-ZERO',
                 'name' => 'Zero Density',
                 'stock_uom_id' => $this->kilogram->id,
+                'reorder_level' => '100',
+                'minimum_stock' => '40',
                 'density_g_per_ml' => '0',
             ])
             ->assertSessionHasErrors('density_g_per_ml');
@@ -238,6 +249,45 @@ class ItemModuleTest extends TestCase
 
         $this->assertTrue($carton->requires_item_factor);
         $this->assertTrue($carton->needsItemFactor());
+    }
+
+    #[Test]
+    public function a_material_must_carry_its_stock_thresholds(): void
+    {
+        // Issue #1: the reorder level and minimum stock are what the alert
+        // levels and planning shortfalls are built on, so a material is not
+        // complete without them.
+        $this->actingAs($this->purchaseManager)
+            ->post(route('raw-materials.store'), [
+                'code' => 'RM-NOLEVELS',
+                'name' => 'Unplanned Material',
+                'stock_uom_id' => $this->kilogram->id,
+            ])
+            ->assertSessionHasErrors(['reorder_level', 'minimum_stock']);
+
+        $this->actingAs($this->purchaseManager)
+            ->post(route('packaging-materials.store'), [
+                'code' => 'PM-NOLEVELS',
+                'name' => 'Unplanned Cap',
+                'stock_uom_id' => Uom::where('code', 'PCS')->sole()->id,
+            ])
+            ->assertSessionHasErrors(['reorder_level', 'minimum_stock']);
+
+        $this->assertDatabaseMissing('items', ['code' => 'RM-NOLEVELS']);
+    }
+
+    #[Test]
+    public function the_critical_threshold_cannot_sit_above_the_low_one(): void
+    {
+        $this->actingAs($this->purchaseManager)
+            ->post(route('raw-materials.store'), [
+                'code' => 'RM-UPSIDE',
+                'name' => 'Upside Down Levels',
+                'stock_uom_id' => $this->kilogram->id,
+                'reorder_level' => '20',
+                'minimum_stock' => '50',
+            ])
+            ->assertSessionHasErrors('minimum_stock');
     }
 
     #[Test]

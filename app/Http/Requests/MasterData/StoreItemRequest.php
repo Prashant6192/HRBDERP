@@ -52,13 +52,28 @@ class StoreItemRequest extends FormRequest
             'requires_qc' => ['boolean'],
             'shelf_life_days' => ['nullable', 'integer', 'min:1', 'max:36500'],
 
-            'reorder_level' => ['nullable', 'numeric', 'min:0'],
-            'minimum_stock' => ['nullable', 'numeric', 'min:0'],
-            'maximum_stock' => ['nullable', 'numeric', 'min:0', 'gte:minimum_stock'],
+            // The stock-control figures are what the Moderate / Low / Critically
+            // low alerts, the store dashboard and the planning shortfalls are
+            // built on. A material without them can only ever be "healthy" or
+            // "out of stock", so for materials they are part of the record.
+            'reorder_level' => [$this->isMaterial() ? 'required' : 'nullable', 'numeric', 'gt:0'],
+            'minimum_stock' => [$this->isMaterial() ? 'required' : 'nullable', 'numeric', 'gte:0', 'lte:reorder_level'],
+            'maximum_stock' => ['nullable', 'numeric', 'min:0', 'gte:minimum_stock', 'gte:reorder_level'],
             'lead_time_days' => ['nullable', 'integer', 'min:0', 'max:3650'],
 
             'is_active' => ['boolean'],
         ];
+    }
+
+    /**
+     * Raw and packaging materials are bought against thresholds; finished
+     * goods are made to order and may leave them blank.
+     */
+    protected function isMaterial(): bool
+    {
+        $route = $this->route()?->getName() ?? '';
+
+        return str_starts_with($route, 'raw-materials.') || str_starts_with($route, 'packaging-materials.');
     }
 
     protected function uniqueCodeRule(): object
@@ -73,7 +88,11 @@ class StoreItemRequest extends FormRequest
     {
         return [
             'code.unique' => 'An item with this code already exists.',
-            'maximum_stock.gte' => 'The maximum stock level cannot be below the minimum.',
+            'reorder_level.required' => 'Enter the reorder level — the quantity at which this material counts as low and should be ordered.',
+            'reorder_level.gt' => 'The reorder level must be greater than zero.',
+            'minimum_stock.required' => 'Enter the minimum stock — the quantity below which this material is critically low.',
+            'minimum_stock.lte' => 'The minimum stock (critical) cannot be above the reorder level (low).',
+            'maximum_stock.gte' => 'The maximum stock level cannot be below the minimum or the reorder level.',
             'density_g_per_ml.gt' => 'Density must be greater than zero.',
         ];
     }

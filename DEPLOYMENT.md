@@ -219,8 +219,8 @@ if (app()->isProduction()) {
 
 Once signed in as Super Admin, in this order:
 
-1. **Warehouses** — one each of type *Raw Material Store*, *Packaging Store*,
-   *Finished Goods Store*, and one ticked *Quarantine store*. Receiving,
+1. **Warehouses** — one each of type _Raw Material Store_, _Packaging Store_,
+   _Finished Goods Store_, and one ticked _Quarantine store_. Receiving,
    planning and manufacturing find them by type.
 2. **Raw materials and packaging** — or let the formulation import create the
    raw materials it meets. Set `minimum_stock` and `reorder_level` on the ones
@@ -229,7 +229,7 @@ Once signed in as Super Admin, in this order:
    each product screen, so plans can count units and raise the packaging
    request.
 4. **Formula PIN** — every person with `formula.view` sets their own under
-   Formulations → Unlock → *Set or change your PIN*.
+   Formulations → Unlock → _Set or change your PIN_.
 5. **Formulations → Import** the formulation workbook. Review the plan it
    shows (materials it will create, sheets it skipped, anything it guessed),
    then import. Activate each version once a chemist has checked it.

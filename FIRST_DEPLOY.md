@@ -235,8 +235,8 @@ If all eight pass, it is live and working.
 
 In this order, as Super Admin:
 
-1. **Master Data → Warehouses**: create four — a *Raw Material Store*, a
-   *Packaging Store*, a *Finished Goods Store*, and a *Quarantine store*
+1. **Master Data → Warehouses**: create four — a _Raw Material Store_, a
+   _Packaging Store_, a _Finished Goods Store_, and a _Quarantine store_
    (tick the quarantine box). Everything else finds them by type.
 2. **Formulations**: set your formula PIN (you are asked the first time), then
    **Import** your formulation workbook. The preview lists every product it
@@ -245,7 +245,7 @@ In this order, as Super Admin:
    has been checked; only active recipes can be planned.
 3. **Master Data → Products**: give each product its net content and its
    packaging-per-unit list (bottle, cap, label, a share of a carton).
-4. **Master Data → Raw Materials**: set *minimum stock* and *reorder level* on
+4. **Master Data → Raw Materials**: set _minimum stock_ and _reorder level_ on
    the materials that matter. They drive Critically low / Low / Moderate.
 5. **Store → Goods Receipts**: book in what is on the shelves today so every
    batch has a number, a QC decision and a sticker.

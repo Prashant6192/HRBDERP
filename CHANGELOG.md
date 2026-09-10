@@ -10,6 +10,15 @@ between them.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Raw material stock control (issue #1).** The reorder level, minimum stock
+  and maximum stock fields now show the material's stock unit beside the
+  figure (`100 KG`), explain which alert each drives, and — for raw and
+  packaging materials — are required: a material cannot be saved without its
+  reorder level and minimum stock, and the minimum (Critically low) cannot sit
+  above the reorder level (Low). Finished goods may still leave them blank.
+
 ### Changed — Permissions, seeding and documentation (Phase G)
 
 - **Deploys no longer reset roles.** `db:seed` and `erp:sync-permissions`

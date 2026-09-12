@@ -1,6 +1,8 @@
 import {
+    ArrowLeftRight,
     Beaker,
     Boxes,
+    Building2,
     Calculator,
     CalendarCheck,
     ClipboardCheck,
@@ -33,6 +35,8 @@ import { index as rolesIndex } from '@/routes/roles';
 import { index as stockIndex } from '@/routes/stock';
 import { index as usersIndex } from '@/routes/users';
 import { index as vendorsIndex } from '@/routes/vendors';
+import { index as facilitiesIndex } from '@/routes/facilities';
+import { index as transfersIndex } from '@/routes/transfers';
 import { index as warehousesIndex } from '@/routes/warehouses';
 import { dashboard } from '@/routes';
 
@@ -108,6 +112,12 @@ export const erpNavigation: ErpNavGroup[] = [
                 title: 'Batches',
                 href: lotsIndex().url,
                 icon: ClipboardList,
+                permission: 'inventory.view',
+            },
+            {
+                title: 'Stock Transfers',
+                href: transfersIndex().url,
+                icon: ArrowLeftRight,
                 permission: 'inventory.view',
             },
         ],
@@ -234,7 +244,13 @@ export const erpNavigation: ErpNavGroup[] = [
                 permission: 'product.view',
             },
             {
-                title: 'Warehouses',
+                title: 'Facilities & Warehouses',
+                href: facilitiesIndex().url,
+                icon: Building2,
+                permission: 'facility.view',
+            },
+            {
+                title: 'Stores',
                 href: warehousesIndex().url,
                 icon: Warehouse,
                 permission: 'warehouse.view',

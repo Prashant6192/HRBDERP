@@ -29,6 +29,8 @@ class StoreWarehouseRequest extends FormRequest
             'code' => ['required', 'string', 'max:32', Rule::unique('warehouses', 'code')->whereNull('deleted_at')],
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', new Enum(WarehouseType::class)],
+            'facility_id' => ['nullable', 'integer', Rule::exists('facilities', 'id')->whereNull('deleted_at')],
+            'store_category_id' => ['nullable', 'integer', Rule::exists('store_categories', 'id')->where('is_active', true)],
             'manager_id' => ['nullable', 'integer', Rule::exists('users', 'id')->whereNull('deleted_at')],
 
             'address_line_1' => ['nullable', 'string', 'max:255'],

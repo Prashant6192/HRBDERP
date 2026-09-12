@@ -6,6 +6,8 @@ namespace App\Http\Controllers;
 
 use App\Domain\Audit\Models\AuditLog;
 use App\Domain\Reporting\Services\DashboardService;
+use App\Domain\Warehousing\Models\Facility;
+use App\Domain\Warehousing\Services\FacilityAccess;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -20,14 +22,23 @@ use Inertia\Response;
  */
 class DashboardController extends Controller
 {
-    public function __construct(private readonly DashboardService $dashboard) {}
+    public function __construct(
+        private readonly DashboardService $dashboard,
+        private readonly FacilityAccess $access,
+    ) {}
 
     public function __invoke(Request $request): Response
     {
         $user = $request->user();
         $days = in_array($request->integer('days'), [7, 30, 90], strict: true) ? $request->integer('days') : 30;
 
-        $kpis = $this->dashboard->kpis($user);
+        // "All facilities" unless one is chosen; people confined to one
+        // facility see only that one in the picker.
+        $facilities = $this->access->facilitiesFor($user);
+        $facility = $request->integer('facility') > 0 ? $facilities->firstWhere('id', $request->integer('facility')) : null;
+        $manufacturing = $facility === null || $facility->can_manufacture;
+
+        $kpis = $this->dashboard->kpis($user, $facility);
 
         return Inertia::render('dashboard', [
             'greeting' => [
@@ -39,14 +50,16 @@ class DashboardController extends Controller
             'headlines' => $this->dashboard->headlines($kpis),
             'kpis' => $kpis,
             'period' => ['days' => $days],
+            'facilities' => $facilities->map(fn (Facility $f) => ['id' => $f->id, 'code' => $f->code, 'name' => $f->name, 'can_manufacture' => $f->can_manufacture])->values()->all(),
+            'facility' => $facility === null ? null : ['id' => $facility->id, 'code' => $facility->code, 'name' => $facility->name, 'can_manufacture' => $facility->can_manufacture],
 
-            'stores' => fn () => $user->can('inventory.view') ? $this->dashboard->storeLevels() : null,
-            'attention' => fn () => $user->can('inventory.view') ? $this->dashboard->attention() : null,
-            'expiring' => fn () => $user->can('inventory.view') ? $this->dashboard->expiring() : null,
-            'receiving' => fn () => $user->can('inventory.view') || $user->can('qc.view') ? $this->dashboard->receiving($days) : null,
-            'output' => fn () => $user->can('production.view') ? $this->dashboard->output() : null,
-            'inProduction' => fn () => $user->can('production.view') ? $this->dashboard->inProduction() : null,
-            'upcoming' => fn () => $user->can('planning.view') || $user->can('purchase.view') ? $this->dashboard->upcoming($user) : null,
+            'stores' => fn () => $user->can('inventory.view') ? $this->dashboard->storeLevels($facility) : null,
+            'attention' => fn () => $user->can('inventory.view') ? $this->dashboard->attention(8, $facility) : null,
+            'expiring' => fn () => $user->can('inventory.view') ? $this->dashboard->expiring(6, $facility) : null,
+            'receiving' => fn () => $user->can('inventory.view') || $user->can('qc.view') ? $this->dashboard->receiving($days, $facility) : null,
+            'output' => fn () => $user->can('production.view') && $manufacturing ? $this->dashboard->output(12, $facility) : null,
+            'inProduction' => fn () => $user->can('production.view') && $manufacturing ? $this->dashboard->inProduction(6, $facility) : null,
+            'upcoming' => fn () => $user->can('planning.view') || $user->can('purchase.view') ? $this->dashboard->upcoming($user, 14, $facility) : null,
 
             'recentActivity' => fn () => $user->can('audit.view') ? $this->recentActivity() : null,
             'quickActions' => [

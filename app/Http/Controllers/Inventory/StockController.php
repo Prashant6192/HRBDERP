@@ -9,6 +9,7 @@ use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Services\StockAlertService;
 use App\Domain\Inventory\Services\StockBalanceService;
 use App\Domain\Warehousing\Enums\WarehouseType;
+use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Models\Warehouse;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
@@ -30,21 +31,41 @@ class StockController extends Controller
     {
         Gate::authorize('inventory.view');
 
-        $warehouses = Warehouse::query()->active()->orderBy('is_quarantine')->orderBy('code')->get(['id', 'code', 'name', 'type', 'is_quarantine']);
+        $facilities = Facility::query()->active()->ordered()->get(['id', 'code', 'name', 'can_manufacture']);
+        $facilityId = $request->integer('facility') > 0 && $facilities->contains('id', $request->integer('facility')) ? $request->integer('facility') : null;
+
+        $warehouses = Warehouse::query()->active()
+            ->with('facility:id,code,name')
+            ->when($facilityId !== null, fn ($q) => $q->where('facility_id', $facilityId))
+            ->orderBy('is_quarantine')->orderBy('facility_id')->orderBy('sort_order')->orderBy('code')
+            ->get(['id', 'code', 'name', 'type', 'is_quarantine', 'facility_id']);
 
         $selected = $request->integer('warehouse') > 0
             ? $warehouses->firstWhere('id', $request->integer('warehouse'))
             : null;
 
+        // A store chosen by id says which facility we are looking at.
+        if ($selected !== null && $facilityId === null) {
+            $facilityId = $selected->facility_id;
+        }
+
+        // Without a facility, the store the day starts in is the
+        // manufacturing facility's.
+        if ($selected === null && $facilityId === null) {
+            $facilityId = $facilities->firstWhere('can_manufacture', true)?->id ?? $facilities->first()?->id;
+        }
+
+        $inFacility = $warehouses->filter(fn (Warehouse $w) => $facilityId === null || $w->facility_id === $facilityId)->values();
+
         // The navigation names stores by what they hold, not by id.
         if ($selected === null && ($storeType = WarehouseType::tryFrom((string) $request->query('store'))) !== null) {
-            $selected = $warehouses->first(fn (Warehouse $w) => ! $w->is_quarantine && $w->type === $storeType);
+            $selected = $inFacility->first(fn (Warehouse $w) => ! $w->is_quarantine && $w->type === $storeType);
         }
 
         // Land on the raw material store by default: it is where the day starts.
-        $selected ??= $warehouses->first(fn (Warehouse $w) => ! $w->is_quarantine && $w->type === WarehouseType::RawMaterial)
-            ?? $warehouses->firstWhere('is_quarantine', false)
-            ?? $warehouses->first();
+        $selected ??= $inFacility->first(fn (Warehouse $w) => ! $w->is_quarantine && $w->type === WarehouseType::RawMaterial)
+            ?? $inFacility->firstWhere('is_quarantine', false)
+            ?? $inFacility->first();
 
         $search = strtolower(trim((string) $request->query('search', '')));
         $levelFilter = (string) $request->query('level', '');
@@ -54,8 +75,8 @@ class StockController extends Controller
 
         if ($selected !== null) {
             $rows = $this->balances->summaryForWarehouse($selected)
-                ->map(function (array $row): array {
-                    $level = $this->alerts->levelFor($row['item'], $row['on_hand']);
+                ->map(function (array $row) use ($selected): array {
+                    $level = $this->alerts->levelAt($row['item'], $selected, $row['on_hand']);
 
                     return [
                         'item_id' => $row['item']->id,
@@ -93,8 +114,16 @@ class StockController extends Controller
         $expiringDays = (int) config('erp.stock_alerts.expiry_warning_days', 90);
 
         return Inertia::render('stock/index', [
-            'warehouses' => $warehouses,
-            'selected' => $selected,
+            'facilities' => $facilities->map(fn (Facility $f) => ['id' => $f->id, 'code' => $f->code, 'name' => $f->name])->all(),
+            'facility' => $facilityId,
+            'warehouses' => $warehouses->map(fn (Warehouse $w) => [
+                'id' => $w->id, 'code' => $w->code, 'name' => $w->name, 'type' => $w->type->value, 'is_quarantine' => $w->is_quarantine,
+                'facility_id' => $w->facility_id, 'facility' => $w->facility?->name,
+            ])->all(),
+            'selected' => $selected === null ? null : [
+                'id' => $selected->id, 'code' => $selected->code, 'name' => $selected->name, 'type' => $selected->type->value, 'is_quarantine' => $selected->is_quarantine,
+                'facility_id' => $selected->facility_id, 'facility' => $selected->facility?->name,
+            ],
             'rows' => $rows,
             'counts' => $counts,
             'levels' => array_map(fn (StockAlertLevel $l) => [

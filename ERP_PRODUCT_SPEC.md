@@ -72,10 +72,41 @@ them. One service does every conversion. Pack units — carton, box, drum — ca
 no size of their own and refuse to convert without a per-item factor, rather
 than silently treating a carton as one piece.
 
+### Facilities and stores — _built_
+
+Company → **Facility** → **Store** → Location → Stock. A facility is a site —
+the Rudrapur plant, a Delhi warehouse, a marketplace fulfilment centre — with
+an editable **type** and a set of **capabilities** (Storage, Receiving, QC,
+Manufacturing, Packaging, Dispatch, Returns). Workflows check the switches,
+never the name: a manufacturing order can only be raised for a facility with
+Manufacturing on.
+
+Each facility has stores, one per **store category** (RM, PM, FG, Quarantine,
+Rejected, Production Staging, Packaging Staging, Samples, Returns, Damaged
+Goods, Marketplace, General — an editable master). Stores can be added to a
+live facility at any time; a store with history is deactivated, never
+deleted. Stock is always attributable to facility → store → location.
+
+People are **assigned** to a facility, or to one store within it. A stock
+action needs the role permission and an assignment covering the place;
+Super Admin, Owner, Director and Management work company-wide.
+
+A five-step wizard sets a facility up: details, capabilities, the store
+checklist, employees (optional), and whether to book opening stock now.
+**Opening stock** is booked through the ledger as `OPENING_BALANCE` postings
+with a batch per line, and administrators close it once the facility is live.
+
+**Stock transfers** move stock between facilities: requested, approved (held
+at the source, one line per batch), dispatched into the in-transit position,
+received — in full, in part, or with a discrepancy written off. Nothing shows
+at the destination before receipt; an optional inspection routes it through
+the destination's quarantine.
+
 ### Master data — _built_
 
-**Warehouses** with locations, including quarantine stores whose stock is on the
-books but not available to issue.
+**Stores** (the `warehouses` table) with locations, belonging to a facility
+and a store category; quarantine and in-transit stores hold stock that is on
+the books but not available to issue.
 
 **Raw materials**, **packaging materials** and **finished goods**: code, name,
 category, stock and purchase units, HSN and GST, standard cost, batch and QC
@@ -104,7 +135,9 @@ rebuild at any time.
 
 Each store shows what is on hand, held for production, and free, with a level
 per material from its own thresholds — **Moderate**, **Low**, **Critically
-low**, **Out of stock** — and a count of batches expiring soon. Every
+low**, **Out of stock** — which a store may override for itself, and a count
+of batches expiring soon. The dashboard and the stock screen filter by
+facility. Every
 stock-changing operation runs in a database transaction with row locks, proven
 by a test that forks real processes against PostgreSQL: two people reserving
 the same drum at the same moment cannot both succeed.
@@ -142,6 +175,10 @@ versions, raw materials to create, everything it had to guess at) before
 writing anything.
 
 ### Planning & Purchase — _built_
+
+A plan belongs to a manufacturing facility, and availability is counted at
+that facility's stores alone. Stock held elsewhere is reported per facility
+with a one-click transfer request rather than counted as available.
 
 The manufacturing head picks a formula and a batch size. The plan is checked
 against the stores as it is saved: every raw material scaled to the batch in

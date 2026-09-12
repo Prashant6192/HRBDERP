@@ -13,6 +13,7 @@ use App\Domain\Procurement\Models\GoodsReceipt;
 use App\Domain\Procurement\Models\Vendor;
 use App\Domain\Procurement\Services\GoodsReceiptService;
 use App\Domain\Warehousing\Models\Warehouse;
+use App\Domain\Warehousing\Services\FacilityAccess;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Procurement\StoreGoodsReceiptRequest;
 use App\Support\Tables\TableQuery;
@@ -29,7 +30,10 @@ class GoodsReceiptController extends Controller
      */
     private const SORTABLE = ['number', 'received_at', 'status', 'created_at'];
 
-    public function __construct(private readonly GoodsReceiptService $receipts) {}
+    public function __construct(
+        private readonly GoodsReceiptService $receipts,
+        private readonly FacilityAccess $access,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -107,6 +111,7 @@ class GoodsReceiptController extends Controller
         $this->authorize('create', GoodsReceipt::class);
 
         $data = $request->validated();
+        $this->access->assertCanWorkIn($request->user(), Warehouse::query()->findOrFail($data['warehouse_id']));
 
         $receipt = $this->receipts->create(
             attributes: $data,
@@ -153,6 +158,7 @@ class GoodsReceiptController extends Controller
     public function post(Request $request, GoodsReceipt $goodsReceipt): RedirectResponse
     {
         $this->authorize('post', $goodsReceipt);
+        $this->access->assertCanWorkIn($request->user(), $goodsReceipt->warehouse);
 
         try {
             $this->receipts->post($goodsReceipt, $request->user()->id);

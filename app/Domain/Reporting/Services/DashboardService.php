@@ -18,6 +18,7 @@ use App\Domain\Planning\Models\ProductionPlan;
 use App\Domain\Procurement\Models\GoodsReceiptLine;
 use App\Domain\Quality\Models\QcInspection;
 use App\Domain\Warehousing\Enums\WarehouseType;
+use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Services\WarehouseResolver;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -39,13 +40,14 @@ class DashboardService
     /**
      * @return list<array{key: string, label: string, value: int, hint: string|null, icon: string, href: string|null, tone: string}>
      */
-    public function kpis(User $user): array
+    public function kpis(User $user, ?Facility $facility = null): array
     {
         $tiles = [];
+        $storeIds = $this->storeIds($facility);
 
-        if ($user->can('production.view')) {
-            $running = ManufacturingOrder::query()->where('status', ManufacturingOrderStatus::InProgress->value)->count();
-            $approved = ManufacturingOrder::query()->where('status', ManufacturingOrderStatus::Approved->value)->count();
+        if ($user->can('production.view') && ($facility === null || $facility->can_manufacture)) {
+            $running = ManufacturingOrder::query()->where('status', ManufacturingOrderStatus::InProgress->value)->when($facility, fn ($q) => $q->where('facility_id', $facility->id))->count();
+            $approved = ManufacturingOrder::query()->where('status', ManufacturingOrderStatus::Approved->value)->when($facility, fn ($q) => $q->where('facility_id', $facility->id))->count();
 
             $tiles[] = [
                 'key' => 'in_production',
@@ -150,18 +152,18 @@ class DashboardService
      *
      * @return list<array{kind: string, label: string, code: string|null, warehouse_id: int|null, items: int, counts: array<string, int>, href: string}>
      */
-    public function storeLevels(): array
+    public function storeLevels(?Facility $facility = null): array
     {
         $result = [];
 
         foreach ([WarehouseType::RawMaterial, WarehouseType::Packaging, WarehouseType::FinishedGoods] as $type) {
-            $warehouse = $this->warehouses->findStoreOfType($type);
+            $warehouse = $this->warehouses->findStoreOfType($type, $facility);
             $counts = array_fill_keys(array_map(fn (StockAlertLevel $l) => $l->value, StockAlertLevel::cases()), 0);
             $items = 0;
 
             if ($warehouse !== null) {
                 foreach ($this->balances->summaryForWarehouse($warehouse) as $row) {
-                    $counts[$this->alerts->levelFor($row['item'], $row['on_hand'])->value]++;
+                    $counts[$this->alerts->levelAt($row['item'], $warehouse, $row['on_hand'])->value]++;
                     $items++;
                 }
             }
@@ -173,7 +175,7 @@ class DashboardService
                 'warehouse_id' => $warehouse?->id,
                 'items' => $items,
                 'counts' => $counts,
-                'href' => route('stock.index', ['store' => $type->value]),
+                'href' => route('stock.index', array_filter(['store' => $type->value, 'facility' => $facility?->id])),
             ];
         }
 
@@ -186,19 +188,19 @@ class DashboardService
      *
      * @return list<array{item_id: int, code: string, name: string, type: string, store: string, on_hand: string, uom: string|null, level: string}>
      */
-    public function attention(int $limit = 8): array
+    public function attention(int $limit = 8, ?Facility $facility = null): array
     {
         $rows = collect();
 
         foreach ([WarehouseType::RawMaterial, WarehouseType::Packaging] as $type) {
-            $warehouse = $this->warehouses->findStoreOfType($type);
+            $warehouse = $this->warehouses->findStoreOfType($type, $facility);
 
             if ($warehouse === null) {
                 continue;
             }
 
             foreach ($this->balances->summaryForWarehouse($warehouse) as $row) {
-                $level = $this->alerts->levelFor($row['item'], $row['on_hand']);
+                $level = $this->alerts->levelAt($row['item'], $warehouse, $row['on_hand']);
 
                 if (! $level->needsAttention()) {
                     continue;
@@ -224,16 +226,17 @@ class DashboardService
     /**
      * @return list<array{lot_id: int, batch_number: string, item: string, code: string, expiry_at: string, days: int, on_hand: string, uom: string|null}>
      */
-    public function expiring(int $limit = 6): array
+    public function expiring(int $limit = 6, ?Facility $facility = null): array
     {
         $days = (int) config('erp.stock_alerts.expiry_warning_days', 90);
+        $storeIds = $this->storeIds($facility);
 
         return InventoryLot::query()
             ->releasable()
             ->expiringWithin($days)
             ->with(['item:id,code,name,stock_uom_id', 'item.stockUom:id,code'])
-            ->whereHas('balances', fn ($q) => $q->where('on_hand', '>', 0))
-            ->withSum('balances', 'on_hand')
+            ->whereHas('balances', fn ($q) => $q->where('on_hand', '>', 0)->when($storeIds !== null, fn ($q) => $q->whereIn('warehouse_id', $storeIds)))
+            ->withSum(['balances as balances_sum_on_hand' => fn ($q) => $q->when($storeIds !== null, fn ($q) => $q->whereIn('warehouse_id', $storeIds))], 'on_hand')
             ->orderBy('expiry_at')
             ->limit($limit)
             ->get()
@@ -255,14 +258,16 @@ class DashboardService
      *
      * @return list<array{date: string, received: int, approved: int, rejected: int}>
      */
-    public function receiving(int $days): array
+    public function receiving(int $days, ?Facility $facility = null): array
     {
         $start = CarbonImmutable::today()->subDays($days - 1);
+        $storeIds = $this->storeIds($facility);
 
         $received = GoodsReceiptLine::query()
             ->join('goods_receipts', 'goods_receipts.id', '=', 'goods_receipt_lines.goods_receipt_id')
             ->where('goods_receipts.status', 'received')
             ->where('goods_receipts.posted_at', '>=', $start)
+            ->when($storeIds !== null, fn ($q) => $q->whereIn('goods_receipts.warehouse_id', $storeIds))
             ->selectRaw('date(goods_receipts.posted_at) as day, count(*) as n')
             ->groupBy('day')
             ->pluck('n', 'day');
@@ -270,6 +275,7 @@ class DashboardService
         $decided = QcInspection::query()
             ->whereNotNull('decided_at')
             ->where('decided_at', '>=', $start)
+            ->when($storeIds !== null, fn ($q) => $q->whereIn('destination_warehouse_id', $storeIds))
             ->selectRaw('date(decided_at) as day, status, count(*) as n')
             ->groupBy('day', 'status')
             ->get();
@@ -294,11 +300,12 @@ class DashboardService
      *
      * @return list<array{week: string, start: string, units: int, batches: int}>
      */
-    public function output(int $weeks = 12): array
+    public function output(int $weeks = 12, ?Facility $facility = null): array
     {
         $start = CarbonImmutable::today()->startOfWeek()->subWeeks($weeks - 1);
 
         $rows = ManufacturingOrder::query()
+            ->when($facility, fn ($q) => $q->where('facility_id', $facility->id))
             ->where('status', ManufacturingOrderStatus::Completed->value)
             ->where('completed_at', '>=', $start)
             ->selectRaw("date_trunc('week', completed_at)::date as week_start, coalesce(sum(output_units), 0) as units, count(*) as batches")
@@ -325,9 +332,10 @@ class DashboardService
     /**
      * @return list<array{id: int, number: string, product: string|null, formula: string|null, batch: string, status: string, started_at: string|null, approved_at: string|null, stage: int}>
      */
-    public function inProduction(int $limit = 6): array
+    public function inProduction(int $limit = 6, ?Facility $facility = null): array
     {
         return ManufacturingOrder::query()
+            ->when($facility, fn ($q) => $q->where('facility_id', $facility->id))
             ->whereIn('status', [ManufacturingOrderStatus::Approved->value, ManufacturingOrderStatus::InProgress->value])
             ->with(['product:id,name', 'formula:id,name', 'plannedUom:id,code'])
             ->orderByRaw("case status when 'in_progress' then 0 else 1 end")
@@ -353,14 +361,16 @@ class DashboardService
      *
      * @return list<array{date: string, kind: string, label: string, href: string}>
      */
-    public function upcoming(User $user, int $days = 14): array
+    public function upcoming(User $user, int $days = 14, ?Facility $facility = null): array
     {
         $from = CarbonImmutable::today();
         $to = $from->addDays($days);
         $rows = collect();
+        $storeIds = $this->storeIds($facility);
 
         if ($user->can('planning.view')) {
             ProductionPlan::query()
+                ->when($facility, fn ($q) => $q->where('facility_id', $facility->id))
                 ->whereIn('status', [ProductionPlanStatus::Checked->value, ProductionPlanStatus::Requested->value, ProductionPlanStatus::InProduction->value])
                 ->whereBetween('planned_start_date', [$from, $to])
                 ->with('formula:id,name')
@@ -377,6 +387,7 @@ class DashboardService
         if ($user->can('purchase.view')) {
             MaterialRequest::query()
                 ->open()
+                ->when($storeIds !== null, fn ($q) => $q->whereIn('warehouse_id', $storeIds))
                 ->whereBetween('needed_by', [$from, $to])
                 ->orderBy('needed_by')
                 ->get()
@@ -389,6 +400,16 @@ class DashboardService
         }
 
         return $rows->sortBy('date')->take(8)->values()->all();
+    }
+
+    /**
+     * The stores a facility filter narrows to; null means everything.
+     *
+     * @return list<int>|null
+     */
+    private function storeIds(?Facility $facility): ?array
+    {
+        return $facility?->stores()->pluck('id')->all();
     }
 
     /**

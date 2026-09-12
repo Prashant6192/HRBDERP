@@ -8,9 +8,13 @@ import { WarehouseForm } from './warehouse-form';
 export default function CreateWarehouse({
     types,
     managers,
+    facilities,
+    categories,
 }: {
     types: SelectOption[];
     managers: SelectOption[];
+    facilities: SelectOption[];
+    categories: (SelectOption & { kind: string })[];
 }) {
     return (
         <>
@@ -26,6 +30,8 @@ export default function CreateWarehouse({
                     <WarehouseForm
                         types={types}
                         managers={managers}
+                        facilities={facilities}
+                        categories={categories}
                         action={{ url: store().url, method: 'post' }}
                         submitLabel="Create warehouse"
                     />

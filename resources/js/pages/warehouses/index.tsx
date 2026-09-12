@@ -16,11 +16,13 @@ export default function WarehouseIndex({
     warehouses,
     table,
     types,
+    facilities,
     can,
 }: {
     warehouses: Paginated<Warehouse>;
     table: TableState;
     types: SelectOption[];
+    facilities: SelectOption[];
     can: { create: boolean; export: boolean };
 }) {
     const columns: DataTableColumn<Warehouse>[] = [
@@ -38,11 +40,18 @@ export default function WarehouseIndex({
             cell: (row) => row.name,
         },
         {
+            key: 'facility_id',
+            header: 'Facility',
+            sortable: true,
+            cell: (row) => row.facility?.name ?? '—',
+        },
+        {
             key: 'type',
-            header: 'Type',
+            header: 'Category',
             sortable: true,
             cell: (row) => (
                 <StatusBadge variant={row.is_quarantine ? 'warning' : 'info'}>
+                    {row.category?.badge ? `${row.category.badge} · ` : ''}
                     {types.find((t) => t.value === row.type)?.label ?? row.type}
                 </StatusBadge>
             ),
@@ -86,6 +95,14 @@ export default function WarehouseIndex({
 
     const filters: DataTableFilter[] = [
         {
+            key: 'facility',
+            label: 'Facility',
+            options: facilities.map((f) => ({
+                value: String(f.value),
+                label: f.label,
+            })),
+        },
+        {
             key: 'type',
             label: 'Types',
             options: types.map((t) => ({
@@ -105,18 +122,18 @@ export default function WarehouseIndex({
 
     return (
         <>
-            <Head title="Warehouses" />
+            <Head title="Stores" />
 
             <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
                 <PageHeader
-                    title="Warehouses"
-                    description="Physical stores and the locations inside them."
+                    title="Stores"
+                    description="Every store across all facilities, and the locations inside them. Set up a new site under Facilities & Warehouses."
                     actions={
                         can.create && (
                             <Button asChild>
                                 <Link href={create()}>
                                     <Plus className="size-4" />
-                                    New warehouse
+                                    New store
                                 </Link>
                             </Button>
                         )
@@ -144,6 +161,6 @@ export default function WarehouseIndex({
 WarehouseIndex.layout = {
     breadcrumbs: [
         { title: 'Dashboard', href: dashboard() },
-        { title: 'Warehouses', href: index() },
+        { title: 'Stores', href: index() },
     ],
 };

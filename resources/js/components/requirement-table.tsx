@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { ArrowRight } from 'lucide-react';
+import { ArrowLeftRight, ArrowRight } from 'lucide-react';
 import { StatusBadge } from '@/components/status-badge';
 import {
     Table,
@@ -12,6 +12,7 @@ import {
 import { ALERT_LABEL, ALERT_VARIANT, qty } from '@/lib/stock';
 import { show as showPackaging } from '@/routes/packaging-materials';
 import { show as showRawMaterial } from '@/routes/raw-materials';
+import { create as createTransfer } from '@/routes/transfers';
 import type { RequirementLineRow } from '@/types';
 
 /**
@@ -21,9 +22,12 @@ import type { RequirementLineRow } from '@/types';
 export function RequirementTable({
     lines,
     emptyText,
+    facilityId,
 }: {
     lines: RequirementLineRow[];
     emptyText: string;
+    /** The planning facility; lets a shortage offer a transfer from elsewhere. */
+    facilityId?: number | null;
 }) {
     if (lines.length === 0) {
         return (
@@ -88,6 +92,42 @@ export function RequirementTable({
                                             {n}
                                         </div>
                                     ))}
+                                    {short &&
+                                        (line.available_elsewhere ?? []).map(
+                                            (e) => (
+                                                <div
+                                                    key={e.facility_id}
+                                                    className="mt-1 flex flex-wrap items-center gap-1 text-xs text-sky-700 dark:text-sky-300"
+                                                >
+                                                    <span>
+                                                        Available at{' '}
+                                                        {e.facility}:{' '}
+                                                        {qty(e.quantity)}{' '}
+                                                        {line.uom}
+                                                    </span>
+                                                    <Link
+                                                        href={createTransfer({
+                                                            query: {
+                                                                from_facility:
+                                                                    e.facility_id,
+                                                                to_facility:
+                                                                    facilityId ??
+                                                                    undefined,
+                                                                item: line.item_id,
+                                                                quantity:
+                                                                    line.shortage,
+                                                                reason: 'Production shortage',
+                                                            },
+                                                        })}
+                                                        className="inline-flex items-center gap-1 font-medium underline-offset-4 hover:underline"
+                                                    >
+                                                        <ArrowLeftRight className="size-3" />
+                                                        Create Stock Transfer
+                                                        Request
+                                                    </Link>
+                                                </div>
+                                            ),
+                                        )}
                                 </TableCell>
                                 <TableCell className="text-right tabular-nums">
                                     {line.as_required

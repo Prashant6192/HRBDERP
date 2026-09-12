@@ -10,6 +10,71 @@ between them.
 
 ## [Unreleased]
 
+### Added — Facilities, stores and employee assignments (Phase H)
+
+- **Facilities above stores.** Company → Facility → Store → Location → Stock.
+  Every existing warehouse row is now a store inside a facility; the
+  migration attaches what is already on file to one manufacturing facility
+  (Rudrapur when the data names it) in place — no store id, code or ledger
+  line changes, and no data is reset.
+- **Facility types** (Manufacturing, Warehouse / Storage, Distribution Centre,
+  Office, Third Party Warehouse, Marketplace Warehouse, Depot, Other) and
+  **store categories** (RM, PM, FG, Quarantine, Rejected, Production Staging,
+  Packaging Staging, Samples, Returns, Damaged Goods, Marketplace, General) are
+  editable masters under Settings. A category in use can be renamed, re-badged
+  or deactivated, never deleted, and what it holds is fixed once stores use it.
+- **Capabilities** on each facility — Storage, Receiving, QC, Manufacturing,
+  Packaging, Dispatch, Returns. A production plan or manufacturing order can
+  only be raised for a facility with Manufacturing on; nothing checks a
+  facility's name.
+- **Facilities & Warehouses** screen: Code · Facility · Type · City · Stores
+  (RM · PM · FG · QUAR badges) · Employees · Stock Value · Status, with search
+  and filters by type, city, capability and status; a five-step onboarding
+  wizard (details, capabilities, store checklist, employees, inventory setup);
+  a facility page with Overview, Stores, Inventory, Employees, Stock
+  Transfers, Incoming, Dispatch, Activity and Settings tabs (Production only
+  where manufacturing is on); and a per-store screen with the store's stock,
+  batches, movements and actions.
+- **Stores can be added to a live facility** from its page without touching
+  anything already recorded. A store with ledger history cannot be deleted
+  ("This store cannot be deleted because operational history exists.") —
+  it is deactivated, and only once it holds nothing.
+- **Employee assignments**: a person is assigned to a facility, or to one
+  store within it, with a primary assignment and any number of others; no
+  duplicate user records. Stock actions need the role permission **and** an
+  assignment covering the facility or store; Super Admin, Owner, Director and
+  Management work company-wide. Managed from the facility's Employees tab and
+  from the employee's own record.
+- **Opening stock** per facility: item, batch, quantity in any convertible
+  unit, manufacturing and expiry dates, rate and remarks, posted as immutable
+  `OPENING_BALANCE` ledger transactions with a lot per line. Administrators
+  switch opening stock entry off once a facility is live.
+- **Inter-facility stock transfers**: Draft → Requested → Approved (stock
+  held at the source, one line per batch) → Packed → Dispatched (stock moves
+  to the system's in-transit position) → In Transit → Received, Partially
+  Received or Received with discrepancy (lost or damaged quantities written
+  off from transit); Rejected and Cancelled release the hold. Nothing shows at
+  the destination before receipt, the batch is the same batch at both ends,
+  and an optional inspection routes received stock into the destination's
+  quarantine with a QC inspection. Finished goods skip re-QC by default.
+- **Requirement checks count the planning facility only.** With 25 kg at
+  Rudrapur and 100 kg at Delhi, a plan for 50 kg shows 25 available and 25
+  short, and the line offers "Available at Delhi: 100 → Create Stock Transfer
+  Request" with the transfer pre-filled.
+- **Store-specific thresholds** (`store_item_levels`) override an item's
+  reorder and critical levels for one store.
+- **Facility filter** on the dashboard (All / one facility; production
+  widgets hidden for a facility that does not manufacture), on the Stock
+  screen (facility → store), and on the Stores list.
+- Permissions: `facility.view/create/edit/deactivate/export`,
+  `warehouse.deactivate`, `user.assign_facility`, `user.assign_store`,
+  `inventory.opening_stock`, `inventory.approve_transfer`,
+  `inventory.receive_transfer`. Roles pick them up through
+  `erp:sync-permissions` on deploy.
+- Demo data now seeds the Rudrapur plant (RM, PM, FG, Quarantine, Rejected,
+  Production Staging, Samples, Marketplace) and a Delhi warehouse with only a
+  finished goods store, plus everyone's assignments.
+
 ### Fixed
 
 - **Raw material stock control (issue #1).** The reorder level, minimum stock

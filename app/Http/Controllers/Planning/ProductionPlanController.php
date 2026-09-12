@@ -13,6 +13,8 @@ use App\Domain\Planning\Models\MaterialRequest;
 use App\Domain\Planning\Models\ProductionPlan;
 use App\Domain\Planning\Models\ProductionPlanLine;
 use App\Domain\Planning\Services\ProductionPlanService;
+use App\Domain\Warehousing\Models\Facility;
+use App\Domain\Warehousing\Services\FacilityAccess;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Planning\StoreProductionPlanRequest;
 use App\Support\Tables\TableQuery;
@@ -30,7 +32,10 @@ class ProductionPlanController extends Controller
 {
     private const array SORTABLE = ['number', 'status', 'planned_quantity', 'planned_start_date', 'created_at'];
 
-    public function __construct(private readonly ProductionPlanService $plans) {}
+    public function __construct(
+        private readonly ProductionPlanService $plans,
+        private readonly FacilityAccess $access,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -80,6 +85,8 @@ class ProductionPlanController extends Controller
                 ])->all(),
             'uoms' => Uom::query()->active()->whereIn('dimension', ['mass', 'volume'])->orderBy('dimension')->orderBy('code')->get(['id', 'code', 'name', 'dimension'])
                 ->map(static fn (Uom $u): array => ['value' => $u->id, 'label' => "{$u->code} — {$u->name}", 'dimension' => $u->dimension->value])->all(),
+            'facilities' => $this->access->scopeFacilities($request->user(), Facility::query()->active()->manufacturing())->ordered()->get(['id', 'code', 'name', 'city'])
+                ->map(static fn (Facility $f): array => ['value' => $f->id, 'label' => $f->name, 'description' => $f->city])->all(),
             'today' => now()->toDateString(),
         ]);
     }
@@ -88,8 +95,14 @@ class ProductionPlanController extends Controller
     {
         $this->authorize('create', ProductionPlan::class);
 
+        $data = $request->validated();
+
+        if (! empty($data['facility_id'])) {
+            $this->access->assertCanWorkAt($request->user(), Facility::query()->findOrFail($data['facility_id']));
+        }
+
         try {
-            $plan = $this->plans->create($request->validated(), $request->user()->id);
+            $plan = $this->plans->create($data, $request->user()->id);
         } catch (PlanningException|RuntimeException $e) {
             return back()->withInput()->withErrors(['formula_id' => $e->getMessage()]);
         }
@@ -106,6 +119,7 @@ class ProductionPlanController extends Controller
         $this->authorize('view', $plan);
 
         $plan->load([
+            'facility:id,code,name',
             'formula:id,code,name',
             'formulaVersion:id,version_number,batch_size,batch_uom_id',
             'formulaVersion.batchUom:id,code',
@@ -139,6 +153,7 @@ class ProductionPlanController extends Controller
             'reorder_level' => $line->item->reorder_level,
             'minimum_stock' => $line->item->minimum_stock,
             'notes' => $line->notes ?? [],
+            'available_elsewhere' => $line->available_elsewhere ?? [],
         ]);
 
         return Inertia::render('plans/show', [

@@ -143,12 +143,56 @@ A negative stock level is always a data-entry error rather than a meaningful
 instruction, and a density of zero would make the mass/volume bridge divide by
 zero.
 
-### `warehouses`, `warehouse_locations`
+### `facility_types`, `store_categories`
 
-A location code is unique **within** its warehouse, not globally — every
-warehouse is entitled to a rack called `A-01`. Stock in a warehouse flagged
-`is_quarantine` is on the books but cannot be issued to production or sales
-until QC releases it.
+Editable reference data, seeded by `ReferenceDataSeeder` and safe to re-seed
+(matched by code, only created when missing). A facility type carries the
+`default_capabilities` a new facility of that type starts with. A store
+category carries a `badge` (RM, PM, FG, QUAR…) and a `kind` — a
+`WarehouseType` value, the behaviour workflows rely on — which is fixed once
+stores use the category. Both have `is_system` and `is_active`; neither is
+ever deleted from a live system.
+
+### `facilities`
+
+A site: code, name, type, manager, address and contact, GSTIN, seven boolean
+capabilities (`can_store`, `can_receive`, `can_qc`, `can_manufacture`,
+`can_pack`, `can_dispatch`, `can_return`), `opening_stock_enabled`,
+`is_active`, soft deletes. `production_plans.facility_id` and
+`manufacturing_orders.facility_id` name where a batch is made; the service
+layer refuses either for a facility without `can_manufacture`.
+
+### `warehouses`, `warehouse_locations` — stores
+
+The table keeps its original name because every stock table points at it: a
+`warehouses` row **is** a store. It now carries `facility_id`,
+`store_category_id`, `is_system` and `sort_order`. `type` and `is_quarantine`
+follow from the category and are kept in step on save, so everything written
+against the type keeps working. One system store, `SYS-TRANSIT`, belongs to
+no facility and holds stock that has left one site and not yet reached the
+next. A location code is unique **within** its store; locations nest through
+`parent_id` (zone → rack → shelf → bin) and are optional. Stock in a store
+flagged `is_quarantine` is on the books but cannot be issued until QC
+releases it.
+
+The facilities migration converts existing rows in place: the stores that
+exist are attached to one manufacturing facility (Rudrapur when any store
+names it) and categorised by what they already held. No id, code or ledger
+line changes.
+
+### `employee_assignments`
+
+Where a person works: `user_id`, `facility_id`, optional `store_id`,
+`is_primary`, `designation`, `effective_from` / `effective_to`, `status`,
+`assigned_by`. A partial unique index allows one active row per
+(user, facility, store) with `NULLS NOT DISTINCT`, so a person cannot be
+assigned to the same place twice while an ended assignment stays on record.
+
+### `store_item_levels`
+
+Optional per-store overrides of an item's `minimum_stock`, `reorder_level`
+and moderate multiplier; unique per (store, item). Absent figures fall back
+to the item.
 
 ### `vendors`
 
@@ -240,6 +284,20 @@ Append-only. A transaction has a type (`GRN_RECEIPT`, `QC_RELEASE`,
 a polymorphic `reference`, a reason and `transacted_at`; its lines carry
 `item_id`, `warehouse_id`, `lot_id`, a signed `quantity` in the item's stock
 unit, and `unit_cost`. Nothing here is ever updated.
+
+### `stock_transfers`, `stock_transfer_lines`
+
+An inter-facility transfer: source and destination facility and store,
+`status` (draft, requested, approved, packed, dispatched, in_transit,
+partially_received, received, discrepancy, rejected, cancelled),
+`requires_inspection`, and who requested, approved, dispatched and received
+it. Lines carry the item, the batch (one line per batch once approved), the
+unit, and `quantity_requested` / `quantity_dispatched` / `quantity_received`
+/ `quantity_written_off`, with a `CHECK (quantity_requested > 0)`. The stock
+itself moves only through ledger postings that reference the transfer:
+source → `SYS-TRANSIT` on dispatch, `SYS-TRANSIT` → destination (or the
+destination's quarantine) on receipt, and a `DAMAGE` posting out of transit
+for anything written off.
 
 ### `stock_balances`
 
@@ -360,7 +418,9 @@ the order polymorphically.
 
 ## Still to come
 
-Purchase orders and vendor price history, costing (batch, per kilogram, per
+Zone/rack/bin balances (`stock_balances.location_id` and
+`stock_reservations.location_id` exist and are part of the unique key, but
+postings are still made at store level), purchase orders and vendor price history, costing (batch, per kilogram, per
 unit — built on the consumption each order already records), sales orders and
 dispatch, and the approval workflows that will sit on the existing
 `approvals` tables. See [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md).

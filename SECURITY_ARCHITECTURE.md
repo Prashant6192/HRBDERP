@@ -65,7 +65,7 @@ the one mistake with no way back.
 
 ### The permission catalogue
 
-`App\Domain\Access\PermissionCatalogue` is the single source of truth for all 97
+`App\Domain\Access\PermissionCatalogue` is the single source of truth for all 116
 permissions. Every name follows `<module>.<ability>` — `inventory.receive`,
 `formula.approve`, `raw_material.import`.
 
@@ -88,6 +88,21 @@ Three layers, in order:
 The frontend receives the user's permission list so it can hide unusable
 controls. That list is presentation only. A user who edits it in the browser
 console gets a nicer-looking page and exactly the same 403s.
+
+### Facility assignments
+
+Permissions say what; assignments say where. `FacilityAccess` sits beside
+the policies: a stock action at a facility — booking opening stock, posting
+a goods receipt, approving, starting or completing a manufacturing order,
+dispatching or receiving a transfer, raising a plan — needs the permission
+**and** an active `employee_assignments` row for that facility (or for the
+specific store, when the assignment is that narrow). Denials are ordinary
+403s. Super Admin, Owner, Director and Management act company-wide, and so
+does a person with no assignment at all: assignments narrow, they never
+grant, so nothing that worked before facilities existed stops working until
+an administrator assigns people. Pickers (facilities, stores) are scoped the
+same way, and that scoping is presentation only — the check runs again on
+every write.
 
 ### The Super Admin bypass, and its one exception
 

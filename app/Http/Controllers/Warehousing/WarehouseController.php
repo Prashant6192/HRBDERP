@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Warehousing;
 
 use App\Domain\Warehousing\Enums\WarehouseType;
+use App\Domain\Warehousing\Exceptions\FacilityException;
+use App\Domain\Warehousing\Models\Facility;
+use App\Domain\Warehousing\Models\StoreCategory;
 use App\Domain\Warehousing\Models\Warehouse;
+use App\Domain\Warehousing\Services\StoreService;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Warehousing\StoreWarehouseRequest;
 use App\Http\Requests\Warehousing\UpdateWarehouseRequest;
@@ -31,18 +35,25 @@ class WarehouseController extends Controller
      *
      * @var list<string>
      */
-    private const SORTABLE = ['code', 'name', 'type', 'city', 'is_active', 'created_at'];
+    private const SORTABLE = ['code', 'name', 'type', 'city', 'facility_id', 'is_active', 'created_at'];
+
+    public function __construct(private readonly StoreService $stores) {}
 
     public function index(Request $request): Response
     {
         $this->authorize('viewAny', Warehouse::class);
 
-        $table = TableQuery::fromRequest($request, allowedFilters: ['type', 'status']);
+        $table = TableQuery::fromRequest($request, allowedFilters: ['type', 'status', 'facility']);
 
         $query = Warehouse::query()
-            ->with('manager:id,name')
+            ->with(['manager:id,name', 'facility:id,code,name', 'category:id,badge,name'])
+            ->where('is_system', false)
             ->withCount('locations')
             ->search($table->search);
+
+        if ($facility = $table->filter('facility')) {
+            $query->where('facility_id', (int) $facility);
+        }
 
         if ($type = $table->filter('type')) {
             $query->where('type', $type);
@@ -58,6 +69,7 @@ class WarehouseController extends Controller
             ),
             'table' => $table->toArray(),
             'types' => $this->typeOptions(),
+            'facilities' => $this->facilityOptions(),
             'can' => [
                 'create' => $request->user()->can('create', Warehouse::class),
                 'export' => $request->user()->can('export', Warehouse::class),
@@ -72,6 +84,8 @@ class WarehouseController extends Controller
         return Inertia::render('warehouses/create', [
             'types' => $this->typeOptions(),
             'managers' => $this->managerOptions(),
+            'facilities' => $this->facilityOptions(),
+            'categories' => $this->categoryOptions(),
         ]);
     }
 
@@ -97,10 +111,11 @@ class WarehouseController extends Controller
     {
         $this->authorize('view', $warehouse);
 
-        $warehouse->load(['manager:id,name', 'locations' => fn ($query) => $query->orderBy('code')]);
+        $warehouse->load(['manager:id,name', 'facility:id,code,name', 'category:id,badge,name', 'locations' => fn ($query) => $query->orderBy('code')]);
 
         return Inertia::render('warehouses/show', [
             'warehouse' => $warehouse,
+            'hasHistory' => $warehouse->hasOperationalHistory(),
             'can' => [
                 'update' => $request->user()->can('update', $warehouse),
                 'delete' => $request->user()->can('delete', $warehouse),
@@ -116,6 +131,8 @@ class WarehouseController extends Controller
             'warehouse' => $warehouse,
             'types' => $this->typeOptions(),
             'managers' => $this->managerOptions(),
+            'facilities' => $this->facilityOptions(),
+            'categories' => $this->categoryOptions(),
         ]);
     }
 
@@ -137,13 +154,18 @@ class WarehouseController extends Controller
     }
 
     /**
-     * Soft-deletes the warehouse. Its stock history keeps referring to it.
+     * Soft-deletes a warehouse nobody ever used. One with stock history is
+     * refused — it is deactivated instead, so the ledger keeps its store.
      */
     public function destroy(Request $request, Warehouse $warehouse): RedirectResponse
     {
         $this->authorize('delete', $warehouse);
 
-        $warehouse->delete();
+        try {
+            $this->stores->delete($warehouse);
+        } catch (FacilityException $e) {
+            return back()->withToast('error', $e->getMessage());
+        }
 
         Inertia::flash('toast', [
             'type' => 'success',
@@ -165,6 +187,26 @@ class WarehouseController extends Controller
             ],
             WarehouseType::cases(),
         );
+    }
+
+    /**
+     * @return list<array{value: int, label: string}>
+     */
+    private function facilityOptions(): array
+    {
+        return Facility::query()->ordered()->get(['id', 'code', 'name'])
+            ->map(static fn (Facility $f): array => ['value' => $f->id, 'label' => "{$f->name} ({$f->code})"])
+            ->all();
+    }
+
+    /**
+     * @return list<array{value: int, label: string, kind: string}>
+     */
+    private function categoryOptions(): array
+    {
+        return StoreCategory::query()->selectable()->ordered()->get(['id', 'name', 'badge', 'kind'])
+            ->map(static fn (StoreCategory $c): array => ['value' => $c->id, 'label' => "{$c->name} ({$c->badge})", 'kind' => $c->kind->value])
+            ->all();
     }
 
     /**

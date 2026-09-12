@@ -139,8 +139,9 @@ app/
     Identity/        Departments, employee account state
     MasterData/      Items — raw materials, packaging, finished goods
     Measurement/     Units of measure and the conversion service
-    Procurement/     Vendors
-    Warehousing/     Warehouses and locations
+    Procurement/     Vendors, goods receipts
+    Warehousing/     Facilities, stores, locations, employee assignments
+    Inventory/       Ledger, lots, balances, reservations, transfers, opening stock
   Http/
     Controllers/     Thin; one per module
     Requests/        Validation

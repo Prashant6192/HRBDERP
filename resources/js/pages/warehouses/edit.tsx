@@ -9,10 +9,14 @@ export default function EditWarehouse({
     warehouse,
     types,
     managers,
+    facilities,
+    categories,
 }: {
     warehouse: Warehouse;
     types: SelectOption[];
     managers: SelectOption[];
+    facilities: SelectOption[];
+    categories: (SelectOption & { kind: string })[];
 }) {
     return (
         <>
@@ -29,6 +33,8 @@ export default function EditWarehouse({
                         warehouse={warehouse}
                         types={types}
                         managers={managers}
+                        facilities={facilities}
+                        categories={categories}
                         action={{
                             url: update(warehouse.id).url,
                             method: 'put',

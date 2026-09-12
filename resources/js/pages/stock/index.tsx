@@ -34,7 +34,11 @@ type WarehouseOption = {
     name: string;
     type: string;
     is_quarantine: boolean;
+    facility_id: number | null;
+    facility: string | null;
 };
+
+type FacilityOption = { id: number; code: string; name: string };
 
 type LevelDef = {
     value: StockAlertLevel;
@@ -57,6 +61,8 @@ function itemHref(row: StockRow): string | null {
 }
 
 export default function StockIndex({
+    facilities,
+    facility,
     warehouses,
     selected,
     rows,
@@ -65,6 +71,8 @@ export default function StockIndex({
     filters,
     expiring,
 }: {
+    facilities: FacilityOption[];
+    facility: number | null;
     warehouses: WarehouseOption[];
     selected: WarehouseOption | null;
     rows: StockRow[];
@@ -82,6 +90,7 @@ export default function StockIndex({
         router.get(
             index().url,
             {
+                facility: facility ?? undefined,
                 warehouse: selected?.id,
                 search: filters.search || undefined,
                 level: filters.level !== 'all' ? filters.level : undefined,
@@ -103,24 +112,63 @@ export default function StockIndex({
                     title="Stock"
                     description="What is on the shelf, what is held for production, and what needs ordering."
                     actions={
-                        <Select
-                            value={selected ? String(selected.id) : ''}
-                            onValueChange={(v) =>
-                                visit({ warehouse: v, level: undefined })
-                            }
-                        >
-                            <SelectTrigger className="min-w-56">
-                                <SelectValue placeholder="Choose a store" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {warehouses.map((w) => (
-                                    <SelectItem key={w.id} value={String(w.id)}>
-                                        {w.code} — {w.name}
-                                        {w.is_quarantine ? ' (quarantine)' : ''}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <div className="flex flex-wrap gap-2">
+                            {facilities.length > 1 && (
+                                <Select
+                                    value={facility ? String(facility) : ''}
+                                    onValueChange={(v) =>
+                                        visit({
+                                            facility: v,
+                                            warehouse: undefined,
+                                            level: undefined,
+                                        })
+                                    }
+                                >
+                                    <SelectTrigger className="min-w-48">
+                                        <SelectValue placeholder="Facility" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {facilities.map((f) => (
+                                            <SelectItem
+                                                key={f.id}
+                                                value={String(f.id)}
+                                            >
+                                                {f.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
+                            <Select
+                                value={selected ? String(selected.id) : ''}
+                                onValueChange={(v) =>
+                                    visit({ warehouse: v, level: undefined })
+                                }
+                            >
+                                <SelectTrigger className="min-w-56">
+                                    <SelectValue placeholder="Choose a store" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {warehouses
+                                        .filter(
+                                            (w) =>
+                                                facility === null ||
+                                                w.facility_id === facility,
+                                        )
+                                        .map((w) => (
+                                            <SelectItem
+                                                key={w.id}
+                                                value={String(w.id)}
+                                            >
+                                                {w.code} — {w.name}
+                                                {w.is_quarantine
+                                                    ? ' (quarantine)'
+                                                    : ''}
+                                            </SelectItem>
+                                        ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     }
                 />
 

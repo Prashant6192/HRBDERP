@@ -340,12 +340,19 @@ export default function ShowPlan({
                         <p className="text-muted-foreground text-sm">
                             Required for {qty(plan.planned_quantity)}{' '}
                             {plan.planned_uom?.code}, against QC-released,
-                            unreserved stock as at {date(plan.checked_at)}.
+                            unreserved stock
+                            {plan.facility
+                                ? ` at ${plan.facility.name}`
+                                : ''}{' '}
+                            as at {date(plan.checked_at)}. Stock at other
+                            facilities is shown as a transfer suggestion, not as
+                            available.
                         </p>
                     </div>
                     <RequirementTable
                         lines={rawMaterials}
                         emptyText="No raw material lines."
+                        facilityId={plan.facility_id ?? null}
                     />
                 </section>
 
@@ -363,6 +370,7 @@ export default function ShowPlan({
                     <RequirementTable
                         lines={packaging}
                         emptyText="No packaging is planned for this batch — see the notes above."
+                        facilityId={plan.facility_id ?? null}
                     />
                 </section>
 

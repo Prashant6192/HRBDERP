@@ -11,6 +11,7 @@ use App\Domain\Manufacturing\Models\ManufacturingOrder;
 use App\Domain\Manufacturing\Models\ManufacturingOrderLine;
 use App\Domain\Manufacturing\Services\ManufacturingOrderService;
 use App\Domain\Planning\Models\ProductionPlan;
+use App\Domain\Warehousing\Services\FacilityAccess;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Manufacturing\CompleteManufacturingOrderRequest;
 use App\Support\Tables\TableQuery;
@@ -24,7 +25,10 @@ class ManufacturingOrderController extends Controller
 {
     private const array SORTABLE = ['number', 'status', 'planned_quantity', 'started_at', 'completed_at', 'created_at'];
 
-    public function __construct(private readonly ManufacturingOrderService $orders) {}
+    public function __construct(
+        private readonly ManufacturingOrderService $orders,
+        private readonly FacilityAccess $access,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -136,6 +140,7 @@ class ManufacturingOrderController extends Controller
     public function approve(Request $request, ManufacturingOrder $order): RedirectResponse
     {
         $this->authorize('approve', $order);
+        $this->assertAtFacility($request, $order);
 
         try {
             $this->orders->approve($order, $request->user()->id);
@@ -149,6 +154,7 @@ class ManufacturingOrderController extends Controller
     public function start(Request $request, ManufacturingOrder $order): RedirectResponse
     {
         $this->authorize('start', $order);
+        $this->assertAtFacility($request, $order);
 
         try {
             $this->orders->start($order, $request->user()->id);
@@ -162,6 +168,7 @@ class ManufacturingOrderController extends Controller
     public function complete(CompleteManufacturingOrderRequest $request, ManufacturingOrder $order): RedirectResponse
     {
         $this->authorize('complete', $order);
+        $this->assertAtFacility($request, $order);
 
         try {
             $order = $this->orders->complete($order, $request->user()->id, $request->validated());
@@ -187,5 +194,16 @@ class ManufacturingOrderController extends Controller
         }
 
         return back()->withToast('success', "{$order->number} cancelled; held materials released.");
+    }
+
+    /**
+     * Holding the permission is not enough: the person must work at the
+     * facility the batch is made at.
+     */
+    private function assertAtFacility(Request $request, ManufacturingOrder $order): void
+    {
+        if ($order->facility !== null) {
+            $this->access->assertCanWorkAt($request->user(), $order->facility);
+        }
     }
 }

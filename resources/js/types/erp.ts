@@ -96,11 +96,160 @@ export type WarehouseLocation = {
     is_active: boolean;
 };
 
+export type FacilityCapabilityKey =
+    | 'can_store'
+    | 'can_receive'
+    | 'can_qc'
+    | 'can_manufacture'
+    | 'can_pack'
+    | 'can_dispatch'
+    | 'can_return';
+
+export type CapabilityMeta = {
+    key: FacilityCapabilityKey;
+    label: string;
+    badge: string;
+    description?: string;
+};
+
+export type StoreCategoryOption = {
+    id: number;
+    code: string;
+    name: string;
+    badge: string;
+    kind: string;
+    icon: string | null;
+    color: string | null;
+    description: string | null;
+};
+
+export type FacilityTypeOption = SelectOption & {
+    code: string;
+    defaults: Partial<Record<FacilityCapabilityKey, boolean>>;
+};
+
+export type Facility = {
+    id: number;
+    code: string;
+    name: string;
+    facility_type_id: number;
+    type?: { id: number; code: string; name: string } | null;
+    manager_id: number | null;
+    address_line_1: string | null;
+    address_line_2: string | null;
+    city: string | null;
+    state: string | null;
+    pincode: string | null;
+    country: string | null;
+    phone: string | null;
+    email: string | null;
+    gstin: string | null;
+    can_store: boolean;
+    can_receive: boolean;
+    can_qc: boolean;
+    can_manufacture: boolean;
+    can_pack: boolean;
+    can_dispatch: boolean;
+    can_return: boolean;
+    opening_stock_enabled: boolean;
+    is_active: boolean;
+    notes: string | null;
+    created_at: string;
+};
+
+export type FacilityRow = {
+    id: number;
+    code: string;
+    name: string;
+    type: string | null;
+    type_code: string | null;
+    city: string | null;
+    state: string | null;
+    manager: string | null;
+    stores: { id: number; badge: string; name: string; is_active: boolean }[];
+    stores_count: number;
+    employees_count: number;
+    stock_value: string;
+    capabilities: { key: string; badge: string; label: string }[];
+    can_manufacture: boolean;
+    is_active: boolean;
+};
+
+export type StoreRow = {
+    id: number;
+    code: string;
+    name: string;
+    badge: string;
+    category: string | null;
+    type: string;
+    is_quarantine: boolean;
+    is_active: boolean;
+    manager: string | null;
+    locations_count: number;
+    items: number;
+    can_deactivate: boolean;
+};
+
+export type EmployeeAssignmentRow = {
+    id: number;
+    user_id?: number;
+    name?: string;
+    email?: string;
+    employee_code?: string | null;
+    roles?: string[];
+    designation: string | null;
+    facility_id?: number;
+    facility?: string | null;
+    facility_code?: string | null;
+    store_id: number | null;
+    store: string | null;
+    is_primary: boolean;
+    effective_from: string | null;
+    effective_to: string | null;
+    assigned_by?: string | null;
+};
+
+export type StockTransferStatus =
+    | 'draft'
+    | 'requested'
+    | 'approved'
+    | 'packed'
+    | 'dispatched'
+    | 'in_transit'
+    | 'partially_received'
+    | 'received'
+    | 'discrepancy'
+    | 'rejected'
+    | 'cancelled';
+
+export type StockTransferRow = {
+    id: number;
+    number: string;
+    status: StockTransferStatus;
+    requires_inspection: boolean;
+    expected_at: string | null;
+    reason: string | null;
+    lines_count: number;
+    source_facility?: { id: number; code: string; name: string } | null;
+    source_store?: { id: number; code: string; name: string } | null;
+    destination_facility?: { id: number; code: string; name: string } | null;
+    destination_store?: { id: number; code: string; name: string } | null;
+    requester?: { id: number; name: string } | null;
+    created_at: string;
+    dispatched_at: string | null;
+};
+
 export type Warehouse = {
     id: number;
     code: string;
     name: string;
     type: string;
+    facility_id?: number | null;
+    facility?: { id: number; code: string; name: string } | null;
+    store_category_id?: number | null;
+    category?: { id: number; badge: string; name: string } | null;
+    is_system?: boolean;
+    sort_order?: number;
     manager_id: number | null;
     manager?: { id: number; name: string } | null;
     address_line_1: string | null;
@@ -545,6 +694,8 @@ export type ProductPackagingLine = {
 export type ProductionPlan = {
     id: number;
     number: string;
+    facility_id?: number | null;
+    facility?: { id: number; code: string; name: string } | null;
     formula_id: number;
     formula?: { id: number; code: string; name: string } | null;
     formula_version_id: number;
@@ -599,6 +750,11 @@ export type RequirementLineRow = {
     reorder_level: string | null;
     minimum_stock: string | null;
     notes: string[];
+    available_elsewhere?: {
+        facility_id: number;
+        facility: string;
+        quantity: string;
+    }[];
 };
 
 export type MaterialRequestSummary = {

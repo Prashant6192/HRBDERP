@@ -11,7 +11,9 @@ use App\Http\Controllers\Formulation\FormulaImportController;
 use App\Http\Controllers\Formulation\FormulaSecurityController;
 use App\Http\Controllers\Formulation\FormulaVersionController;
 use App\Http\Controllers\Inventory\LotController;
+use App\Http\Controllers\Inventory\OpeningStockController;
 use App\Http\Controllers\Inventory\StockController;
+use App\Http\Controllers\Inventory\StockTransferController;
 use App\Http\Controllers\Manufacturing\ManufacturingOrderController;
 use App\Http\Controllers\MasterData\PackagingMaterialController;
 use App\Http\Controllers\MasterData\ProductController;
@@ -22,6 +24,11 @@ use App\Http\Controllers\Planning\ProductionPlanController;
 use App\Http\Controllers\Procurement\GoodsReceiptController;
 use App\Http\Controllers\Procurement\VendorController;
 use App\Http\Controllers\Quality\QcInspectionController;
+use App\Http\Controllers\Settings\FacilityTypeController;
+use App\Http\Controllers\Settings\StoreCategoryController;
+use App\Http\Controllers\Warehousing\EmployeeAssignmentController;
+use App\Http\Controllers\Warehousing\FacilityController;
+use App\Http\Controllers\Warehousing\FacilityStoreController;
 use App\Http\Controllers\Warehousing\WarehouseController;
 use Illuminate\Support\Facades\Route;
 
@@ -41,6 +48,39 @@ Route::inertia('/', 'welcome')->name('home');
 Route::middleware(['auth', 'verified'])->group(function (): void {
 
     Route::get('dashboard', DashboardController::class)->name('dashboard');
+
+    // ---- Facilities & stores ----------------------------------------------
+    Route::resource('facilities', FacilityController::class)->except(['destroy']);
+    Route::post('facilities/{facility}/deactivate', [FacilityController::class, 'deactivate'])->name('facilities.deactivate');
+    Route::post('facilities/{facility}/activate', [FacilityController::class, 'activate'])->name('facilities.activate');
+    Route::post('facilities/{facility}/opening-stock-switch', [FacilityController::class, 'openingStock'])->name('facilities.opening-stock-switch');
+    Route::post('facilities/{facility}/stores', [FacilityStoreController::class, 'store'])->name('facilities.stores.store');
+    Route::post('facilities/{facility}/employees', [EmployeeAssignmentController::class, 'store'])->name('facilities.employees.store');
+    Route::get('facilities/{facility}/opening-stock', [OpeningStockController::class, 'create'])->name('facilities.opening-stock.create');
+    Route::post('facilities/{facility}/opening-stock', [OpeningStockController::class, 'store'])->name('facilities.opening-stock.store');
+
+    Route::get('stores/{warehouse}', [FacilityStoreController::class, 'show'])->name('stores.show');
+    Route::put('stores/{warehouse}', [FacilityStoreController::class, 'update'])->name('stores.update');
+    Route::post('stores/{warehouse}/deactivate', [FacilityStoreController::class, 'deactivate'])->name('stores.deactivate');
+    Route::post('stores/{warehouse}/activate', [FacilityStoreController::class, 'activate'])->name('stores.activate');
+    Route::delete('stores/{warehouse}', [FacilityStoreController::class, 'destroy'])->name('stores.destroy');
+
+    Route::delete('employee-assignments/{assignment}', [EmployeeAssignmentController::class, 'destroy'])->name('employee-assignments.destroy');
+    Route::post('employee-assignments/{assignment}/primary', [EmployeeAssignmentController::class, 'primary'])->name('employee-assignments.primary');
+
+    Route::get('transfers', [StockTransferController::class, 'index'])->name('transfers.index');
+    Route::get('transfers/create', [StockTransferController::class, 'create'])->name('transfers.create');
+    Route::get('transfers/lots', [StockTransferController::class, 'lots'])->name('transfers.lots');
+    Route::post('transfers', [StockTransferController::class, 'store'])->name('transfers.store');
+    Route::get('transfers/{transfer}', [StockTransferController::class, 'show'])->name('transfers.show');
+    Route::post('transfers/{transfer}/request', [StockTransferController::class, 'request'])->name('transfers.request');
+    Route::post('transfers/{transfer}/approve', [StockTransferController::class, 'approve'])->name('transfers.approve');
+    Route::post('transfers/{transfer}/reject', [StockTransferController::class, 'reject'])->name('transfers.reject');
+    Route::post('transfers/{transfer}/pack', [StockTransferController::class, 'pack'])->name('transfers.pack');
+    Route::post('transfers/{transfer}/dispatch', [StockTransferController::class, 'dispatch'])->name('transfers.dispatch');
+    Route::post('transfers/{transfer}/transit', [StockTransferController::class, 'transit'])->name('transfers.transit');
+    Route::post('transfers/{transfer}/receive', [StockTransferController::class, 'receive'])->name('transfers.receive');
+    Route::post('transfers/{transfer}/cancel', [StockTransferController::class, 'cancel'])->name('transfers.cancel');
 
     // ---- Master data ------------------------------------------------------
     Route::resource('warehouses', WarehouseController::class);
@@ -153,6 +193,13 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 
     // The audit trail is readable and nothing else. There is no route that
     // writes to it, by design.
+    Route::get('settings/store-categories', [StoreCategoryController::class, 'index'])->name('store-categories.index');
+    Route::post('settings/store-categories', [StoreCategoryController::class, 'store'])->name('store-categories.store');
+    Route::put('settings/store-categories/{storeCategory}', [StoreCategoryController::class, 'update'])->name('store-categories.update');
+    Route::get('settings/facility-types', [FacilityTypeController::class, 'index'])->name('facility-types.index');
+    Route::post('settings/facility-types', [FacilityTypeController::class, 'store'])->name('facility-types.store');
+    Route::put('settings/facility-types/{facilityType}', [FacilityTypeController::class, 'update'])->name('facility-types.update');
+
     Route::get('audit', [AuditLogController::class, 'index'])->name('audit.index');
     Route::get('audit/{auditLog}', [AuditLogController::class, 'show'])
         ->whereNumber('auditLog')->name('audit.show');

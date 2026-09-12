@@ -18,6 +18,8 @@ type WarehouseFormProps = {
     warehouse?: Warehouse;
     types: SelectOption[];
     managers: SelectOption[];
+    facilities?: SelectOption[];
+    categories?: (SelectOption & { kind: string })[];
     action: { url: string; method: 'post' | 'put' };
     submitLabel: string;
 };
@@ -29,6 +31,8 @@ export function WarehouseForm({
     warehouse,
     types,
     managers,
+    facilities = [],
+    categories = [],
     action,
     submitLabel,
 }: WarehouseFormProps) {
@@ -73,6 +77,72 @@ export function WarehouseForm({
                                 defaultValue={warehouse?.name ?? ''}
                                 required
                             />
+                        </Field>
+
+                        <Field
+                            label="Facility"
+                            htmlFor="facility_id"
+                            error={errors.facility_id}
+                            hint="The site this store belongs to."
+                        >
+                            <Select
+                                name="facility_id"
+                                defaultValue={
+                                    warehouse?.facility_id
+                                        ? String(warehouse.facility_id)
+                                        : undefined
+                                }
+                            >
+                                <SelectTrigger
+                                    id="facility_id"
+                                    className="w-full"
+                                >
+                                    <SelectValue placeholder="Choose a facility" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {facilities.map((f) => (
+                                        <SelectItem
+                                            key={f.value}
+                                            value={String(f.value)}
+                                        >
+                                            {f.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </Field>
+
+                        <Field
+                            label="Store category"
+                            htmlFor="store_category_id"
+                            error={errors.store_category_id}
+                            hint="Sets what the store holds; the type below follows it."
+                        >
+                            <Select
+                                name="store_category_id"
+                                defaultValue={
+                                    warehouse?.store_category_id
+                                        ? String(warehouse.store_category_id)
+                                        : undefined
+                                }
+                            >
+                                <SelectTrigger
+                                    id="store_category_id"
+                                    className="w-full"
+                                >
+                                    <SelectValue placeholder="Choose a category" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {categories.map((c) => (
+                                        <SelectItem
+                                            key={c.value}
+                                            value={String(c.value)}
+                                        >
+                                            {c.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </Field>
 
                         <Field

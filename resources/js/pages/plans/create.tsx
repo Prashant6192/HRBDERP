@@ -29,14 +29,28 @@ type UomOption = SelectOption & { dimension: string };
 export default function CreatePlan({
     formulas,
     uoms,
+    facilities,
     today,
 }: {
     formulas: FormulaOption[];
     uoms: UomOption[];
+    facilities: SelectOption[];
     today: string;
 }) {
+    const presetFacility =
+        typeof window !== 'undefined'
+            ? new URLSearchParams(window.location.search).get('facility')
+            : null;
+
     const form = useForm({
         formula_id: '',
+        facility_id:
+            presetFacility &&
+            facilities.some((f) => String(f.value) === presetFacility)
+                ? presetFacility
+                : facilities.length === 1
+                  ? String(facilities[0].value)
+                  : '',
         quantity: '',
         uom_id: '',
         planned_start_date: '',
@@ -97,6 +111,41 @@ export default function CreatePlan({
                     className="space-y-6"
                 >
                     <FormSection title="What to make">
+                        <Field
+                            label="Manufacturing facility"
+                            htmlFor="facility_id"
+                            required
+                            error={form.errors.facility_id}
+                            hint="Availability is checked against this facility's stores only."
+                        >
+                            <Select
+                                value={form.data.facility_id}
+                                onValueChange={(v) =>
+                                    form.setData('facility_id', v)
+                                }
+                            >
+                                <SelectTrigger
+                                    id="facility_id"
+                                    className="w-full"
+                                >
+                                    <SelectValue placeholder="Choose the facility" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {facilities.map((f) => (
+                                        <SelectItem
+                                            key={f.value}
+                                            value={String(f.value)}
+                                        >
+                                            {f.label}
+                                            {f.description
+                                                ? ` · ${f.description}`
+                                                : ''}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </Field>
+
                         <Field
                             label="Formula"
                             htmlFor="formula_id"

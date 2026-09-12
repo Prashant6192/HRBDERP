@@ -9,6 +9,10 @@ use App\Domain\Audit\Enums\AuditAction;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Identity\Enums\UserStatus;
 use App\Domain\Identity\Models\Department;
+use App\Domain\Warehousing\Models\EmployeeAssignment;
+use App\Domain\Warehousing\Models\Facility;
+use App\Domain\Warehousing\Models\Warehouse;
+use App\Domain\Warehousing\Services\FacilityAccess;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Administration\StoreUserRequest;
 use App\Http\Requests\Administration\UpdateUserRequest;
@@ -112,17 +116,36 @@ class UserController extends Controller
     {
         $this->authorize('view', $user);
 
-        $user->load(['department:id,name', 'roles:id,name']);
+        $user->load(['department:id,name', 'roles:id,name', 'activeAssignments.facility:id,code,name', 'activeAssignments.store:id,code,name']);
 
         return Inertia::render('users/show', [
             'user' => $user,
             'userRoles' => $user->getRoleNames()->values()->all(),
             'userPermissions' => $user->getAllPermissions()->pluck('name')->sort()->values()->all(),
+            'assignments' => $user->activeAssignments->map(static fn (EmployeeAssignment $a): array => [
+                'id' => $a->id,
+                'facility_id' => $a->facility_id,
+                'facility' => $a->facility?->name,
+                'facility_code' => $a->facility?->code,
+                'store_id' => $a->store_id,
+                'store' => $a->store?->name,
+                'is_primary' => $a->is_primary,
+                'designation' => $a->designation,
+                'effective_from' => $a->effective_from?->toDateString(),
+                'effective_to' => $a->effective_to?->toDateString(),
+            ])->values()->all(),
+            'companyWide' => app(FacilityAccess::class)->isCompanyWide($user),
+            'facilities' => Facility::query()->active()->ordered()->with(['stores' => fn ($q) => $q->where('is_active', true)])->get()
+                ->map(static fn (Facility $f): array => [
+                    'value' => $f->id, 'label' => $f->name,
+                    'stores' => $f->stores->map(static fn (Warehouse $w): array => ['value' => $w->id, 'label' => "{$w->name} ({$w->code})"])->values()->all(),
+                ])->all(),
             'can' => [
                 'update' => $request->user()->can('update', $user),
                 'delete' => $request->user()->can('delete', $user),
                 'deactivate' => $request->user()->can('deactivate', $user),
                 'assignRoles' => $request->user()->can('assignRoles', $user),
+                'assign' => $request->user()->can('user.assign_facility') || $request->user()->can('user.assign_store'),
             ],
         ]);
     }

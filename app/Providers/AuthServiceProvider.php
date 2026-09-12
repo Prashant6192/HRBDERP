@@ -9,6 +9,7 @@ use App\Domain\Formulation\Models\Formula;
 use App\Domain\Formulation\Models\FormulaVersion;
 use App\Domain\Identity\Models\Department;
 use App\Domain\Inventory\Models\InventoryLot;
+use App\Domain\Inventory\Models\StockTransfer;
 use App\Domain\Manufacturing\Models\ManufacturingOrder;
 use App\Domain\MasterData\Models\PackagingMaterial;
 use App\Domain\MasterData\Models\Product;
@@ -19,10 +20,12 @@ use App\Domain\Planning\Models\ProductionPlan;
 use App\Domain\Procurement\Models\GoodsReceipt;
 use App\Domain\Procurement\Models\Vendor;
 use App\Domain\Quality\Models\QcInspection;
+use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Models\Warehouse;
 use App\Models\User;
 use App\Policies\AuditLogPolicy;
 use App\Policies\DepartmentPolicy;
+use App\Policies\FacilityPolicy;
 use App\Policies\FormulaPolicy;
 use App\Policies\FormulaVersionPolicy;
 use App\Policies\GoodsReceiptPolicy;
@@ -34,6 +37,7 @@ use App\Policies\ProductionPlanPolicy;
 use App\Policies\ProductPolicy;
 use App\Policies\QcInspectionPolicy;
 use App\Policies\RawMaterialPolicy;
+use App\Policies\StockTransferPolicy;
 use App\Policies\UomPolicy;
 use App\Policies\UserPolicy;
 use App\Policies\VendorPolicy;
@@ -54,6 +58,8 @@ class AuthServiceProvider extends ServiceProvider
         User::class => UserPolicy::class,
         Department::class => DepartmentPolicy::class,
         Warehouse::class => WarehousePolicy::class,
+        Facility::class => FacilityPolicy::class,
+        StockTransfer::class => StockTransferPolicy::class,
         Vendor::class => VendorPolicy::class,
         Uom::class => UomPolicy::class,
         AuditLog::class => AuditLogPolicy::class,

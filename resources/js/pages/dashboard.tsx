@@ -17,6 +17,13 @@ import {
 } from '@/components/dashboard/lists';
 import { Button } from '@/components/ui/button';
 import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import {
     useDashboardCards,
     type DashboardCardKey,
 } from '@/hooks/use-dashboard-cards';
@@ -69,11 +76,20 @@ function Card({
     );
 }
 
+type FacilityChip = {
+    id: number;
+    code: string;
+    name: string;
+    can_manufacture: boolean;
+};
+
 export default function Dashboard({
     greeting,
     headlines,
     kpis,
     period,
+    facilities,
+    facility,
     stores,
     attention,
     expiring,
@@ -93,6 +109,8 @@ export default function Dashboard({
     headlines: string[];
     kpis: Tile[];
     period: { days: number };
+    facilities: FacilityChip[];
+    facility: FacilityChip | null;
     stores: StoreLevels[] | null;
     attention: AttentionRow[] | null;
     expiring: ExpiringRow[] | null;
@@ -140,12 +158,21 @@ export default function Dashboard({
     const changePeriod = (days: number) =>
         router.get(
             dashboard().url,
-            { days },
+            { days, facility: facility?.id },
             {
                 preserveState: true,
                 preserveScroll: true,
                 only: ['receiving', 'period'],
             },
+        );
+
+    const changeFacility = (value: string) =>
+        router.get(
+            dashboard().url,
+            value === 'all'
+                ? { days: period.days }
+                : { days: period.days, facility: value },
+            { preserveState: true, preserveScroll: true },
         );
 
     const nothing = available.length === 0;
@@ -160,14 +187,39 @@ export default function Dashboard({
                             ? `Signed in as ${greeting.roles.join(', ')}`
                             : 'No role assigned yet'}
                     </p>
-                    {!nothing && (
-                        <CustomiseMenu
-                            available={available}
-                            visible={cards.visible}
-                            toggle={cards.toggle}
-                            reset={cards.reset}
-                        />
-                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                        {facilities.length > 1 && (
+                            <Select
+                                value={facility ? String(facility.id) : 'all'}
+                                onValueChange={changeFacility}
+                            >
+                                <SelectTrigger className="min-w-48">
+                                    <SelectValue placeholder="All facilities" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">
+                                        All facilities
+                                    </SelectItem>
+                                    {facilities.map((f) => (
+                                        <SelectItem
+                                            key={f.id}
+                                            value={String(f.id)}
+                                        >
+                                            {f.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
+                        {!nothing && (
+                            <CustomiseMenu
+                                available={available}
+                                visible={cards.visible}
+                                toggle={cards.toggle}
+                                reset={cards.reset}
+                            />
+                        )}
+                    </div>
                 </div>
 
                 <Hero

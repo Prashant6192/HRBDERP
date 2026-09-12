@@ -219,9 +219,15 @@ if (app()->isProduction()) {
 
 Once signed in as Super Admin, in this order:
 
-1. **Warehouses** — one each of type _Raw Material Store_, _Packaging Store_,
-   _Finished Goods Store_, and one ticked _Quarantine store_. Receiving,
-   planning and manufacturing find them by type.
+1. **Facilities & Warehouses** — the plant first: _New Facility_, type
+   _Manufacturing Facility_, tick its stores (RM, PM, FG, Quarantine at
+   least) and assign the people who work there. Receiving, planning and
+   manufacturing find the stores by category within the facility. Add a
+   warehouse the same way with only the stores it has; more can be added to
+   any facility later from its page. If the system was live before this
+   release, the migration has already turned the existing warehouses into
+   stores of one facility — open it, check its name and capabilities, and
+   assign people.
 2. **Raw materials and packaging** — or let the formulation import create the
    raw materials it meets. Set `minimum_stock` and `reorder_level` on the ones
    that matter: they define Critically low / Low / Moderate.
@@ -233,8 +239,11 @@ Once signed in as Super Admin, in this order:
 5. **Formulations → Import** the formulation workbook. Review the plan it
    shows (materials it will create, sheets it skipped, anything it guessed),
    then import. Activate each version once a chemist has checked it.
-6. Book the opening stock in through **Goods Receipts** so every batch has a
-   number and a QC decision.
+6. Book the **opening stock** from each facility's page (Inventory tab →
+   _Book opening stock_): item, batch, quantity, dates and rate per line,
+   posted to the ledger. Close opening stock entry under the facility's
+   Settings tab once the site is live. Deliveries after that go through
+   **Goods Receipts** so every batch has a number and a QC decision.
 
 ---
 

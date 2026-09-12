@@ -24,6 +24,10 @@ class StoreProductionPlanRequest extends FormRequest
                 'required', 'integer',
                 Rule::exists('formulas', 'id')->where(fn ($q) => $q->where('status', 'active')->whereNull('deleted_at')),
             ],
+            'facility_id' => [
+                'nullable', 'integer',
+                Rule::exists('facilities', 'id')->where(fn ($q) => $q->where('is_active', true)->where('can_manufacture', true)->whereNull('deleted_at')),
+            ],
             'quantity' => ['required', 'numeric', 'gt:0'],
             'uom_id' => [
                 'required', 'integer',
@@ -41,6 +45,7 @@ class StoreProductionPlanRequest extends FormRequest
     {
         return [
             'formula_id.exists' => 'Choose a formula with an active recipe.',
+            'facility_id.exists' => 'Choose an active facility with manufacturing enabled.',
             'quantity.gt' => 'The batch quantity must be greater than zero.',
             'uom_id.exists' => 'The batch unit must be a unit of mass or volume.',
         ];

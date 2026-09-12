@@ -27,6 +27,7 @@ class DatabaseSeeder extends Seeder
             UomSeeder::class,
             DepartmentSeeder::class,
             RolePermissionSeeder::class,
+            ReferenceDataSeeder::class,
         ]);
 
         if (app()->isProduction()) {

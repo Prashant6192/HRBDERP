@@ -14,6 +14,8 @@ use App\Domain\Planning\Enums\StoreKind;
 use App\Domain\Planning\Exceptions\PlanningException;
 use App\Domain\Planning\Models\MaterialRequest;
 use App\Domain\Planning\Models\ProductionPlan;
+use App\Domain\Warehousing\Enums\FacilityCapability;
+use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Services\WarehouseResolver;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -33,11 +35,12 @@ class ProductionPlanService
     /**
      * Raise a plan and check it straight away.
      *
-     * @param  array{formula_id: int, quantity: string, uom_id: int, planned_start_date?: string|null, notes?: string|null}  $attributes
+     * @param  array{formula_id: int, quantity: string, uom_id: int, facility_id?: int|null, planned_start_date?: string|null, notes?: string|null}  $attributes
      */
     public function create(array $attributes, ?int $userId): ProductionPlan
     {
         return DB::transaction(function () use ($attributes, $userId): ProductionPlan {
+            $facility = $this->manufacturingFacility($attributes['facility_id'] ?? null);
             $formula = Formula::query()->with('activeVersion', 'product')->findOrFail($attributes['formula_id']);
 
             if ($formula->isArchived()) {
@@ -52,6 +55,7 @@ class ProductionPlanService
 
             $plan = ProductionPlan::create([
                 'number' => $this->sequences->nextNumber('PLN', now()->format('ym')),
+                'facility_id' => $facility->id,
                 'formula_id' => $formula->id,
                 'formula_version_id' => $formula->activeVersion->id,
                 'product_id' => $formula->product_id,
@@ -73,13 +77,19 @@ class ProductionPlanService
     public function check(ProductionPlan $plan): ProductionPlan
     {
         return DB::transaction(function () use ($plan): ProductionPlan {
-            $plan = ProductionPlan::query()->lockForUpdate()->with(['formulaVersion', 'plannedUom', 'product'])->findOrFail($plan->getKey());
+            $plan = ProductionPlan::query()->lockForUpdate()->with(['formulaVersion', 'plannedUom', 'product', 'facility'])->findOrFail($plan->getKey());
 
             if (! $plan->status->canBeChecked()) {
                 throw new PlanningException("{$plan->number} is {$plan->status->label()} and cannot be re-checked.");
             }
 
-            $result = $this->requirements->calculate($plan->formulaVersion, $plan->planned_quantity, $plan->plannedUom, $plan->product);
+            // A plan raised before facilities existed is filed under the
+            // manufacturing facility the first time it is looked at again.
+            if ($plan->facility === null) {
+                $plan->facility()->associate($this->manufacturingFacility(null));
+            }
+
+            $result = $this->requirements->calculate($plan->formulaVersion, $plan->planned_quantity, $plan->plannedUom, $plan->product, $plan->facility);
 
             $plan->lines()->delete();
 
@@ -102,6 +112,7 @@ class ProductionPlanService
                     'level_now' => $line->levelNow,
                     'level_after' => $line->levelAfter,
                     'notes' => $line->notes === [] ? null : $line->notes,
+                    'available_elsewhere' => $line->availableElsewhere === [] ? null : $line->availableElsewhere,
                 ]);
             }
 
@@ -124,7 +135,7 @@ class ProductionPlanService
     public function generateRequests(ProductionPlan $plan, ?int $userId, ?string $neededBy = null): Collection
     {
         return DB::transaction(function () use ($plan, $userId, $neededBy): Collection {
-            $plan = ProductionPlan::query()->lockForUpdate()->with('lines.item')->findOrFail($plan->getKey());
+            $plan = ProductionPlan::query()->lockForUpdate()->with(['lines.item', 'facility'])->findOrFail($plan->getKey());
 
             if ($plan->status !== ProductionPlanStatus::Checked) {
                 throw new PlanningException(match ($plan->status) {
@@ -147,10 +158,11 @@ class ProductionPlanService
                     continue;
                 }
 
-                $store = $this->warehouses->findStoreOfType($kind->warehouseType());
+                $store = $this->warehouses->findStoreOfType($kind->warehouseType(), $plan->facility);
 
                 if ($store === null) {
-                    throw new PlanningException("No active {$kind->label()} is configured; create one under Warehouses before raising requests.");
+                    $where = $plan->facility?->name ?? 'the manufacturing facility';
+                    throw new PlanningException("No active {$kind->label()} is configured at {$where}; add one on the facility screen before raising requests.");
                 }
 
                 $request = MaterialRequest::create([
@@ -184,6 +196,41 @@ class ProductionPlanService
 
             return $requests;
         });
+    }
+
+    /**
+     * The facility a batch will be made at: the one asked for, provided it
+     * can manufacture, or the company's default manufacturing facility.
+     *
+     * @throws PlanningException
+     */
+    public function manufacturingFacility(?int $facilityId): Facility
+    {
+        if ($facilityId !== null) {
+            $facility = Facility::query()->find($facilityId);
+
+            if ($facility === null) {
+                throw new PlanningException('Choose a facility for the batch.');
+            }
+
+            if (! $facility->is_active) {
+                throw new PlanningException("{$facility->name} is deactivated and cannot run production.");
+            }
+
+            if (! $facility->can(FacilityCapability::Manufacture)) {
+                throw new PlanningException("{$facility->name} cannot run production: manufacturing is not enabled for it. Choose a manufacturing facility.");
+            }
+
+            return $facility;
+        }
+
+        $facility = $this->warehouses->defaultManufacturingFacility();
+
+        if ($facility === null) {
+            throw new PlanningException('No facility has manufacturing enabled. Enable it on a facility under Facilities & Warehouses before planning a batch.');
+        }
+
+        return $facility;
     }
 
     public function cancel(ProductionPlan $plan, ?int $userId, ?string $reason = null): ProductionPlan

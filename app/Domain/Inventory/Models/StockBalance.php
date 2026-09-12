@@ -19,12 +19,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $item_id
  * @property int $warehouse_id
  * @property int|null $lot_id
+ * @property int|null $location_id
  * @property string $on_hand
  * @property string $reserved
  */
 class StockBalance extends Model
 {
-    protected $fillable = ['item_id', 'warehouse_id', 'lot_id', 'on_hand', 'reserved'];
+    protected $fillable = ['item_id', 'warehouse_id', 'lot_id', 'location_id', 'on_hand', 'reserved'];
 
     public function onHand(): BigDecimal
     {

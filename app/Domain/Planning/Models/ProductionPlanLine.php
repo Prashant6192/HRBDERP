@@ -38,13 +38,14 @@ class ProductionPlanLine extends Model
 {
     protected $fillable = [
         'production_plan_id', 'line_no', 'store_kind', 'item_id', 'uom_id', 'percentage', 'is_qs', 'as_required',
-        'required_quantity', 'available_quantity', 'shortage_quantity', 'restock_quantity',
+        'required_quantity', 'available_quantity', 'shortage_quantity', 'restock_quantity', 'available_elsewhere',
         'level_now', 'level_after', 'notes',
     ];
 
     protected function casts(): array
     {
         return [
+            'available_elsewhere' => 'array',
             'store_kind' => StoreKind::class,
             'line_no' => 'integer',
             'is_qs' => 'boolean',

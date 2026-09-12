@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Database\Factories;
 
 use App\Domain\Warehousing\Enums\WarehouseType;
+use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Models\Warehouse;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -42,6 +43,11 @@ class WarehouseFactory extends Factory
     public function quarantine(): static
     {
         return $this->ofType(WarehouseType::Quarantine);
+    }
+
+    public function atFacility(Facility $facility): static
+    {
+        return $this->state(fn () => ['facility_id' => $facility->id, 'city' => $facility->city]);
     }
 
     public function inactive(): static

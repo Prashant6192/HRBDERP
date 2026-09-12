@@ -32,6 +32,13 @@ class ConcurrentReservationTest extends TestCase
 {
     use DatabaseTruncation;
 
+    /**
+     * The migration-seeded reference rows must outlive the truncation.
+     *
+     * @var list<string>
+     */
+    protected array $exceptTables = ['migrations', 'facility_types', 'store_categories'];
+
     protected function setUp(): void
     {
         parent::setUp();

@@ -39,7 +39,7 @@ final class PermissionCatalogue
         'user' => [
             'label' => 'Users',
             'group' => 'Administration',
-            'abilities' => ['view', 'create', 'edit', 'delete', 'export', 'impersonate'],
+            'abilities' => ['view', 'create', 'edit', 'delete', 'export', 'impersonate', 'assign_facility', 'assign_store'],
         ],
         'role' => [
             'label' => 'Roles & Permissions',
@@ -63,10 +63,15 @@ final class PermissionCatalogue
         ],
 
         // ---- Master data ---------------------------------------------------
-        'warehouse' => [
-            'label' => 'Warehouses',
+        'facility' => [
+            'label' => 'Facilities',
             'group' => 'Master Data',
-            'abilities' => self::CRUD,
+            'abilities' => ['view', 'create', 'edit', 'deactivate', 'export'],
+        ],
+        'warehouse' => [
+            'label' => 'Stores',
+            'group' => 'Master Data',
+            'abilities' => [...self::CRUD, 'deactivate'],
         ],
         'product' => [
             'label' => 'Product Master',
@@ -98,7 +103,10 @@ final class PermissionCatalogue
         'inventory' => [
             'label' => 'Inventory',
             'group' => 'Operations',
-            'abilities' => ['view', 'receive', 'adjust', 'transfer', 'reserve', 'consume', 'export'],
+            'abilities' => [
+                'view', 'receive', 'adjust', 'transfer', 'approve_transfer', 'receive_transfer',
+                'opening_stock', 'reserve', 'consume', 'export',
+            ],
         ],
         'formula' => [
             'label' => 'Formulations',

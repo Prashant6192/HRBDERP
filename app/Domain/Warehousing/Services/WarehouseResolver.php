@@ -4,29 +4,37 @@ declare(strict_types=1);
 
 namespace App\Domain\Warehousing\Services;
 
+use App\Domain\Warehousing\Enums\FacilityCapability;
 use App\Domain\Warehousing\Enums\WarehouseType;
+use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Models\Warehouse;
+use Database\Seeders\ReferenceDataSeeder;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use RuntimeException;
 
 /**
- * Finds the warehouses the workflow relies on by role rather than by id.
+ * Finds the stores a workflow relies on by role — and, when told which
+ * facility the work happens at, only among that facility's stores.
+ *
+ * Nothing here knows a facility by name. "The manufacturing facility" is
+ * whichever active facility has manufacturing switched on; if there are
+ * several, the caller must say which.
  */
 class WarehouseResolver
 {
     /**
      * Where received stock waits for quality.
      */
-    public function quarantine(): Warehouse
+    public function quarantine(?Facility $facility = null): Warehouse
     {
-        $warehouse = Warehouse::query()
-            ->where('is_active', true)
-            ->where('is_quarantine', true)
-            ->orderBy('id')
+        $warehouse = $this->baseQuery($facility)
+            ->where('type', WarehouseType::Quarantine->value)
             ->first();
 
         if ($warehouse === null) {
             throw new RuntimeException(
-                'No active quarantine warehouse is configured. Create one under Warehouses and tick "Quarantine store".'
+                $this->missing('quarantine', WarehouseType::Quarantine, $facility)
             );
         }
 
@@ -36,47 +44,99 @@ class WarehouseResolver
     /**
      * The store production draws raw materials from.
      */
-    public function rawMaterialStore(): Warehouse
+    public function rawMaterialStore(?Facility $facility = null): Warehouse
     {
-        return $this->storeOfType(WarehouseType::RawMaterial, 'raw material');
+        return $this->storeOfType(WarehouseType::RawMaterial, 'raw material', $facility);
     }
 
     /**
      * The store packaging is picked from.
      */
-    public function packagingStore(): Warehouse
+    public function packagingStore(?Facility $facility = null): Warehouse
     {
-        return $this->storeOfType(WarehouseType::Packaging, 'packaging');
+        return $this->storeOfType(WarehouseType::Packaging, 'packaging', $facility);
     }
 
     /**
      * Where finished batches go.
      */
-    public function finishedGoodsStore(): Warehouse
+    public function finishedGoodsStore(?Facility $facility = null): Warehouse
     {
-        return $this->storeOfType(WarehouseType::FinishedGoods, 'finished goods');
+        return $this->storeOfType(WarehouseType::FinishedGoods, 'finished goods', $facility);
     }
 
-    public function findStoreOfType(WarehouseType $type): ?Warehouse
+    public function findStoreOfType(WarehouseType $type, ?Facility $facility = null): ?Warehouse
     {
-        return Warehouse::query()
-            ->where('is_active', true)
+        return $this->baseQuery($facility)
             ->where('is_quarantine', false)
             ->where('type', $type->value)
-            ->orderBy('id')
             ->first();
     }
 
-    private function storeOfType(WarehouseType $type, string $label): Warehouse
+    /**
+     * The system's in-transit position: stock that has left one facility
+     * and not yet reached the next.
+     */
+    public function inTransit(): Warehouse
     {
-        $warehouse = $this->findStoreOfType($type);
+        $warehouse = Warehouse::query()
+            ->where('is_system', true)
+            ->where('type', WarehouseType::InTransit->value)
+            ->orderBy('id')
+            ->first();
+
+        // Created by the migration; recreated here should it ever be missing.
+        return $warehouse ?? ReferenceDataSeeder::ensureTransitStore();
+    }
+
+    /**
+     * The facility production happens at when the caller has not chosen one:
+     * the only active facility that can manufacture. With several, the
+     * screens must ask.
+     */
+    public function defaultManufacturingFacility(): ?Facility
+    {
+        return Facility::query()->active()->manufacturing()->ordered()->first();
+    }
+
+    /**
+     * Every active facility able to do something.
+     *
+     * @return Collection<int, Facility>
+     */
+    public function facilitiesWith(FacilityCapability $capability)
+    {
+        return Facility::query()->active()->withCapability($capability)->ordered()->get();
+    }
+
+    /**
+     * @return Builder<Warehouse>
+     */
+    private function baseQuery(?Facility $facility): Builder
+    {
+        return Warehouse::query()
+            ->where('is_active', true)
+            ->where('is_system', false)
+            ->atFacility($facility)
+            ->orderBy('sort_order')
+            ->orderBy('id');
+    }
+
+    private function storeOfType(WarehouseType $type, string $label, ?Facility $facility): Warehouse
+    {
+        $warehouse = $this->findStoreOfType($type, $facility);
 
         if ($warehouse === null) {
-            throw new RuntimeException(
-                "No active {$label} store is configured. Create one under Warehouses with the type \"{$type->label()}\"."
-            );
+            throw new RuntimeException($this->missing($label, $type, $facility));
         }
 
         return $warehouse;
+    }
+
+    private function missing(string $label, WarehouseType $type, ?Facility $facility): string
+    {
+        $where = $facility === null ? '' : " at {$facility->name}";
+
+        return "No active {$label} store is configured{$where}. Add one under Facilities with the store category \"{$type->label()}\".";
     }
 }

@@ -27,6 +27,7 @@ use App\Domain\Planning\Models\ProductionPlan;
 use App\Domain\Planning\Services\ProductionPlanService;
 use App\Domain\Quality\Models\QcInspection;
 use App\Domain\Warehousing\Enums\WarehouseType;
+use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Models\Warehouse;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
@@ -50,6 +51,8 @@ class ManufacturingOrderTest extends TestCase
     private User $productionManager;
 
     private User $factoryManager;
+
+    private Facility $facility;
 
     private Warehouse $rmStore;
 
@@ -88,10 +91,11 @@ class ManufacturingOrderTest extends TestCase
         $this->factoryManager = User::factory()->create();
         $this->factoryManager->assignRole(RoleName::FactoryManager->value);
 
-        $this->rmStore = Warehouse::factory()->create(['code' => 'WH-RM', 'type' => WarehouseType::RawMaterial]);
-        $this->pmStore = Warehouse::factory()->create(['code' => 'WH-PM', 'type' => WarehouseType::Packaging]);
-        $this->fgStore = Warehouse::factory()->create(['code' => 'WH-FG', 'type' => WarehouseType::FinishedGoods]);
-        $this->quarantine = Warehouse::factory()->quarantine()->create(['code' => 'WH-QA']);
+        $this->facility = Facility::factory()->manufacturing()->create(['code' => 'FAC-TST-001', 'name' => 'Test Plant']);
+        $this->rmStore = Warehouse::factory()->atFacility($this->facility)->create(['code' => 'WH-RM', 'type' => WarehouseType::RawMaterial]);
+        $this->pmStore = Warehouse::factory()->atFacility($this->facility)->create(['code' => 'WH-PM', 'type' => WarehouseType::Packaging]);
+        $this->fgStore = Warehouse::factory()->atFacility($this->facility)->create(['code' => 'WH-FG', 'type' => WarehouseType::FinishedGoods]);
+        $this->quarantine = Warehouse::factory()->atFacility($this->facility)->quarantine()->create(['code' => 'WH-QA']);
 
         $this->kg = Uom::where('code', 'KG')->firstOrFail();
         $ml = Uom::where('code', 'ML')->firstOrFail();

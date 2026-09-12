@@ -27,6 +27,8 @@ use App\Domain\Planning\Enums\StoreKind;
 use App\Domain\Planning\Models\ProductionPlan;
 use App\Domain\Planning\Models\ProductionPlanLine;
 use App\Domain\Quality\Models\QcInspection;
+use App\Domain\Warehousing\Enums\FacilityCapability;
+use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Services\WarehouseResolver;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
@@ -62,7 +64,7 @@ class ManufacturingOrderService
     public function createFromPlan(ProductionPlan $plan, ?int $userId, ?string $notes = null): ManufacturingOrder
     {
         return DB::transaction(function () use ($plan, $userId, $notes): ManufacturingOrder {
-            $plan = ProductionPlan::query()->lockForUpdate()->with('lines')->findOrFail($plan->getKey());
+            $plan = ProductionPlan::query()->lockForUpdate()->with(['lines', 'facility'])->findOrFail($plan->getKey());
 
             if (! in_array($plan->status, [ProductionPlanStatus::Checked, ProductionPlanStatus::Requested], strict: true)) {
                 throw new ManufacturingException("{$plan->number} is {$plan->status->label()}; only a checked plan can go to manufacturing.");
@@ -76,8 +78,11 @@ class ManufacturingOrderService
                 throw new ManufacturingException("{$plan->number} already has an open manufacturing order.");
             }
 
+            $facility = $this->manufacturingFacility($plan->facility);
+
             $order = ManufacturingOrder::create([
                 'number' => $this->sequences->nextNumber('MO', now()->format('ym')),
+                'facility_id' => $facility->id,
                 'production_plan_id' => $plan->id,
                 'formula_id' => $plan->formula_id,
                 'formula_version_id' => $plan->formula_version_id,
@@ -115,11 +120,13 @@ class ManufacturingOrderService
     public function approve(ManufacturingOrder $order, int $userId): ManufacturingOrder
     {
         return DB::transaction(function () use ($order, $userId): ManufacturingOrder {
-            $order = ManufacturingOrder::query()->lockForUpdate()->with('lines.item.stockUom')->findOrFail($order->getKey());
+            $order = ManufacturingOrder::query()->lockForUpdate()->with(['lines.item.stockUom', 'facility'])->findOrFail($order->getKey());
 
             if ($order->status !== ManufacturingOrderStatus::Draft) {
                 throw new ManufacturingException("{$order->number} is {$order->status->label()} and cannot be approved.");
             }
+
+            $facility = $this->manufacturingFacility($order->facility);
 
             $lines = $order->lines->filter(fn (ManufacturingOrderLine $line) => ! $line->as_required && $line->plannedQuantity()->isPositive());
 
@@ -128,7 +135,7 @@ class ManufacturingOrderService
             $short = [];
 
             foreach ($lines as $line) {
-                $store = $this->storeFor($line->store_kind);
+                $store = $this->storeFor($line->store_kind, $facility);
                 $free = $this->balances->availableForProduction($line->item, [$store->id]);
 
                 if ($free->isLessThan($line->plannedQuantity())) {
@@ -148,7 +155,7 @@ class ManufacturingOrderService
 
             foreach ($lines as $line) {
                 /** @var ManufacturingOrderLine $line */
-                $store = $this->storeFor($line->store_kind);
+                $store = $this->storeFor($line->store_kind, $facility);
 
                 try {
                     $held = $this->reservations->reserve($order, $line->item, $store, $line->plannedQuantity(), $userId, "Manufacturing order {$order->number}");
@@ -211,7 +218,7 @@ class ManufacturingOrderService
     public function complete(ManufacturingOrder $order, ?int $userId, array $output): ManufacturingOrder
     {
         return DB::transaction(function () use ($order, $userId, $output): ManufacturingOrder {
-            $order = ManufacturingOrder::query()->lockForUpdate()->with(['lines', 'product.stockUom', 'plannedUom', 'plan'])->findOrFail($order->getKey());
+            $order = ManufacturingOrder::query()->lockForUpdate()->with(['lines', 'product.stockUom', 'plannedUom', 'plan', 'facility'])->findOrFail($order->getKey());
 
             if ($order->status !== ManufacturingOrderStatus::InProgress) {
                 throw new ManufacturingException("{$order->number} is {$order->status->label()}; only an order in progress can be completed.");
@@ -360,8 +367,9 @@ class ManufacturingOrderService
             'created_by' => $userId,
         ]);
 
-        $fgStore = $this->warehouses->finishedGoodsStore();
-        $target = $needsQc ? $this->warehouses->quarantine() : $fgStore;
+        $facility = $order->facility;
+        $fgStore = $this->warehouses->finishedGoodsStore($facility);
+        $target = $needsQc ? $this->warehouses->quarantine($facility) : $fgStore;
 
         $this->ledger->receive(
             item: $product,
@@ -422,11 +430,31 @@ class ManufacturingOrderService
         );
     }
 
-    private function storeFor(StoreKind $kind)
+    private function storeFor(StoreKind $kind, ?Facility $facility)
     {
         return match ($kind) {
-            StoreKind::RawMaterial => $this->warehouses->rawMaterialStore(),
-            StoreKind::Packaging => $this->warehouses->packagingStore(),
+            StoreKind::RawMaterial => $this->warehouses->rawMaterialStore($facility),
+            StoreKind::Packaging => $this->warehouses->packagingStore($facility),
         };
+    }
+
+    /**
+     * An order is only ever made at a facility that can manufacture. A plan
+     * without one (raised before facilities existed) falls back to the
+     * company's default manufacturing facility.
+     */
+    private function manufacturingFacility(?Facility $facility): Facility
+    {
+        $facility ??= $this->warehouses->defaultManufacturingFacility();
+
+        if ($facility === null) {
+            throw new ManufacturingException('No facility has manufacturing enabled. Enable it on a facility under Facilities & Warehouses first.');
+        }
+
+        if (! $facility->is_active || ! $facility->can(FacilityCapability::Manufacture)) {
+            throw new ManufacturingException("Manufacturing orders cannot be raised for {$facility->name}: manufacturing is not enabled there.");
+        }
+
+        return $facility;
     }
 }

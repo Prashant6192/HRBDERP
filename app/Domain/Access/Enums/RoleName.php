@@ -97,9 +97,9 @@ enum RoleName: string
 
             self::Director => [
                 'user.view', 'audit.view', 'audit.export', 'department.view',
-                'warehouse.view', 'product.view', 'raw_material.view',
+                'facility.view', 'warehouse.view', 'product.view', 'raw_material.view',
                 'packaging_material.view', 'vendor.view', 'uom.view',
-                'inventory.view', 'inventory.export',
+                'inventory.view', 'inventory.approve_transfer', 'inventory.export',
                 'formula.view', 'formula.approve', 'formula.export',
                 'planning.view', 'planning.approve', 'planning.cancel', 'planning.export',
                 'production.view', 'production.approve', 'production.cancel', 'production.export',
@@ -112,9 +112,9 @@ enum RoleName: string
 
             self::Management => [
                 'user.view', 'department.view', 'audit.view',
-                'warehouse.view', 'product.view', 'raw_material.view',
+                'facility.view', 'warehouse.view', 'product.view', 'raw_material.view',
                 'packaging_material.view', 'vendor.view', 'uom.view',
-                'inventory.view', 'inventory.export',
+                'inventory.view', 'inventory.approve_transfer', 'inventory.export',
                 'formula.view',
                 'planning.view', 'planning.approve',
                 'production.view', 'production.approve', 'production.export',
@@ -125,7 +125,7 @@ enum RoleName: string
             ],
 
             self::FactoryManager => [
-                'warehouse.view', 'product.view', 'raw_material.view',
+                'facility.view', 'warehouse.view', 'product.view', 'raw_material.view',
                 'packaging_material.view', 'vendor.view', 'uom.view',
                 'inventory.*',
                 'formula.view', 'formula.create', 'formula.edit', 'formula.import', 'formula.export',
@@ -138,7 +138,7 @@ enum RoleName: string
             ],
 
             self::ProductionManager => [
-                'warehouse.view', 'product.view', 'raw_material.view',
+                'facility.view', 'warehouse.view', 'product.view', 'raw_material.view',
                 'packaging_material.view', 'uom.view',
                 'inventory.view', 'inventory.reserve', 'inventory.consume',
                 'formula.view',
@@ -149,10 +149,11 @@ enum RoleName: string
             ],
 
             self::WarehouseManager => [
-                'warehouse.*', 'product.view', 'raw_material.view',
+                'facility.view', 'warehouse.*', 'product.view', 'raw_material.view',
                 'packaging_material.view', 'uom.view',
                 'inventory.view', 'inventory.receive', 'inventory.adjust',
-                'inventory.transfer', 'inventory.export',
+                'inventory.transfer', 'inventory.receive_transfer',
+                'inventory.opening_stock', 'inventory.export',
                 'purchase.view', 'purchase.receive',
                 'planning.view', 'production.view', 'qc.view',
                 'report.view', 'report.export',
@@ -172,7 +173,7 @@ enum RoleName: string
                 'packaging_material.edit', 'packaging_material.export',
                 'packaging_material.import',
 
-                'product.view', 'warehouse.view', 'uom.view',
+                'product.view', 'facility.view', 'warehouse.view', 'uom.view',
                 'inventory.view',
                 'planning.view', 'planning.export',
                 'purchase.*',
@@ -182,7 +183,7 @@ enum RoleName: string
             ],
 
             self::QcManager => [
-                'warehouse.view', 'product.view', 'raw_material.view',
+                'facility.view', 'warehouse.view', 'product.view', 'raw_material.view',
                 'packaging_material.view', 'vendor.view', 'uom.view',
                 'inventory.view',
                 'formula.view',
@@ -195,7 +196,7 @@ enum RoleName: string
 
             self::AccountsManager => [
                 'vendor.view', 'product.view', 'raw_material.view',
-                'packaging_material.view', 'warehouse.view', 'uom.view',
+                'packaging_material.view', 'facility.view', 'warehouse.view', 'uom.view',
                 'inventory.view', 'inventory.export',
                 'production.view',
                 'purchase.view', 'purchase.export',
@@ -242,7 +243,7 @@ enum RoleName: string
             ],
 
             self::Viewer => [
-                'warehouse.view', 'product.view', 'raw_material.view',
+                'facility.view', 'warehouse.view', 'product.view', 'raw_material.view',
                 'packaging_material.view', 'vendor.view', 'uom.view',
                 'inventory.view', 'production.view', 'purchase.view',
                 'qc.view', 'sales.view', 'report.view',

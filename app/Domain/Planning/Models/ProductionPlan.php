@@ -10,6 +10,7 @@ use App\Domain\Formulation\Models\FormulaVersion;
 use App\Domain\MasterData\Models\Product;
 use App\Domain\Measurement\Models\Uom;
 use App\Domain\Planning\Enums\ProductionPlanStatus;
+use App\Domain\Warehousing\Models\Facility;
 use App\Models\User;
 use Brick\Math\BigDecimal;
 use Carbon\CarbonImmutable;
@@ -43,7 +44,7 @@ class ProductionPlan extends Model
     use RecordsAuditTrail, SoftDeletes;
 
     protected $fillable = [
-        'number', 'formula_id', 'formula_version_id', 'product_id', 'planned_quantity', 'planned_uom_id',
+        'number', 'facility_id', 'formula_id', 'formula_version_id', 'product_id', 'planned_quantity', 'planned_uom_id',
         'planned_units', 'status', 'planned_start_date', 'notes', 'warnings', 'created_by',
         'checked_at', 'requested_at', 'cancelled_at',
     ];
@@ -133,6 +134,14 @@ class ProductionPlan extends Model
     public function hasShortage(): bool
     {
         return $this->lines->contains(fn (ProductionPlanLine $line) => $line->shortage()->isPositive());
+    }
+
+    /**
+     * @return BelongsTo<Facility, $this>
+     */
+    public function facility(): BelongsTo
+    {
+        return $this->belongsTo(Facility::class);
     }
 
     /**

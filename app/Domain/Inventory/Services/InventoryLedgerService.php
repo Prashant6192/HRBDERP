@@ -202,12 +202,13 @@ class InventoryLedgerService
      * the same position do not fail on the unique index; whichever loses the
      * insert simply locks the row the winner created.
      */
-    public function lockBalance(int $itemId, int $warehouseId, ?int $lotId): StockBalance
+    public function lockBalance(int $itemId, int $warehouseId, ?int $lotId, ?int $locationId = null): StockBalance
     {
         StockBalance::query()->insertOrIgnore([
             'item_id' => $itemId,
             'warehouse_id' => $warehouseId,
             'lot_id' => $lotId,
+            'location_id' => $locationId,
             'on_hand' => 0,
             'reserved' => 0,
             'created_at' => now(),
@@ -218,6 +219,7 @@ class InventoryLedgerService
             ->where('item_id', $itemId)
             ->where('warehouse_id', $warehouseId)
             ->where('lot_id', $lotId)
+            ->where('location_id', $locationId)
             ->lockForUpdate()
             ->firstOrFail();
     }

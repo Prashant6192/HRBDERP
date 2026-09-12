@@ -51,6 +51,7 @@ class InventoryReservationService
         BigDecimal|string|int $quantity,
         ?int $userId = null,
         ?string $notes = null,
+        ?int $lotId = null,
     ): Collection {
         $requested = BigDecimal::of($quantity);
 
@@ -58,8 +59,13 @@ class InventoryReservationService
             throw new InvalidArgumentException('A reservation must be for a positive quantity.');
         }
 
-        return DB::transaction(function () use ($reservable, $item, $warehouse, $requested, $userId, $notes): Collection {
+        return DB::transaction(function () use ($reservable, $item, $warehouse, $requested, $userId, $notes, $lotId): Collection {
             $candidates = $this->balances->releasableBalances($item, [$warehouse->id], lock: true);
+
+            // A caller that names the batch gets that batch or nothing.
+            if ($lotId !== null) {
+                $candidates = $candidates->where('lot_id', $lotId);
+            }
 
             $remaining = $requested;
             $created = collect();

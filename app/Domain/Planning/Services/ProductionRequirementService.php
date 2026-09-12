@@ -10,6 +10,7 @@ use App\Domain\Formulation\Services\FormulaScalingService;
 use App\Domain\Inventory\Enums\StockAlertLevel;
 use App\Domain\Inventory\Services\StockAlertService;
 use App\Domain\Inventory\Services\StockBalanceService;
+use App\Domain\Inventory\Services\StockTransferService;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\MasterData\Models\Product;
 use App\Domain\Measurement\Enums\UomDimension;
@@ -20,6 +21,7 @@ use App\Domain\Planning\DTOs\RequirementLine;
 use App\Domain\Planning\DTOs\RequirementResult;
 use App\Domain\Planning\Enums\StoreKind;
 use App\Domain\Planning\Models\ProductPackagingLine;
+use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Models\Warehouse;
 use App\Domain\Warehousing\Services\WarehouseResolver;
 use Brick\Math\BigDecimal;
@@ -29,10 +31,13 @@ use Brick\Math\RoundingMode;
  * "Can we make this batch?"
  *
  * Scales the recipe to the batch, expresses every material in its stock
- * unit, and sets each against what the raw material store can release for
- * production right now — QC-approved, unexpired, unreserved. The product's
- * packaging list is worked out the same way against the packaging store.
- * Nothing here writes; ProductionPlanService keeps the answer.
+ * unit, and sets each against what the raw material store at the chosen
+ * manufacturing facility can release for production right now —
+ * QC-approved, unexpired, unreserved. Stock at other facilities never
+ * counts as available; it is reported separately so the planner can ask
+ * for a transfer. The product's packaging list is worked out the same way
+ * against that facility's packaging store. Nothing here writes;
+ * ProductionPlanService keeps the answer.
  */
 class ProductionRequirementService
 {
@@ -42,35 +47,42 @@ class ProductionRequirementService
         private readonly StockAlertService $alerts,
         private readonly UnitConversionService $conversions,
         private readonly WarehouseResolver $warehouses,
+        private readonly StockTransferService $transfers,
     ) {}
 
-    public function calculate(FormulaVersion $version, BigDecimal|string|int $quantity, Uom $uom, ?Product $product = null): RequirementResult
+    public function calculate(FormulaVersion $version, BigDecimal|string|int $quantity, Uom $uom, ?Product $product = null, ?Facility $facility = null): RequirementResult
     {
         $batch = BigDecimal::of($quantity);
         $result = new RequirementResult($batch, $uom->code, null);
 
-        $rmStore = $this->warehouses->findStoreOfType(StoreKind::RawMaterial->warehouseType());
+        $facility ??= $this->warehouses->defaultManufacturingFacility();
 
-        if ($rmStore === null) {
-            $result->warnings[] = 'No raw material store is configured, so availability could not be checked. Create one under Warehouses.';
+        if ($facility === null) {
+            $result->warnings[] = 'No facility has manufacturing enabled, so availability could not be checked. Enable manufacturing on a facility first.';
+        }
+
+        $rmStore = $facility === null ? null : $this->warehouses->findStoreOfType(StoreKind::RawMaterial->warehouseType(), $facility);
+
+        if ($facility !== null && $rmStore === null) {
+            $result->warnings[] = "{$facility->name} has no raw material store, so availability could not be checked. Add one on the facility screen.";
         }
 
         $scaled = $this->scaling->scale($version, $batch, $uom);
 
         foreach ($scaled->lines as $index => $line) {
-            $result->rawMaterials[] = $this->rawMaterialLine($line, $rmStore);
+            $result->rawMaterials[] = $this->rawMaterialLine($line, $rmStore, $facility);
         }
 
         if (! $scaled->isComplete()) {
             $result->warnings[] = "The recipe accounts for {$scaled->fixedPercentage}% of the batch and has no QS line; the remainder is not planned.";
         }
 
-        $this->addPackaging($result, $product, $batch, $uom);
+        $this->addPackaging($result, $product, $batch, $uom, $facility);
 
         return $result;
     }
 
-    private function rawMaterialLine(ScaledIngredient $line, ?Warehouse $store): RequirementLine
+    private function rawMaterialLine(ScaledIngredient $line, ?Warehouse $store, ?Facility $facility): RequirementLine
     {
         $item = Item::with('stockUom')->findOrFail($line->itemId);
         $notes = [];
@@ -89,10 +101,10 @@ class ProductionRequirementService
 
         $required = $line->stockQuantity ?? BigDecimal::zero();
 
-        return $this->line(StoreKind::RawMaterial, $item, $required, $store, $line->percentage, $line->isQs, $line->asRequired, $notes);
+        return $this->line(StoreKind::RawMaterial, $item, $required, $store, $facility, $line->percentage, $line->isQs, $line->asRequired, $notes);
     }
 
-    private function addPackaging(RequirementResult $result, ?Product $product, BigDecimal $batch, Uom $batchUom): void
+    private function addPackaging(RequirementResult $result, ?Product $product, BigDecimal $batch, Uom $batchUom, ?Facility $facility): void
     {
         if ($product === null) {
             $result->warnings[] = 'The formula is not linked to a product, so packaging cannot be planned. Link a product on the formula.';
@@ -116,10 +128,10 @@ class ProductionRequirementService
 
         $result->units = $units;
 
-        $pmStore = $this->warehouses->findStoreOfType(StoreKind::Packaging->warehouseType());
+        $pmStore = $facility === null ? null : $this->warehouses->findStoreOfType(StoreKind::Packaging->warehouseType(), $facility);
 
-        if ($pmStore === null) {
-            $result->warnings[] = 'No packaging store is configured, so packaging availability could not be checked.';
+        if ($facility !== null && $pmStore === null) {
+            $result->warnings[] = "{$facility->name} has no packaging store, so packaging availability could not be checked.";
         }
 
         foreach ($product->packagingLines as $bom) {
@@ -133,7 +145,7 @@ class ProductionRequirementService
                 $required = $required->toScale(0, RoundingMode::Ceiling);
             }
 
-            $result->packaging[] = $this->line(StoreKind::Packaging, $material, $required, $pmStore, null, false, false, []);
+            $result->packaging[] = $this->line(StoreKind::Packaging, $material, $required, $pmStore, $facility, null, false, false, []);
         }
     }
 
@@ -185,7 +197,7 @@ class ProductionRequirementService
     /**
      * @param  list<string>  $notes
      */
-    private function line(StoreKind $kind, Item $item, BigDecimal $required, ?Warehouse $store, ?BigDecimal $percentage, bool $isQs, bool $asRequired, array $notes): RequirementLine
+    private function line(StoreKind $kind, Item $item, BigDecimal $required, ?Warehouse $store, ?Facility $facility, ?BigDecimal $percentage, bool $isQs, bool $asRequired, array $notes): RequirementLine
     {
         $scale = (int) config('erp.precision.quantity_scale', 6);
         $required = $required->toScale($scale, RoundingMode::HalfUp);
@@ -203,10 +215,25 @@ class ProductionRequirementService
         // Enough to make the batch and leave the store back at its reorder
         // level, so that the next plan does not start from a shortage.
         $restock = $shortage;
+        $thresholds = $this->alerts->thresholdsFor($item, $store);
 
-        if ($item->reorder_level !== null) {
-            $toReorderLevel = BigDecimal::of($item->reorder_level)->minus($afterRun)->plus($shortage);
+        if ($thresholds['reorder'] !== null) {
+            $toReorderLevel = $thresholds['reorder']->minus($afterRun)->plus($shortage);
             $restock = $toReorderLevel->isGreaterThan($shortage) ? $toReorderLevel : $shortage;
+        }
+
+        // Short here, but held elsewhere? Say where, so the planner can raise
+        // a transfer instead of a purchase.
+        $elsewhere = [];
+
+        if ($shortage->isPositive() && $facility !== null) {
+            $elsewhere = $this->transfers->availableElsewhere($item, $facility, $kind->warehouseType())
+                ->map(static fn (array $row): array => [
+                    'facility_id' => $row['facility_id'],
+                    'facility' => $row['facility'],
+                    'quantity' => $row['quantity']->toScale($scale, RoundingMode::HalfUp)->__toString(),
+                ])
+                ->all();
         }
 
         return new RequirementLine(
@@ -223,9 +250,10 @@ class ProductionRequirementService
             available: $available,
             shortage: $shortage->toScale($scale, RoundingMode::HalfUp),
             restock: $restock->toScale($scale, RoundingMode::HalfUp),
-            levelNow: $this->alerts->levelFor($item, $available),
-            levelAfter: $shortage->isPositive() ? StockAlertLevel::OutOfStock : $this->alerts->levelFor($item, $afterRun),
+            levelNow: $this->alerts->levelAt($item, $store, $available),
+            levelAfter: $shortage->isPositive() ? StockAlertLevel::OutOfStock : $this->alerts->levelAt($item, $store, $afterRun),
             notes: $notes,
+            availableElsewhere: $elsewhere,
         );
     }
 }

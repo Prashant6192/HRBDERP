@@ -15,7 +15,9 @@ use App\Domain\MasterData\Models\Product;
 use App\Domain\MasterData\Models\RawMaterial;
 use App\Domain\Measurement\Models\Uom;
 use App\Domain\Procurement\Models\Vendor;
-use App\Domain\Warehousing\Enums\WarehouseType;
+use App\Domain\Warehousing\Models\Facility;
+use App\Domain\Warehousing\Models\FacilityType;
+use App\Domain\Warehousing\Models\StoreCategory;
 use App\Domain\Warehousing\Models\Warehouse;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -104,42 +106,129 @@ class DemoDataSeeder extends Seeder
         return str_replace(' ', '.', strtolower($name)).'@hrbd.local';
     }
 
+    /**
+     * Two facilities: the Rudrapur plant with a full set of stores, and a
+     * Delhi warehouse that only holds finished goods until someone enables
+     * more stores for it on the facility screen.
+     */
     private function seedWarehouses(): void
     {
-        $warehouses = [
-            ['code' => 'WH-RM', 'name' => 'Raw Material Store', 'type' => WarehouseType::RawMaterial],
-            ['code' => 'WH-PM', 'name' => 'Packaging Store', 'type' => WarehouseType::Packaging],
-            ['code' => 'WH-FG', 'name' => 'Finished Goods Store', 'type' => WarehouseType::FinishedGoods],
-            ['code' => 'WH-QA', 'name' => 'Quarantine Store', 'type' => WarehouseType::Quarantine],
-            ['code' => 'WH-MP', 'name' => 'Marketplace Fulfilment', 'type' => WarehouseType::Marketplace],
+        $types = FacilityType::query()->pluck('id', 'code');
+        // DatabaseSeeder mutes model events, so the category's behaviour is
+        // written out explicitly rather than left to the model's saving hook.
+        $categories = StoreCategory::query()->get()->keyBy('code');
+        $manager = User::query()->where('email', $this->emailFor('Suresh Patil'))->first();
+        $storekeeper = User::query()->where('email', $this->emailFor('Imran Sheikh'))->first();
+
+        $rudrapur = Facility::withTrashed()->updateOrCreate(
+            ['code' => 'FAC-RDP-001'],
+            [
+                'name' => 'Rudrapur Manufacturing Facility',
+                'facility_type_id' => $types['MFG'],
+                'manager_id' => $manager?->id,
+                'address_line_1' => 'Plot 21, Sector 4, SIDCUL Industrial Area',
+                'city' => 'Rudrapur',
+                'state' => 'Uttarakhand',
+                'pincode' => '263153',
+                'country' => 'India',
+                'phone' => '05944-250100',
+                'email' => 'plant@hrbd.example',
+                'gstin' => '05AABCH1234F1Z5',
+                'can_store' => true, 'can_receive' => true, 'can_qc' => true, 'can_manufacture' => true,
+                'can_pack' => true, 'can_dispatch' => true, 'can_return' => true,
+                'opening_stock_enabled' => true,
+                'is_active' => true,
+                'deleted_at' => null,
+            ],
+        );
+
+        $delhi = Facility::withTrashed()->updateOrCreate(
+            ['code' => 'FAC-DEL-001'],
+            [
+                'name' => 'Delhi Warehouse',
+                'facility_type_id' => $types['WH'],
+                'manager_id' => $storekeeper?->id,
+                'address_line_1' => 'Khasra 118, Mundka Industrial Area',
+                'city' => 'Delhi',
+                'state' => 'Delhi',
+                'pincode' => '110041',
+                'country' => 'India',
+                'phone' => '011-28340100',
+                'email' => 'delhi@hrbd.example',
+                'gstin' => '07AABCH1234F1Z1',
+                'can_store' => true, 'can_receive' => true, 'can_qc' => false, 'can_manufacture' => false,
+                'can_pack' => false, 'can_dispatch' => true, 'can_return' => true,
+                'opening_stock_enabled' => true,
+                'is_active' => true,
+                'deleted_at' => null,
+            ],
+        );
+
+        // The Rudrapur store codes are the ones the earlier releases used,
+        // so any data already on file keeps pointing at the same rows.
+        $stores = [
+            [$rudrapur, 'WH-RM', 'Raw Material Store', 'RM', 10],
+            [$rudrapur, 'WH-PM', 'Packaging Store', 'PM', 20],
+            [$rudrapur, 'WH-FG', 'Finished Goods Store', 'FG', 30],
+            [$rudrapur, 'WH-QA', 'Quarantine Store', 'QUAR', 40],
+            [$rudrapur, 'WH-REJ', 'Rejected Store', 'REJ', 50],
+            [$rudrapur, 'WH-PROD', 'Production Staging', 'PROD', 60],
+            [$rudrapur, 'WH-SMPL', 'Samples Store', 'SMPL', 80],
+            [$rudrapur, 'WH-MP', 'Marketplace Fulfilment', 'MKT', 110],
+            [$delhi, 'DEL-FG', 'Delhi Finished Goods Store', 'FG', 30],
         ];
 
-        foreach ($warehouses as $definition) {
-            $warehouse = Warehouse::updateOrCreate(
-                ['code' => $definition['code']],
+        foreach ($stores as [$facility, $code, $name, $categoryCode, $order]) {
+            $category = $categories[$categoryCode];
+
+            $warehouse = Warehouse::withTrashed()->updateOrCreate(
+                ['code' => $code],
                 [
-                    'name' => $definition['name'],
-                    'type' => $definition['type'],
-                    'is_quarantine' => $definition['type']->holdsQuarantinedStock(),
-                    'address_line_1' => 'Plot 14, MIDC Industrial Area',
-                    'city' => 'Pune',
-                    'state' => 'Maharashtra',
-                    'pincode' => '411018',
+                    'name' => $name,
+                    'facility_id' => $facility->id,
+                    'store_category_id' => $category->id,
+                    'type' => $category->kind,
+                    'is_quarantine' => $category->kind->holdsQuarantinedStock(),
+                    'manager_id' => $facility->manager_id,
+                    'address_line_1' => $facility->address_line_1,
+                    'city' => $facility->city,
+                    'state' => $facility->state,
+                    'pincode' => $facility->pincode,
                     'country' => 'India',
                     'is_active' => true,
+                    'sort_order' => $order,
+                    'deleted_at' => null,
                 ],
             );
 
-            foreach (['A-01', 'A-02', 'B-01', 'STAGE'] as $code) {
+            foreach (['A-01', 'A-02', 'B-01', 'STAGE'] as $locationCode) {
                 $warehouse->locations()->updateOrCreate(
-                    ['code' => $code],
+                    ['code' => $locationCode],
                     [
-                        'name' => $code === 'STAGE' ? 'Staging Area' : "Rack {$code}",
-                        'type' => $code === 'STAGE' ? 'staging' : 'rack',
+                        'name' => $locationCode === 'STAGE' ? 'Staging Area' : "Rack {$locationCode}",
+                        'type' => $locationCode === 'STAGE' ? 'staging' : 'rack',
                         'is_active' => true,
                     ],
                 );
             }
+        }
+
+        // Everyone works at the plant unless they run the Delhi warehouse.
+        foreach (User::query()->get() as $user) {
+            $facility = $user->email === $this->emailFor('Imran Sheikh') ? $delhi : $rudrapur;
+
+            $user->assignments()->firstOrCreate(
+                ['facility_id' => $facility->id, 'store_id' => null, 'status' => 'active'],
+                ['is_primary' => true, 'designation' => $user->designation, 'effective_from' => now()->toDateString()],
+            );
+        }
+
+        // The storekeeper also covers the plant's stores.
+        if ($storekeeper !== null) {
+            $storekeeper->assignments()->firstOrCreate(
+                ['facility_id' => $rudrapur->id, 'store_id' => null, 'status' => 'active'],
+                ['is_primary' => false, 'designation' => 'Warehouse Manager', 'effective_from' => now()->toDateString()],
+            );
         }
     }
 

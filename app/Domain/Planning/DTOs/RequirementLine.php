@@ -18,6 +18,7 @@ final readonly class RequirementLine
 {
     /**
      * @param  list<string>  $notes
+     * @param  list<array{facility_id: int, facility: string, quantity: string}>  $availableElsewhere  What other facilities could send, when this one is short.
      */
     public function __construct(
         public StoreKind $storeKind,
@@ -36,6 +37,7 @@ final readonly class RequirementLine
         public StockAlertLevel $levelNow,
         public StockAlertLevel $levelAfter,
         public array $notes = [],
+        public array $availableElsewhere = [],
     ) {}
 
     public function isShort(): bool
@@ -65,6 +67,7 @@ final readonly class RequirementLine
             'level_now' => $this->levelNow->value,
             'level_after' => $this->levelAfter->value,
             'notes' => $this->notes,
+            'available_elsewhere' => $this->availableElsewhere,
         ];
     }
 }

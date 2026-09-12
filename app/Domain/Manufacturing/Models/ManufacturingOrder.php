@@ -13,6 +13,7 @@ use App\Domain\Manufacturing\Enums\ManufacturingOrderStatus;
 use App\Domain\MasterData\Models\Product;
 use App\Domain\Measurement\Models\Uom;
 use App\Domain\Planning\Models\ProductionPlan;
+use App\Domain\Warehousing\Models\Facility;
 use App\Models\User;
 use Brick\Math\BigDecimal;
 use Carbon\CarbonImmutable;
@@ -54,7 +55,7 @@ class ManufacturingOrder extends Model
     use RecordsAuditTrail, SoftDeletes;
 
     protected $fillable = [
-        'number', 'production_plan_id', 'formula_id', 'formula_version_id', 'product_id',
+        'number', 'facility_id', 'production_plan_id', 'formula_id', 'formula_version_id', 'product_id',
         'planned_quantity', 'planned_uom_id', 'planned_units', 'status',
         'output_quantity', 'output_units', 'yield_percentage', 'output_lot_id', 'manufactured_at',
         'notes', 'created_by', 'approved_by', 'approved_at', 'started_by', 'started_at',
@@ -171,6 +172,14 @@ class ManufacturingOrder extends Model
     public function plannedQuantity(): BigDecimal
     {
         return BigDecimal::of($this->planned_quantity);
+    }
+
+    /**
+     * @return BelongsTo<Facility, $this>
+     */
+    public function facility(): BelongsTo
+    {
+        return $this->belongsTo(Facility::class);
     }
 
     /**

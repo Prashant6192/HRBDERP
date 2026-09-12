@@ -8,12 +8,14 @@ use App\Domain\Access\Enums\RoleName;
 use App\Domain\Audit\Concerns\RecordsAuditTrail;
 use App\Domain\Identity\Enums\UserStatus;
 use App\Domain\Identity\Models\Department;
+use App\Domain\Warehousing\Models\EmployeeAssignment;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -110,6 +112,25 @@ class User extends Authenticatable implements PasskeyUser
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
+    }
+
+    /**
+     * Where this person works: one row per facility (or store) they are
+     * assigned to. See EmployeeAssignment and FacilityAccess.
+     *
+     * @return HasMany<EmployeeAssignment, $this>
+     */
+    public function assignments(): HasMany
+    {
+        return $this->hasMany(EmployeeAssignment::class);
+    }
+
+    /**
+     * @return HasMany<EmployeeAssignment, $this>
+     */
+    public function activeAssignments(): HasMany
+    {
+        return $this->assignments()->active();
     }
 
     // ---- Account state -----------------------------------------------------

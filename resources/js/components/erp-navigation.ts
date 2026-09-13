@@ -13,6 +13,7 @@ import {
     ClipboardCheck,
     ClipboardList,
     ClipboardPen,
+    FileCheck2,
     Factory,
     FlaskConical,
     Handshake,
@@ -24,6 +25,7 @@ import {
     ScrollText,
     ShieldCheck,
     ShoppingCart,
+    Signature,
     Truck,
     Users,
     Warehouse,
@@ -56,6 +58,8 @@ import { index as facilitiesIndex } from '@/routes/facilities';
 import { index as transfersIndex } from '@/routes/transfers';
 import { index as warehousesIndex } from '@/routes/warehouses';
 import { commandCentre, dashboard } from '@/routes';
+import { index as approvalsIndex } from '@/routes/approvals';
+import { index as documentsIndex } from '@/routes/documents';
 
 export type ErpNavItem = {
     title: string;
@@ -98,6 +102,12 @@ export const erpNavigation: ErpNavGroup[] = [
                 href: commandCentre().url,
                 icon: MonitorDot,
                 permission: 'report.view',
+            },
+            {
+                title: 'Approvals',
+                href: approvalsIndex().url,
+                icon: Signature,
+                permission: 'approval.view',
             },
         ],
     },
@@ -165,6 +175,12 @@ export const erpNavigation: ErpNavGroup[] = [
                 href: qcIndex().url,
                 icon: ClipboardCheck,
                 permission: 'qc.view',
+            },
+            {
+                title: 'Controlled Documents',
+                href: documentsIndex().url,
+                icon: FileCheck2,
+                permission: 'document.view',
             },
         ],
     },

@@ -29,6 +29,7 @@ enum InventoryTransactionType: string
     case Sample = 'SAMPLE';
     case SalesDispatch = 'SALES_DISPATCH';
     case MarketplaceTransfer = 'MARKETPLACE_TRANSFER';
+    case Reversal = 'REVERSAL';
 
     public function label(): string
     {
@@ -49,6 +50,7 @@ enum InventoryTransactionType: string
             self::Sample => 'Sample',
             self::SalesDispatch => 'Dispatched',
             self::MarketplaceTransfer => 'Transferred to marketplace',
+            self::Reversal => 'Reversal of an earlier posting',
         };
     }
 
@@ -76,7 +78,8 @@ enum InventoryTransactionType: string
             self::QcRelease,
             self::QcRejection,
             self::StockTransfer,
-            self::MarketplaceTransfer => 'both',
+            self::MarketplaceTransfer,
+            self::Reversal => 'both',
         };
     }
 

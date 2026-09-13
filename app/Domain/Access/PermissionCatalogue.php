@@ -111,7 +111,7 @@ final class PermissionCatalogue
             'label' => 'Inventory',
             'group' => 'Operations',
             'abilities' => [
-                'view', 'receive', 'adjust', 'transfer', 'approve_transfer', 'receive_transfer',
+                'view', 'receive', 'adjust', 'reverse', 'transfer', 'approve_transfer', 'receive_transfer',
                 'opening_stock', 'reserve', 'consume', 'export',
             ],
         ],
@@ -170,6 +170,13 @@ final class PermissionCatalogue
             'label' => 'Approvals',
             'group' => 'Workflow',
             'abilities' => ['view', 'act'],
+        ],
+        'document' => [
+            'label' => 'Controlled Documents',
+            'group' => 'Workflow',
+            // SOPs, specifications, artworks, COAs and QC standards with
+            // version history; approve makes a version the current one.
+            'abilities' => ['view', 'create', 'approve', 'withdraw', 'delete'],
         ],
     ];
 

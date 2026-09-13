@@ -5,11 +5,13 @@ declare(strict_types=1);
 use App\Http\Controllers\Administration\AuditLogController;
 use App\Http\Controllers\Administration\RoleController;
 use App\Http\Controllers\Administration\UserController;
+use App\Http\Controllers\Approvals\ApprovalController;
 use App\Http\Controllers\Contract\ClientArtworkController;
 use App\Http\Controllers\Contract\ClientController;
 use App\Http\Controllers\Contract\ClientProfitabilityController;
 use App\Http\Controllers\Contract\ClientQcSpecController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Documents\DocumentController;
 use App\Http\Controllers\Formulation\FormulaController;
 use App\Http\Controllers\Formulation\FormulaImportController;
 use App\Http\Controllers\Formulation\FormulaSecurityController;
@@ -21,6 +23,7 @@ use App\Http\Controllers\Intelligence\ProductionAnalyticsController;
 use App\Http\Controllers\Intelligence\ReorderAdviceController;
 use App\Http\Controllers\Intelligence\SlowMovingStockController;
 use App\Http\Controllers\Intelligence\WhatIfController;
+use App\Http\Controllers\Inventory\LedgerController;
 use App\Http\Controllers\Inventory\LotController;
 use App\Http\Controllers\Inventory\OpeningStockController;
 use App\Http\Controllers\Inventory\StockController;
@@ -61,6 +64,18 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('command-centre', CommandCentreController::class)->name('command-centre');
+
+    Route::get('approvals', [ApprovalController::class, 'index'])->name('approvals.index');
+    Route::post('approvals/{approval}/approve', [ApprovalController::class, 'approve'])->name('approvals.approve');
+    Route::post('approvals/{approval}/reject', [ApprovalController::class, 'reject'])->name('approvals.reject');
+
+    Route::get('documents', [DocumentController::class, 'index'])->name('documents.index');
+    Route::post('documents', [DocumentController::class, 'store'])->name('documents.store');
+    Route::post('documents/{document}/approve', [DocumentController::class, 'approve'])->name('documents.approve');
+    Route::post('documents/{document}/withdraw', [DocumentController::class, 'withdraw'])->name('documents.withdraw');
+    Route::get('documents/{document}/download', [DocumentController::class, 'download'])->name('documents.download');
+
+    Route::post('ledger/{transaction}/reverse', [LedgerController::class, 'reverse'])->name('ledger.reverse');
 
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
@@ -149,6 +164,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('purchase/reorder-advice', ReorderAdviceController::class)->name('purchase.reorder-advice');
     Route::get('lots', [LotController::class, 'index'])->name('lots.index');
     Route::get('lots/{lot}', [LotController::class, 'show'])->name('lots.show');
+    Route::get('lots/{lot}/trace', [LotController::class, 'trace'])->name('lots.trace');
     Route::get('lots/{lot}/sticker', [QcInspectionController::class, 'sticker'])->name('lots.sticker');
     Route::get('lots/{lot}/cartons', [LotController::class, 'cartons'])->name('lots.cartons');
     Route::post('lots/{lot}/cartons', [LotController::class, 'storeCartons'])->name('lots.cartons.store');

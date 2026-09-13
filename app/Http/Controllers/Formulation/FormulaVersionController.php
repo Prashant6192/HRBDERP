@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Formulation;
 
+use App\Domain\Approvals\Exceptions\ApprovalException;
+use App\Domain\Approvals\Services\ApprovalService;
 use App\Domain\Formulation\Exceptions\FormulaStateException;
 use App\Domain\Formulation\Models\Formula;
 use App\Domain\Formulation\Models\FormulaVersion;
@@ -18,7 +20,10 @@ use Illuminate\Http\Request;
  */
 class FormulaVersionController extends Controller
 {
-    public function __construct(private readonly FormulaService $formulas) {}
+    public function __construct(
+        private readonly FormulaService $formulas,
+        private readonly ApprovalService $approvals,
+    ) {}
 
     public function store(Request $request, Formula $formula): RedirectResponse
     {
@@ -38,6 +43,19 @@ class FormulaVersionController extends Controller
     public function activate(Request $request, Formula $formula, FormulaVersion $version): RedirectResponse
     {
         $this->authorize('activate', $version);
+
+        // Maker-checker: the author of a draft cannot be the one who makes
+        // it the recipe production uses. Their request goes to a checker.
+        if ((int) $version->created_by === (int) $request->user()->id && ! $request->user()->isSuperAdmin()) {
+            try {
+                $this->approvals->request($version, 'formula.activate', $request->user(), ['triggers' => [['key' => 'maker_checker', 'reason' => 'The author of a recipe version cannot activate it.']]], $request->input('note'));
+            } catch (ApprovalException $e) {
+                return back()->withToast('error', $e->getMessage());
+            }
+
+            return redirect()->route('formulas.show', $formula)
+                ->withToast('info', "v{$version->version_number} sent for approval: you wrote it, so someone else must sign it off.");
+        }
 
         try {
             $this->formulas->activate($version, $request->user()->id);

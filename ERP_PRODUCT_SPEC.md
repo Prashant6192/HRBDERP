@@ -126,12 +126,19 @@ net content and barcode.
 **Vendors** with GSTIN, PAN, contact details, payment terms and an approval
 flag — a purchase order can only be raised against an approved vendor.
 
-### Approval engine — _schema built, workflows to come_
+### Approval engine — _built_
 
-One engine for the whole ERP: formula releases, purchase orders, production
-orders, stock adjustments, write-offs and price overrides. A request, an ordered
-set of steps, a record of who did what, and a final state. A step names a
-required permission or role; workflows are configuration, not schema.
+Approval by risk, not just amount. A recipe version is always signed off
+by someone other than its author. A manufacturing release goes for a
+second signature when a trigger fires: a non-standard recipe version, a
+client job with a negative margin or no terms, a product below its yield
+target, abnormal wastage or an unexpected price increase on a material it
+uses, or the requester being its author. Releasing a lot QC rejected is an
+override with a second signature. The checker is the requester's approving
+authority (set on the employee) or anyone holding the workflow's
+permission, never the requester; the person who booked a delivery in
+cannot release it from QC. Every decision is a signed, never-edited
+record. Workflows are declared in `config/approvals.php`.
 
 ### Inventory ledger — _built_
 
@@ -343,8 +350,20 @@ and batch for contract manufacturing.
 yet, priced, scheduled and its impact on the plan shown; plant capacity
 against bookings week by week.
 
-**Still to come in this layer:** risk-based approvals, recall tracing,
-shop-floor scanning, scorecards and the assistant.
+**Immutable critical records.** Ledger postings, approval actions, stage
+events and batch adjustments are never edited; a mistake is corrected by a
+reversal that stays in the ledger beside the original.
+
+**Recall management.** From any lot, forwards through every batch it went
+into to the finished goods, their stores, transfers, dispatches and
+clients; backwards to the lots a batch was made from and their suppliers.
+
+**Controlled documents.** SOPs, specifications, artworks, COAs and QC
+standards with version history and approval status; production references
+the approved current version.
+
+**Still to come in this layer:** shop-floor scanning, stock counts, the
+mobile floor mode, scorecards and the assistant.
 
 ### Costing — _planned_
 

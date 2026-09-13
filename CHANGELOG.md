@@ -53,6 +53,45 @@ be read.
   under `intelligence` (consumption window, planning horizon, default lead
   time, buckets, risk window).
 
+### Added — Controls: approvals by risk, maker-checker, signatures, reversals, recall, documents
+
+- **Approval by risk, not just amount.** A manufacturing release goes for
+  a second signature when a trigger fires: the batch is on a recipe
+  version that is not the active one, a client job would lose money or has
+  no terms, the product's recent yield is below target, a material it
+  uses shows abnormal wastage or an unexpected price increase, or the
+  person releasing it raised it. A recipe version is always signed off by
+  someone other than its author. Releasing a lot QC rejected is an
+  override and needs a second signature.
+- **Maker-checker with an approving authority.** Each employee can be
+  given an approving authority (on their record, at creation or later);
+  that person is told when the employee raises a request and may sign it,
+  as may anyone holding the workflow's permission — never the requester.
+  The person who booked a delivery in cannot release it from QC.
+- **Digital signatures.** Every approval decision is written once with a
+  keyed hash over who, what, when, on which record; the approvals screen
+  shows each signature and whether it still verifies.
+- **Approvals screen** (Overview → Approvals): what is waiting for your
+  signature, with the triggers, and the signed record of recent decisions.
+- **Immutable critical records, corrected by reversal.** A posted stock
+  movement is never edited; a reversal posts the opposite lines and both
+  stay in the ledger pointing at each other (Store → Batches → Reverse,
+  for those with `inventory.reverse`). `erp:lock-audit-trail` now also
+  revokes UPDATE and DELETE on the ledger, approval actions, stage events
+  and batch adjustments at the database.
+- **Recall management** (a batch's page → Recall trace): from a defective
+  lot, every batch it was consumed into, the finished goods those made,
+  where each affected batch sits now, where it was transferred, what has
+  already been dispatched and which client owns it; and backwards, what a
+  finished batch was made from and who supplied it.
+- **Controlled documents** (Quality Control → Controlled Documents): SOPs,
+  specifications, artworks, certificates of analysis, formula documents
+  and QC standards with version history. A new version is a draft;
+  approval by someone other than its author makes it current and
+  supersedes the previous one; withdrawn and superseded versions stay on
+  file. A manufacturing order lists the approved current documents for
+  its product. New permissions under `document.*`.
+
 ### Added — Production analytics: batch stages, consumption, yield, cost, client margin, what-if, capacity
 
 - **Real-time batch progress.** Instead of "in production", the floor

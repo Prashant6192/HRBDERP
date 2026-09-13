@@ -31,6 +31,7 @@ class StoreUserRequest extends FormRequest
             'password' => $this->passwordRules(),
 
             'department_id' => ['nullable', 'integer', Rule::exists('departments', 'id')],
+            'approving_authority_id' => ['nullable', 'integer', Rule::exists('users', 'id')],
             'designation' => ['nullable', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:32'],
             'status' => ['required', new Enum(UserStatus::class)],

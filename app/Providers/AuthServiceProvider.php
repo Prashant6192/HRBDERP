@@ -6,6 +6,7 @@ namespace App\Providers;
 
 use App\Domain\Audit\Models\AuditLog;
 use App\Domain\Contract\Models\Client;
+use App\Domain\Documents\Models\Document;
 use App\Domain\Formulation\Models\Formula;
 use App\Domain\Formulation\Models\FormulaVersion;
 use App\Domain\Identity\Models\Department;
@@ -27,6 +28,7 @@ use App\Models\User;
 use App\Policies\AuditLogPolicy;
 use App\Policies\ClientPolicy;
 use App\Policies\DepartmentPolicy;
+use App\Policies\DocumentPolicy;
 use App\Policies\FacilityPolicy;
 use App\Policies\FormulaPolicy;
 use App\Policies\FormulaVersionPolicy;
@@ -74,6 +76,7 @@ class AuthServiceProvider extends ServiceProvider
         ManufacturingOrder::class => ManufacturingOrderPolicy::class,
         QcInspection::class => QcInspectionPolicy::class,
         InventoryLot::class => InventoryLotPolicy::class,
+        Document::class => DocumentPolicy::class,
 
         // Each item type has its own policy so that Laravel can resolve one
         // from the model class alone, which is all it has for class-level

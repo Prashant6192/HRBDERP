@@ -51,6 +51,7 @@ export default function ShowQcInspection({
     destinations: SelectOption[];
     can: {
         approve: boolean;
+        override?: boolean;
         reject: boolean;
         hold: boolean;
         sticker: boolean;
@@ -81,6 +82,9 @@ export default function ShowQcInspection({
     const lot = inspection.lot;
     const open =
         inspection.status === 'pending' || inspection.status === 'on_hold';
+    // A rejected lot may still be released, but only through a second
+    // signature: the form sends an override request instead of deciding.
+    const override = inspection.status === 'rejected' && Boolean(can.override);
 
     return (
         <>
@@ -248,153 +252,179 @@ export default function ShowQcInspection({
                     </section>
                 </div>
 
-                {open && (can.approve || can.reject || can.hold) && (
-                    <section className="bg-card rounded-xl border p-6">
-                        <h2 className="font-semibold">Record the decision</h2>
-                        <p className="text-muted-foreground mt-1 text-sm">
-                            Approving moves the whole batch from quarantine to
-                            the store and makes the sticker printable. Rejecting
-                            keeps it in quarantine, marked as rejected, until it
-                            is returned.
+                {override && (
+                    <section className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm">
+                        <p className="font-medium">This lot was rejected.</p>
+                        <p className="text-muted-foreground">
+                            Releasing it after all is a QC override: your
+                            approval below is sent for a second signature and
+                            the lot moves only once that is given.
                         </p>
-
-                        <div className="mt-5 grid gap-5 sm:grid-cols-2">
-                            <div className="space-y-2 sm:col-span-2">
-                                <Label htmlFor="remarks">Remarks</Label>
-                                <textarea
-                                    id="remarks"
-                                    rows={3}
-                                    className="border-input bg-background w-full rounded-md border px-3 py-2 text-sm"
-                                    value={form.data.remarks}
-                                    onChange={(e) =>
-                                        form.setData('remarks', e.target.value)
-                                    }
-                                    placeholder="Test results, observations, reason for rejection…"
-                                />
-                                <InputError message={form.errors.remarks} />
-                            </div>
-
-                            {can.approve && (
-                                <div className="space-y-2">
-                                    <Label htmlFor="destination">
-                                        Release to
-                                    </Label>
-                                    <Select
-                                        value={
-                                            form.data.destination_warehouse_id
-                                        }
-                                        onValueChange={(v) =>
-                                            form.setData(
-                                                'destination_warehouse_id',
-                                                v,
-                                            )
-                                        }
-                                    >
-                                        <SelectTrigger
-                                            id="destination"
-                                            className="w-full"
-                                        >
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {destinations.map((d) => (
-                                                <SelectItem
-                                                    key={d.value}
-                                                    value={String(d.value)}
-                                                >
-                                                    {d.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <InputError
-                                        message={
-                                            form.errors.destination_warehouse_id
-                                        }
-                                    />
-                                </div>
-                            )}
-                        </div>
-
-                        {pin.required && (
-                            <div className="mt-5 max-w-xs space-y-2">
-                                <Label htmlFor="pin">Sign with your PIN</Label>
-                                {pin.set ? (
-                                    <Input
-                                        id="pin"
-                                        type="password"
-                                        inputMode="numeric"
-                                        autoComplete="off"
-                                        maxLength={8}
-                                        value={form.data.pin}
-                                        onChange={(e) =>
-                                            form.setData('pin', e.target.value)
-                                        }
-                                        className="tracking-widest"
-                                    />
-                                ) : (
-                                    <p className="text-sm text-amber-700 dark:text-amber-300">
-                                        You have no personal PIN yet.{' '}
-                                        <Link
-                                            href={securitySettings()}
-                                            className="font-medium underline-offset-4 hover:underline"
-                                        >
-                                            Set one under Settings → Security
-                                        </Link>{' '}
-                                        to sign decisions.
-                                    </p>
-                                )}
-                                <InputError message={form.errors.pin} />
-                            </div>
-                        )}
-
-                        <InputError
-                            message={
-                                (
-                                    form.errors as Record<
-                                        string,
-                                        string | undefined
-                                    >
-                                ).decision
-                            }
-                            className="mt-3"
-                        />
-
-                        <div className="mt-5 flex flex-wrap gap-3">
-                            {can.approve && (
-                                <Button
-                                    onClick={() => submit('approve')}
-                                    disabled={form.processing}
-                                >
-                                    <CheckCircle2 className="size-4" />
-                                    {decision === 'approve' && form.processing
-                                        ? 'Approving…'
-                                        : 'Approve & release'}
-                                </Button>
-                            )}
-                            {can.reject && (
-                                <Button
-                                    variant="destructive"
-                                    onClick={() => submit('reject')}
-                                    disabled={form.processing}
-                                >
-                                    <XCircle className="size-4" />
-                                    Reject
-                                </Button>
-                            )}
-                            {can.hold && (
-                                <Button
-                                    variant="outline"
-                                    onClick={() => submit('hold')}
-                                    disabled={form.processing}
-                                >
-                                    <PauseCircle className="size-4" />
-                                    Put on hold
-                                </Button>
-                            )}
-                        </div>
                     </section>
                 )}
+
+                {(open || override) &&
+                    (can.approve || can.reject || can.hold) && (
+                        <section className="bg-card rounded-xl border p-6">
+                            <h2 className="font-semibold">
+                                Record the decision
+                            </h2>
+                            <p className="text-muted-foreground mt-1 text-sm">
+                                Approving moves the whole batch from quarantine
+                                to the store and makes the sticker printable.
+                                Rejecting keeps it in quarantine, marked as
+                                rejected, until it is returned.
+                            </p>
+
+                            <div className="mt-5 grid gap-5 sm:grid-cols-2">
+                                <div className="space-y-2 sm:col-span-2">
+                                    <Label htmlFor="remarks">Remarks</Label>
+                                    <textarea
+                                        id="remarks"
+                                        rows={3}
+                                        className="border-input bg-background w-full rounded-md border px-3 py-2 text-sm"
+                                        value={form.data.remarks}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'remarks',
+                                                e.target.value,
+                                            )
+                                        }
+                                        placeholder="Test results, observations, reason for rejection…"
+                                    />
+                                    <InputError message={form.errors.remarks} />
+                                </div>
+
+                                {can.approve && (
+                                    <div className="space-y-2">
+                                        <Label htmlFor="destination">
+                                            Release to
+                                        </Label>
+                                        <Select
+                                            value={
+                                                form.data
+                                                    .destination_warehouse_id
+                                            }
+                                            onValueChange={(v) =>
+                                                form.setData(
+                                                    'destination_warehouse_id',
+                                                    v,
+                                                )
+                                            }
+                                        >
+                                            <SelectTrigger
+                                                id="destination"
+                                                className="w-full"
+                                            >
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {destinations.map((d) => (
+                                                    <SelectItem
+                                                        key={d.value}
+                                                        value={String(d.value)}
+                                                    >
+                                                        {d.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <InputError
+                                            message={
+                                                form.errors
+                                                    .destination_warehouse_id
+                                            }
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            {pin.required && (
+                                <div className="mt-5 max-w-xs space-y-2">
+                                    <Label htmlFor="pin">
+                                        Sign with your PIN
+                                    </Label>
+                                    {pin.set ? (
+                                        <Input
+                                            id="pin"
+                                            type="password"
+                                            inputMode="numeric"
+                                            autoComplete="off"
+                                            maxLength={8}
+                                            value={form.data.pin}
+                                            onChange={(e) =>
+                                                form.setData(
+                                                    'pin',
+                                                    e.target.value,
+                                                )
+                                            }
+                                            className="tracking-widest"
+                                        />
+                                    ) : (
+                                        <p className="text-sm text-amber-700 dark:text-amber-300">
+                                            You have no personal PIN yet.{' '}
+                                            <Link
+                                                href={securitySettings()}
+                                                className="font-medium underline-offset-4 hover:underline"
+                                            >
+                                                Set one under Settings →
+                                                Security
+                                            </Link>{' '}
+                                            to sign decisions.
+                                        </p>
+                                    )}
+                                    <InputError message={form.errors.pin} />
+                                </div>
+                            )}
+
+                            <InputError
+                                message={
+                                    (
+                                        form.errors as Record<
+                                            string,
+                                            string | undefined
+                                        >
+                                    ).decision
+                                }
+                                className="mt-3"
+                            />
+
+                            <div className="mt-5 flex flex-wrap gap-3">
+                                {can.approve && (
+                                    <Button
+                                        onClick={() => submit('approve')}
+                                        disabled={form.processing}
+                                    >
+                                        <CheckCircle2 className="size-4" />
+                                        {decision === 'approve' &&
+                                        form.processing
+                                            ? 'Approving…'
+                                            : 'Approve & release'}
+                                    </Button>
+                                )}
+                                {can.reject && (
+                                    <Button
+                                        variant="destructive"
+                                        onClick={() => submit('reject')}
+                                        disabled={form.processing}
+                                    >
+                                        <XCircle className="size-4" />
+                                        Reject
+                                    </Button>
+                                )}
+                                {can.hold && (
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => submit('hold')}
+                                        disabled={form.processing}
+                                    >
+                                        <PauseCircle className="size-4" />
+                                        Put on hold
+                                    </Button>
+                                )}
+                            </div>
+                        </section>
+                    )}
             </div>
         </>
     );

@@ -10,6 +10,7 @@ export default function EditUser({
     userRoles,
     roles,
     departments,
+    authorities,
     statuses,
     canAssignRoles,
 }: {
@@ -17,6 +18,7 @@ export default function EditUser({
     userRoles: string[];
     roles: SelectOption[];
     departments: SelectOption[];
+    authorities: SelectOption[];
     statuses: SelectOption[];
     canAssignRoles: boolean;
 }) {
@@ -36,6 +38,7 @@ export default function EditUser({
                         userRoles={userRoles}
                         roles={roles}
                         departments={departments}
+                        authorities={authorities}
                         statuses={statuses}
                         canAssignRoles={canAssignRoles}
                         action={{ url: update(user.id).url, method: 'put' }}

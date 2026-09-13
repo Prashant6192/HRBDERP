@@ -52,7 +52,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property Carbon|null $two_factor_confirmed_at
  */
 #[Fillable([
-    'employee_code', 'name', 'email', 'password', 'department_id',
+    'employee_code', 'name', 'email', 'password', 'department_id', 'approving_authority_id',
     'phone', 'designation', 'avatar_path', 'status', 'must_change_password',
 ])]
 #[Hidden([
@@ -109,6 +109,16 @@ class User extends Authenticatable implements PasskeyUser
     /**
      * @return BelongsTo<Department, $this>
      */
+    /**
+     * Maker-checker: who authorises what this employee raises.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function approvingAuthority(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approving_authority_id');
+    }
+
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);

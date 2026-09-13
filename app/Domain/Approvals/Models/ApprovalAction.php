@@ -22,7 +22,7 @@ class ApprovalAction extends Model
 
     protected $fillable = [
         'approval_id', 'approval_step_id', 'user_id',
-        'action', 'comment', 'ip_address', 'acted_at',
+        'action', 'comment', 'ip_address', 'user_agent', 'signature_hash', 'acted_at',
     ];
 
     protected function casts(): array

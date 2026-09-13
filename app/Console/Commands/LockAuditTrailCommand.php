@@ -17,7 +17,12 @@ use Illuminate\Support\Facades\DB;
  */
 class LockAuditTrailCommand extends Command
 {
-    private const array TABLES = ['audit_logs', 'formula_access_logs'];
+    private const array TABLES = [
+        'audit_logs', 'formula_access_logs',
+        // Critical records are never edited: corrections are reversals and amendments.
+        'inventory_transactions', 'inventory_transaction_lines',
+        'approval_actions', 'manufacturing_order_stage_events', 'manufacturing_order_adjustments',
+    ];
 
     protected $signature = 'erp:lock-audit-trail {--check : Report the current state without changing anything}';
 

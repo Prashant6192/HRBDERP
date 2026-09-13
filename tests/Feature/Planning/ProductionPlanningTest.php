@@ -308,7 +308,8 @@ class ProductionPlanningTest extends TestCase
 
         // Once QC releases the surfactant, a re-check finds the store covered.
         $inspection = QcInspection::query()->where('item_id', $this->surfactant->id)->firstOrFail();
-        app(QcInspectionService::class)->approve($inspection, $this->director->id);
+        // Maker-checker: the director booked the delivery in, so QC is released by someone else.
+        app(QcInspectionService::class)->approve($inspection, $this->productionManager->id);
 
         $plan = $this->plans->check($plan);
         $this->assertFalse($plan->lines->where('store_kind', StoreKind::RawMaterial)->contains(fn ($l) => $l->shortage()->isPositive()));

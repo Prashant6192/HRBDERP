@@ -102,6 +102,12 @@ ERP_AI_MODEL=claude-opus-5
 ERP_COMPANY_GSTIN=
 ERP_COMPANY_PAN=
 
+# Signs every approval decision. Set a long random value; changing it later
+# means earlier signatures no longer verify. Falls back to APP_KEY.
+ERP_SIGNATURE_KEY=
+# The person who booked a delivery in cannot release it from QC.
+ERP_QC_MAKER_CHECKER=true
+
 # The clock on the factory wall. Timestamps are stored in UTC and shown in
 # this zone.
 ERP_TIMEZONE=Asia/Kolkata

@@ -34,10 +34,11 @@ class QcInspectionService
     /**
      * @param  array<string, mixed>|null  $parameters
      */
-    public function approve(QcInspection $inspection, int $userId, ?string $remarks = null, ?array $parameters = null, ?Warehouse $destination = null): QcInspection
+    public function approve(QcInspection $inspection, int $userId, ?string $remarks = null, ?array $parameters = null, ?Warehouse $destination = null, bool $override = false): QcInspection
     {
-        return DB::transaction(function () use ($inspection, $userId, $remarks, $parameters, $destination): QcInspection {
-            $inspection = $this->lockOpen($inspection);
+        return DB::transaction(function () use ($inspection, $userId, $remarks, $parameters, $destination, $override): QcInspection {
+            $inspection = $override ? $this->lockForOverride($inspection) : $this->lockOpen($inspection);
+            $this->assertNotTheReceiver($inspection, $userId);
             $lot = InventoryLot::query()->lockForUpdate()->findOrFail($inspection->lot_id);
             $destination ??= $inspection->destinationWarehouse;
 
@@ -142,6 +143,37 @@ class QcInspectionService
 
             return $inspection;
         });
+    }
+
+    /**
+     * Maker-checker: the person who booked the delivery in does not release it.
+     */
+    private function assertNotTheReceiver(QcInspection $inspection, int $userId): void
+    {
+        if (! config('approvals.qc_maker_checker', true)) {
+            return;
+        }
+
+        $receipt = $inspection->receiptLine?->receipt;
+
+        if ($receipt !== null && in_array($userId, [(int) $receipt->received_by, (int) $receipt->created_by], true)) {
+            throw new InvalidArgumentException('You booked this delivery in, so someone else must release it: maker and checker must differ.');
+        }
+    }
+
+    /**
+     * An override releases a lot QC already rejected or held. Only the
+     * approval engine calls this, after a second signature.
+     */
+    private function lockForOverride(QcInspection $inspection): QcInspection
+    {
+        $inspection = QcInspection::query()->lockForUpdate()->findOrFail($inspection->id);
+
+        if ($inspection->status === LotQcStatus::Approved) {
+            throw new InvalidArgumentException("Inspection {$inspection->number} is already approved.");
+        }
+
+        return $inspection;
     }
 
     private function lockOpen(QcInspection $inspection): QcInspection

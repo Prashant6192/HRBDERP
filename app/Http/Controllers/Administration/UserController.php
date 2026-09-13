@@ -116,7 +116,7 @@ class UserController extends Controller
     {
         $this->authorize('view', $user);
 
-        $user->load(['department:id,name', 'roles:id,name', 'activeAssignments.facility:id,code,name', 'activeAssignments.store:id,code,name']);
+        $user->load(['department:id,name', 'approvingAuthority:id,name,designation', 'roles:id,name', 'activeAssignments.facility:id,code,name', 'activeAssignments.store:id,code,name']);
 
         return Inertia::render('users/show', [
             'user' => $user,
@@ -261,6 +261,9 @@ class UserController extends Controller
             'roles' => $this->roleOptions(),
             'departments' => $this->departmentOptions(),
             'statuses' => $this->statusOptions(),
+            // Who may sign off what this employee raises.
+            'authorities' => User::query()->where('status', 'active')->orderBy('name')->get(['id', 'name', 'designation'])
+                ->map(fn (User $u) => ['value' => $u->id, 'label' => $u->name.($u->designation ? " · {$u->designation}" : '')])->all(),
         ];
     }
 

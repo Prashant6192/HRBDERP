@@ -414,6 +414,11 @@ export default function ShowUser({
                             <DetailItem label="Designation">
                                 {user.designation ?? '—'}
                             </DetailItem>
+                            <DetailItem label="Approving authority">
+                                {user.approving_authority
+                                    ? `${user.approving_authority.name}${user.approving_authority.designation ? ` · ${user.approving_authority.designation}` : ''}`
+                                    : 'Anyone holding the permission'}
+                            </DetailItem>
                             <DetailItem label="Phone">
                                 {user.phone ?? '—'}
                             </DetailItem>

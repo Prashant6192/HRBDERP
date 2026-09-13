@@ -8,6 +8,7 @@ use App\Domain\Inventory\Enums\LotQcStatus;
 use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Models\InventoryTransactionLine;
 use App\Domain\Inventory\Services\CartonLabelService;
+use App\Domain\Inventory\Services\RecallTraceService;
 use App\Domain\MasterData\Enums\ItemType;
 use App\Http\Controllers\Controller;
 use App\Support\Tables\TableQuery;
@@ -74,7 +75,7 @@ class LotController extends Controller
         ]);
 
         $movements = InventoryTransactionLine::query()
-            ->with(['transaction:id,number,type,transacted_at,reason', 'warehouse:id,code'])
+            ->with(['transaction:id,number,type,transacted_at,reason,reverses_transaction_id', 'transaction.reversal:id,number,reverses_transaction_id', 'warehouse:id,code'])
             ->where('lot_id', $lot->id)
             ->orderByDesc('id')
             ->limit(100)
@@ -86,8 +87,24 @@ class LotController extends Controller
             'can' => [
                 'sticker' => $lot->qc_status->isReleasable() && $request->user()->can('printSticker', $lot),
                 'cartons' => $lot->qc_status->isReleasable() && $lot->item?->type === ItemType::FinishedGood && $request->user()->can('printSticker', $lot),
+                // Corrections are reversals, never edits.
+                'reverse' => $request->user()->can('inventory.reverse'),
+                'trace' => $request->user()->can('inventory.view'),
             ],
             'cartonPlan' => $lot->carton_plan,
+        ]);
+    }
+
+    /**
+     * Recall management: everything this lot touched, forwards and backwards.
+     */
+    public function trace(Request $request, InventoryLot $lot): Response
+    {
+        $this->authorize('view', $lot);
+
+        return Inertia::render('lots/trace', [
+            'lot' => $lot->load(['item:id,code,name,type']),
+            'trace' => app(RecallTraceService::class)->trace($lot),
         ]);
     }
 

@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Manufacturing;
 
+use App\Domain\Approvals\Exceptions\ApprovalException;
+use App\Domain\Approvals\Models\Approval;
+use App\Domain\Approvals\Services\ApprovalService;
+use App\Domain\Approvals\Services\RiskAssessor;
 use App\Domain\Contract\Enums\ArtworkStatus;
 use App\Domain\Contract\Enums\ManufacturingType;
 use App\Domain\Contract\Models\Client;
@@ -11,6 +15,7 @@ use App\Domain\Contract\Models\ClientArtwork;
 use App\Domain\Contract\Models\ClientQcSpec;
 use App\Domain\Contract\Services\ClientMaterialReconciliationService;
 use App\Domain\Contract\Services\JobCostingService;
+use App\Domain\Documents\Services\DocumentService;
 use App\Domain\Intelligence\Services\ProductionAnalyticsService;
 use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Models\StockReservation;
@@ -50,6 +55,8 @@ class ManufacturingOrderController extends Controller
         private readonly ProductionStageService $stages,
         private readonly BatchAdjustmentService $adjustments,
         private readonly ProductionAnalyticsService $analytics,
+        private readonly RiskAssessor $risk,
+        private readonly ApprovalService $approvals,
     ) {}
 
     public function index(Request $request): Response
@@ -166,6 +173,8 @@ class ManufacturingOrderController extends Controller
             'thirdParty' => $this->thirdParty($request, $order),
             // Where the batch is on the floor, and what it took and cost.
             'stages' => $this->stages->summary($order),
+            'approval' => $this->pendingApproval($order),
+            'documents' => app(DocumentService::class)->currentFor($order->product_id, $order->client_id),
             'analytics' => $order->status === ManufacturingOrderStatus::Draft || $order->status === ManufacturingOrderStatus::Approved
                 ? null
                 : [
@@ -248,6 +257,24 @@ class ManufacturingOrderController extends Controller
         $this->authorize('approve', $order);
         $this->assertAtFacility($request, $order);
 
+        // Approval by risk, not just amount: a trigger, or the order's own
+        // author releasing it, sends the release to a second signature.
+        $triggers = $this->risk->forManufacturingRelease($order);
+
+        if ((int) $order->created_by === (int) $request->user()->id && ! $request->user()->isSuperAdmin()) {
+            $triggers[] = ['key' => 'maker_checker', 'reason' => 'The person who raised the order cannot release it.'];
+        }
+
+        if ($triggers !== []) {
+            try {
+                $this->approvals->request($order, 'production.release', $request->user(), ['triggers' => $triggers], $request->input('note'));
+            } catch (ApprovalException $e) {
+                return back()->withToast('error', $e->getMessage());
+            }
+
+            return back()->withToast('info', "{$order->number} sent for approval: ".$triggers[0]['reason']);
+        }
+
         try {
             $this->orders->approve($order, $request->user()->id);
         } catch (ManufacturingException|RuntimeException $e) {
@@ -319,6 +346,27 @@ class ManufacturingOrderController extends Controller
         }
 
         return back()->withToast('success', "{$order->number} cancelled; held materials released.");
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function pendingApproval(ManufacturingOrder $order): ?array
+    {
+        $approval = Approval::query()
+            ->where('approvable_type', $order->getMorphClass())
+            ->where('approvable_id', $order->id)
+            ->where('workflow_key', 'production.release')
+            ->open()
+            ->with('requestedBy:id,name')
+            ->first();
+
+        return $approval === null ? null : [
+            'id' => $approval->id,
+            'requested_by' => $approval->requestedBy?->name,
+            'requested_at' => $approval->requested_at?->toIso8601String(),
+            'triggers' => $approval->context['triggers'] ?? [],
+        ];
     }
 
     /**

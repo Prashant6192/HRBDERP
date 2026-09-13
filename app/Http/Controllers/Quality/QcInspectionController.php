@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Quality;
 
+use App\Domain\Approvals\Services\ApprovalService;
 use App\Domain\Contract\Models\ClientQcSpec;
 use App\Domain\Identity\Exceptions\PinException;
 use App\Domain\Identity\Services\PersonalPinService;
@@ -38,6 +39,7 @@ class QcInspectionController extends Controller
         private readonly LotStickerService $stickers,
         private readonly QcSlipService $slips,
         private readonly PersonalPinService $pins,
+        private readonly ApprovalService $approvals,
     ) {}
 
     public function index(Request $request): Response
@@ -110,6 +112,7 @@ class QcInspectionController extends Controller
                 ->map(fn (Warehouse $w) => ['value' => $w->id, 'label' => "{$w->code} — {$w->name}"])->all(),
             'can' => [
                 'approve' => $qcInspection->isOpen() && $request->user()->can('approve', $qcInspection),
+                'override' => $qcInspection->status === LotQcStatus::Rejected && $request->user()->can('approve', $qcInspection),
                 'reject' => $qcInspection->isOpen() && $request->user()->can('reject', $qcInspection),
                 'hold' => $qcInspection->status === LotQcStatus::Pending && $request->user()->can('hold', $qcInspection),
                 'sticker' => $qcInspection->status === LotQcStatus::Approved && $request->user()->can('printSticker', $qcInspection->lot),
@@ -134,6 +137,21 @@ class QcInspectionController extends Controller
         $destination = $request->filled('destination_warehouse_id')
             ? Warehouse::findOrFail($request->integer('destination_warehouse_id'))
             : null;
+
+        // Releasing a lot QC already rejected is an override: it needs a
+        // second signature, never one person's say-so.
+        if ($qcInspection->status === LotQcStatus::Rejected) {
+            $this->approvals->request($qcInspection, 'qc.override', $request->user(), [
+                'triggers' => [['key' => 'qc_override', 'reason' => "{$qcInspection->number} was rejected; releasing it after all overrides that decision."]],
+                'remarks' => $request->validated('remarks'),
+                'parameters' => $request->validated('parameters'),
+                'destination_warehouse_id' => $destination?->id,
+            ], $request->validated('remarks'));
+
+            Inertia::flash('toast', ['type' => 'info', 'message' => "{$qcInspection->number} was rejected earlier; your release has gone for a second signature."]);
+
+            return to_route('qc.show', $qcInspection);
+        }
 
         try {
             $this->inspections->approve(

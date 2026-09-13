@@ -77,7 +77,10 @@ Where the build has got to, and what comes next.
 | Cost variance engine: price, usage, wastage, charges and yield effects                                                    | Built |
 | Client profitability per client, product and batch                                                                        | Built |
 | What-if production simulation; capacity planning against daily facility capacity                                          | Built |
-| Risk-based approvals, maker-checker, signatures, reversals, recall tracing, document versions                             | Next  |
+| Approvals by risk with maker-checker, approving authorities and signed decisions                                          | Built |
+| Ledger reversals instead of edits; database-level lock on critical tables                                                 | Built |
+| Recall trace forwards and backwards from any lot                                                                          | Built |
+| Controlled documents with versions, approval and supersession                                                             | Built |
 | Shop-floor scanning, stock counts, mobile floor mode                                                                      | Next  |
 | Department scorecards, OTIF, the assistant                                                                                | Next  |
 
@@ -106,10 +109,8 @@ Where the build has got to, and what comes next.
 
 ### Phase 9 — Approvals, notifications, scheduler
 
-- Approval workflows on the existing engine: formula activation, plan
-  approval, order approval, stock adjustments
-- Notifications in-app first; channels added later
-- Scheduler: low stock, expiry, overdue requests, snapshots
+- Notification channels beyond in-app (email, WhatsApp, SMS, Slack)
+- Scheduler: daily low-stock and expiry digests, snapshots
 
 ### Phase 10 — Imports, exports, HR
 

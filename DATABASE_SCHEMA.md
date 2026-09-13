@@ -249,19 +249,35 @@ guarantees and the production `REVOKE`.
 
 ### `approvals`, `approval_steps`, `approval_actions`
 
-One approval engine for the whole ERP. Formula releases, purchase orders,
-production orders, stock adjustments, write-offs and price overrides all need
-the same thing — a request, an ordered set of steps, a record of who did what,
-and a final state — so they get it from these three tables rather than from six
-near-identical implementations.
+An approval is one request about one record (`approvable` morph) under
+one workflow (`workflow_key`, declared in `config/approvals.php`), with
+`context` carrying the risk triggers that raised it. Its steps name who
+may decide (`required_permission` / `required_role`); the requester's
+approving authority may always decide, the requester never. Each decision
+is an `approval_actions` row written once: `user_id`, `action`, `comment`,
+`ip_address`, `user_agent`, `acted_at`, and `signature_hash` — an HMAC
+over the row and the record it concerns, keyed by `ERP_SIGNATURE_KEY`, so
+the row can be verified later and any change to it is detectable.
 
-A workflow is identified by `workflow_key`, so adding one is configuration
-rather than schema. A step names a required permission, a required role, or
-both; holding either is enough unless `require_both` is set. A step naming
-neither is actionable by nobody, which is the safe reading of an incomplete
-definition.
+### `users.approving_authority_id`
 
----
+Maker-checker: the person who authorises what this employee raises.
+
+### `inventory_transactions.reverses_transaction_id`
+
+A reversal posts the opposite of every line of the transaction it points
+at, under type `REVERSAL`. A transaction can be reversed once; a reversal
+cannot be reversed. Neither is ever edited.
+
+### `documents`
+
+One row per version of a controlled document: `code` shared by all
+versions, `version`, `kind` (`sop`, `specification`, `artwork`, `coa`,
+`formula`, `qc_standard`, `other`), `title`, `status` (`draft`,
+`approved`, `superseded`, `withdrawn`), `item_id`, `client_id`, the file,
+`change_summary`, `effective_from`, `supersedes_id`, `created_by`,
+`approved_by`/`approved_at`, `withdrawn_by`/`withdrawn_at`. A partial
+unique index keeps one approved version per code.
 
 ## Inventory
 

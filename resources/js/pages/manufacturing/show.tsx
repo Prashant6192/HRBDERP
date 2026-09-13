@@ -52,6 +52,8 @@ import {
 } from '@/lib/planning';
 import { date, QC_LABEL, QC_VARIANT, qty } from '@/lib/stock';
 import { dashboard } from '@/routes';
+import { index as approvalsIndex } from '@/routes/approvals';
+import { download as downloadDocument } from '@/routes/documents';
 import { show as showFormula } from '@/routes/formulas';
 import { show as showLot } from '@/routes/lots';
 import {
@@ -183,6 +185,8 @@ export default function ShowManufacturingOrder({
     today,
     thirdParty,
     stages,
+    approval,
+    documents,
     analytics,
     lots,
     can,
@@ -193,6 +197,22 @@ export default function ShowManufacturingOrder({
     today: string;
     thirdParty: ThirdPartyDetails | null;
     stages: StageSummary;
+    approval: {
+        id: number;
+        requested_by: string | null;
+        requested_at: string | null;
+        triggers: { key: string; reason: string }[];
+    } | null;
+    documents: {
+        id: number;
+        code: string;
+        version: number;
+        kind: string;
+        kind_label: string;
+        title: string;
+        effective_from: string | null;
+        has_file: boolean;
+    }[];
     analytics: BatchAnalytics | null;
     lots: { item_id: number; lot_id: number; batch_number: string }[];
     can: {
@@ -626,6 +646,71 @@ export default function ShowManufacturingOrder({
                         )}
                     </dl>
                 </section>
+
+                {approval && (
+                    <section className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-5 text-sm">
+                        <h2 className="font-semibold">
+                            Release awaiting a second signature
+                        </h2>
+                        <p className="text-muted-foreground mt-1">
+                            Raised by {approval.requested_by ?? '—'}. It is
+                            decided under{' '}
+                            <Link
+                                href={approvalsIndex()}
+                                className="underline-offset-4 hover:underline"
+                            >
+                                Approvals
+                            </Link>
+                            .
+                        </p>
+                        <ul className="mt-2 space-y-1">
+                            {approval.triggers.map((t, i) => (
+                                <li key={i} className="flex items-start gap-2">
+                                    <span className="mt-2 size-1.5 shrink-0 rounded-full bg-amber-500" />
+                                    <span>{t.reason}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+                )}
+
+                {documents.length > 0 && (
+                    <section className="bg-card rounded-xl border p-5">
+                        <h2 className="font-semibold">Controlled documents</h2>
+                        <p className="text-muted-foreground text-sm">
+                            The approved current versions production references
+                            for this product.
+                        </p>
+                        <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                            {documents.map((d) => (
+                                <li
+                                    key={d.id}
+                                    className="rounded-lg border p-3 text-sm"
+                                >
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="font-mono text-xs">
+                                            {d.code} v{d.version}
+                                        </span>
+                                        <StatusBadge variant="success">
+                                            {d.kind_label}
+                                        </StatusBadge>
+                                    </div>
+                                    <div className="mt-1 font-medium">
+                                        {d.title}
+                                    </div>
+                                    {d.has_file && (
+                                        <a
+                                            href={downloadDocument(d.id).url}
+                                            className="text-primary text-xs underline-offset-4 hover:underline"
+                                        >
+                                            Open file
+                                        </a>
+                                    )}
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+                )}
 
                 <StagePanel
                     orderId={order.id}

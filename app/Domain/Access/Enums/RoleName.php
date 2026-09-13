@@ -119,6 +119,7 @@ enum RoleName: string
                 'marketplace.view', 'costing.view', 'costing.export',
                 'report.view', 'report.export',
                 'approval.view', 'approval.act',
+                'document.*',
             ],
 
             self::Management => [
@@ -134,6 +135,7 @@ enum RoleName: string
                 'qc.view', 'sales.view', 'marketplace.view',
                 'costing.view', 'report.view', 'report.export',
                 'approval.view', 'approval.act',
+                'document.view',
             ],
 
             self::FactoryManager => [
@@ -149,6 +151,7 @@ enum RoleName: string
                 'qc.view', 'qc.create', 'qc.approve', 'qc.reject',
                 'costing.view', 'report.view', 'report.export',
                 'approval.view', 'approval.act',
+                'document.*',
             ],
 
             self::ProductionManager => [
@@ -160,18 +163,20 @@ enum RoleName: string
                 'production.view', 'production.create', 'production.edit', 'production.consume', 'production.export',
                 'qc.view', 'report.view',
                 'approval.view',
+                'document.view',
             ],
 
             self::WarehouseManager => [
                 'facility.view', 'warehouse.*', 'product.view', 'raw_material.view',
                 'packaging_material.view', 'uom.view', 'client.view',
-                'inventory.view', 'inventory.receive', 'inventory.adjust',
+                'inventory.view', 'inventory.receive', 'inventory.adjust', 'inventory.reverse',
                 'inventory.transfer', 'inventory.receive_transfer',
                 'inventory.opening_stock', 'inventory.export',
                 'purchase.view', 'purchase.receive',
                 'planning.view', 'production.view', 'qc.view',
                 'report.view', 'report.export',
                 'approval.view',
+                'document.view',
             ],
 
             self::PurchaseManager => [
@@ -208,6 +213,7 @@ enum RoleName: string
                 'qc.*',
                 'report.view', 'report.export',
                 'approval.view', 'approval.act',
+                'document.view', 'document.create', 'document.approve', 'document.withdraw',
             ],
 
             self::AccountsManager => [
@@ -256,6 +262,8 @@ enum RoleName: string
             self::Designer => [
                 'product.view',
                 'packaging_material.view',
+                // Artwork versions are controlled documents; approval stays with QC and the plant head.
+                'document.view', 'document.create',
             ],
 
             self::Viewer => [

@@ -439,6 +439,12 @@ export type ErpUser = {
     email: string;
     department_id: number | null;
     department?: { id: number; name: string } | null;
+    approving_authority_id?: number | null;
+    approving_authority?: {
+        id: number;
+        name: string;
+        designation?: string | null;
+    } | null;
     designation: string | null;
     phone: string | null;
     status: 'active' | 'inactive' | 'suspended';
@@ -625,6 +631,8 @@ export type StockMovement = {
         type: string;
         transacted_at: string;
         reason: string | null;
+        reverses_transaction_id?: number | null;
+        reversal?: { id: number; number: string } | null;
     } | null;
     created_at: string;
 };

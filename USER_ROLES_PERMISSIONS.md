@@ -568,3 +568,21 @@ requests; Production Manager then Factory Manager for delayed batches and
 production below target; Warehouse Manager for late transfers and
 discrepancies; Purchase Manager and Director for price increases. A person
 holding no role in the ladder is never notified.
+
+## Approvals, maker-checker and documents
+
+`approval.view` opens the Approvals screen; `approval.act` lets a person
+sign. Who may sign a given request is decided per workflow
+(`config/approvals.php`): the requester's approving authority, set on the
+employee's record, or anyone holding the workflow's permission
+(`formula.approve`, `production.approve`, `qc.approve`) — never the
+requester. The person who booked a delivery in cannot release it from QC.
+
+`inventory.reverse` (Warehouse Manager, Factory Manager, Owner) reverses a
+stock posting; nothing else can change one.
+
+`document.view / create / approve / withdraw / delete` govern controlled
+documents: Owner, Director and Factory Manager hold all; QC Manager may
+create, approve and withdraw; Designer may view and create (artwork);
+Management, Production Manager, Warehouse Manager and Purchase Manager
+may view. A version is approved by someone other than its author.

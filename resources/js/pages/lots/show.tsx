@@ -1,5 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
-import { Boxes, Printer } from 'lucide-react';
+import { Boxes, Printer, Radar, Undo2 } from 'lucide-react';
 import { DetailItem } from '@/components/form-field';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
@@ -14,8 +14,9 @@ import {
 } from '@/components/ui/table';
 import { date, QC_LABEL, QC_VARIANT, qty } from '@/lib/stock';
 import { dashboard } from '@/routes';
-import { cartons, index, show, sticker } from '@/routes/lots';
+import { cartons, index, show, sticker, trace } from '@/routes/lots';
 
+import { ReverseDialog } from '@/components/inventory/reverse-dialog';
 import type { InventoryLot, StockMovement } from '@/types';
 
 export default function ShowLot({
@@ -26,7 +27,12 @@ export default function ShowLot({
 }: {
     lot: InventoryLot;
     movements: StockMovement[];
-    can: { sticker: boolean; cartons: boolean };
+    can: {
+        sticker: boolean;
+        cartons: boolean;
+        reverse?: boolean;
+        trace?: boolean;
+    };
     cartonPlan: { boxes: number; units_per_box: number } | null;
 }) {
     const scale = lot.item?.stock_uom?.display_scale ?? 3;
@@ -41,6 +47,14 @@ export default function ShowLot({
                     description={`${lot.item?.code} — ${lot.item?.name}${lot.owner_client ? ` · Owned by ${lot.owner_client.name} (${lot.owner_client.code})` : ''}`}
                     actions={
                         <>
+                            {can.trace && (
+                                <Button variant="outline" asChild>
+                                    <Link href={trace(lot.id)}>
+                                        <Radar className="size-4" />
+                                        Recall trace
+                                    </Link>
+                                </Button>
+                            )}
                             {can.cartons && (
                                 <Button variant="outline" asChild>
                                     <Link href={cartons(lot.id)}>
@@ -168,11 +182,20 @@ export default function ShowLot({
                                     Quantity
                                 </TableHead>
                                 <TableHead>Reason</TableHead>
+                                <TableHead />
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {movements.map((m) => (
-                                <TableRow key={m.id}>
+                                <TableRow
+                                    key={m.id}
+                                    className={
+                                        m.transaction?.reversal ||
+                                        m.transaction?.reverses_transaction_id
+                                            ? 'opacity-70'
+                                            : undefined
+                                    }
+                                >
                                     <TableCell className="whitespace-nowrap">
                                         {m.transaction
                                             ? new Date(
@@ -197,6 +220,37 @@ export default function ShowLot({
                                     </TableCell>
                                     <TableCell className="text-muted-foreground text-xs">
                                         {m.transaction?.reason ?? '—'}
+                                        {m.transaction?.reversal && (
+                                            <span className="ml-1 rounded border px-1 text-[10px]">
+                                                reversed by{' '}
+                                                {m.transaction.reversal.number}
+                                            </span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        {can.reverse &&
+                                            m.transaction &&
+                                            !m.transaction.reversal &&
+                                            !m.transaction
+                                                .reverses_transaction_id && (
+                                                <ReverseDialog
+                                                    transactionId={
+                                                        m.transaction.id
+                                                    }
+                                                    number={
+                                                        m.transaction.number
+                                                    }
+                                                    trigger={
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                        >
+                                                            <Undo2 className="size-3.5" />
+                                                            Reverse
+                                                        </Button>
+                                                    }
+                                                />
+                                            )}
                                     </TableCell>
                                 </TableRow>
                             ))}

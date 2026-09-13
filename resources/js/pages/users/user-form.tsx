@@ -18,6 +18,7 @@ export function UserForm({
     userRoles = [],
     roles,
     departments,
+    authorities = [],
     statuses,
     canAssignRoles,
     action,
@@ -27,6 +28,7 @@ export function UserForm({
     userRoles?: string[];
     roles: SelectOption[];
     departments: SelectOption[];
+    authorities?: SelectOption[];
     statuses: SelectOption[];
     canAssignRoles: boolean;
     action: { url: string; method: 'post' | 'put' };
@@ -114,6 +116,41 @@ export function UserForm({
                                             {department.label}
                                         </SelectItem>
                                     ))}
+                                </SelectContent>
+                            </Select>
+                        </Field>
+
+                        <Field
+                            label="Approving authority"
+                            htmlFor="approving_authority_id"
+                            error={errors.approving_authority_id}
+                            hint="Maker-checker: who signs off what this employee raises — formula activations, batch releases, QC overrides."
+                        >
+                            <Select
+                                name="approving_authority_id"
+                                defaultValue={
+                                    user?.approving_authority_id
+                                        ? String(user.approving_authority_id)
+                                        : undefined
+                                }
+                            >
+                                <SelectTrigger
+                                    id="approving_authority_id"
+                                    className="w-full"
+                                >
+                                    <SelectValue placeholder="Anyone with the permission" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {authorities
+                                        .filter((a) => a.value !== user?.id)
+                                        .map((a) => (
+                                            <SelectItem
+                                                key={a.value}
+                                                value={String(a.value)}
+                                            >
+                                                {a.label}
+                                            </SelectItem>
+                                        ))}
                                 </SelectContent>
                             </Select>
                         </Field>

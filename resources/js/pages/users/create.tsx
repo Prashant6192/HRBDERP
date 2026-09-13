@@ -8,10 +8,12 @@ import { UserForm } from './user-form';
 export default function CreateUser({
     roles,
     departments,
+    authorities,
     statuses,
 }: {
     roles: SelectOption[];
     departments: SelectOption[];
+    authorities: SelectOption[];
     statuses: SelectOption[];
 }) {
     return (
@@ -28,6 +30,7 @@ export default function CreateUser({
                     <UserForm
                         roles={roles}
                         departments={departments}
+                        authorities={authorities}
                         statuses={statuses}
                         canAssignRoles
                         action={{ url: store().url, method: 'post' }}

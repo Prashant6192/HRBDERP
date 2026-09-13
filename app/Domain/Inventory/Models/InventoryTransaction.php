@@ -10,6 +10,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use RuntimeException;
 
@@ -27,6 +28,7 @@ class InventoryTransaction extends Model
     protected $fillable = [
         'number', 'type', 'warehouse_id', 'counterpart_warehouse_id',
         'reference_type', 'reference_id', 'transacted_at', 'reason', 'created_by',
+        'reverses_transaction_id',
     ];
 
     protected function casts(): array
@@ -71,6 +73,26 @@ class InventoryTransaction extends Model
     public function counterpartWarehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class, 'counterpart_warehouse_id');
+    }
+
+    /**
+     * The posting this one undoes, when it is a reversal.
+     *
+     * @return BelongsTo<InventoryTransaction, $this>
+     */
+    public function reverses(): BelongsTo
+    {
+        return $this->belongsTo(InventoryTransaction::class, 'reverses_transaction_id');
+    }
+
+    /**
+     * The reversal of this posting, if one has been made.
+     *
+     * @return HasOne<InventoryTransaction, $this>
+     */
+    public function reversal(): HasOne
+    {
+        return $this->hasOne(InventoryTransaction::class, 'reverses_transaction_id');
     }
 
     /**

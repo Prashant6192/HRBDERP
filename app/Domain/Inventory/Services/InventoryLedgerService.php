@@ -11,6 +11,7 @@ use App\Domain\Inventory\Exceptions\InsufficientStockException;
 use App\Domain\Inventory\Exceptions\LedgerIntegrityException;
 use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Models\InventoryTransaction;
+use App\Domain\Inventory\Models\InventoryTransactionLine;
 use App\Domain\Inventory\Models\StockBalance;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\Warehousing\Models\Warehouse;
@@ -57,6 +58,59 @@ class InventoryLedgerService
             }
 
             return $transaction;
+        });
+    }
+
+    /**
+     * Undo a posting with an opposite one. The original is never touched:
+     * both stay in the ledger, each pointing at the other, and balances
+     * end where they were before the mistake.
+     */
+    public function reverse(InventoryTransaction $original, string $reason, ?int $userId = null): InventoryTransaction
+    {
+        return DB::transaction(function () use ($original, $reason, $userId): InventoryTransaction {
+            $original = InventoryTransaction::query()->lockForUpdate()->with('lines')->findOrFail($original->getKey());
+
+            if ($original->type === InventoryTransactionType::Reversal) {
+                throw new \InvalidArgumentException("{$original->number} is itself a reversal and cannot be reversed; post the original again instead.");
+            }
+
+            if (InventoryTransaction::query()->where('reverses_transaction_id', $original->id)->exists()) {
+                throw new \InvalidArgumentException("{$original->number} has already been reversed.");
+            }
+
+            if (trim($reason) === '') {
+                throw new \InvalidArgumentException('Say why the posting is reversed.');
+            }
+
+            $lines = $original->lines->map(fn (InventoryTransactionLine $line) => new LedgerLine(
+                $line->item_id,
+                $line->warehouse_id,
+                BigDecimal::of($line->quantity)->negated(),
+                $line->lot_id,
+                $line->location_id,
+                $line->unit_cost,
+            ))->all();
+
+            $transactedAt = now();
+            $reversal = InventoryTransaction::create([
+                'number' => $this->sequences->nextNumber('IT', $transactedAt->format('ym'), 6),
+                'type' => InventoryTransactionType::Reversal,
+                'warehouse_id' => $original->warehouse_id,
+                'counterpart_warehouse_id' => $original->counterpart_warehouse_id,
+                'reference_type' => $original->reference_type,
+                'reference_id' => $original->reference_id,
+                'reverses_transaction_id' => $original->id,
+                'transacted_at' => $transactedAt,
+                'reason' => 'Reversal of '.$original->number.': '.trim($reason),
+                'created_by' => $userId,
+            ]);
+
+            foreach ($lines as $line) {
+                $this->applyLine($reversal, $line);
+            }
+
+            return $reversal;
         });
     }
 

@@ -328,7 +328,7 @@ export default function Dashboard({
                                 </div>
                             }
                         >
-                            <div className="grid gap-6 lg:grid-cols-3">
+                            <div className="grid gap-6 p-5 lg:grid-cols-3">
                                 <div>
                                     <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
                                         Active client batches

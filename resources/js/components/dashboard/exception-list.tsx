@@ -22,7 +22,7 @@ const VARIANT = {
 export function ExceptionList({ rows }: { rows: DashboardException[] }) {
     if (rows.length === 0) {
         return (
-            <p className="text-muted-foreground py-4 text-center text-sm">
+            <p className="text-muted-foreground px-5 py-6 text-center text-sm">
                 All clear.
             </p>
         );
@@ -34,7 +34,7 @@ export function ExceptionList({ rows }: { rows: DashboardException[] }) {
                 <li
                     key={e.key}
                     className={cn(
-                        'flex items-start justify-between gap-3 py-2.5 text-sm',
+                        'flex items-start justify-between gap-3 px-5 py-3 text-sm',
                     )}
                 >
                     <div className="min-w-0">

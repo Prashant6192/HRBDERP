@@ -58,6 +58,7 @@ class GoodsReceiptService
             $receipt = GoodsReceipt::create([
                 'number' => $this->sequences->nextNumber('GRN', $receivedAt->format('ym')),
                 'vendor_id' => $attributes['vendor_id'] ?? null,
+                'owner_client_id' => $attributes['owner_client_id'] ?? null,
                 'material_request_id' => $attributes['material_request_id'] ?? null,
                 'warehouse_id' => $attributes['warehouse_id'],
                 'received_at' => $receivedAt->toDateString(),
@@ -117,6 +118,8 @@ class GoodsReceiptService
                     'batch_number' => $this->batchNumbers->generate($item, $receipt->received_at),
                     'supplier_batch_ref' => $line->supplier_batch_ref,
                     'vendor_id' => $receipt->vendor_id,
+                    // Client-supplied material stays the client's while it is here.
+                    'owner_client_id' => $receipt->owner_client_id,
                     'manufactured_at' => $line->manufactured_at,
                     'received_at' => $receipt->received_at,
                     'expiry_at' => $line->expiry_at,

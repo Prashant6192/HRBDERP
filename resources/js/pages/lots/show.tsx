@@ -38,7 +38,7 @@ export default function ShowLot({
             <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
                 <PageHeader
                     title={lot.batch_number}
-                    description={`${lot.item?.code} — ${lot.item?.name}`}
+                    description={`${lot.item?.code} — ${lot.item?.name}${lot.owner_client ? ` · Owned by ${lot.owner_client.name} (${lot.owner_client.code})` : ''}`}
                     actions={
                         <>
                             {can.cartons && (

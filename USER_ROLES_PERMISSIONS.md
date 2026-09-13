@@ -51,6 +51,7 @@ roles to the defaults below.
 | Raw Materials       | `raw_material`       | `view`, `create`, `edit`, `delete`, `export`, `import`     |
 | Packaging Materials | `packaging_material` | `view`, `create`, `edit`, `delete`, `export`, `import`     |
 | Vendors             | `vendor`             | `view`, `create`, `edit`, `delete`, `export`               |
+| Contract Clients    | `client`             | `view`, `create`, `edit`, `delete`, `export`               |
 | Units of Measure    | `uom`                | `view`, `create`, `edit`, `delete`                         |
 
 ### Operations
@@ -142,6 +143,15 @@ needs `purchase.receive_manual`, which the Factory Manager holds by default
 (Super Admin bypasses every check). The Roles screen can grant it to others;
 the Purchase Manager deliberately does not have it.
 
+### Contract clients
+
+Third-party manufacturing adds one module, `client`, for the client master.
+Everything else a client's job touches — plans, orders, receipts, batches,
+QC — is guarded by the module it belongs to, exactly as for own-brand work;
+the client is a tag on those records, not a separate system. Setting the
+commercial terms on a third-party order needs `production.edit` or
+`costing.edit`; seeing its costing needs `costing.view` or `production.edit`.
+
 ## The roles
 
 Four shop-floor roles — QC Executive, Store Executive, Packaging Executive
@@ -171,6 +181,7 @@ Unrestricted access, including roles, permissions and settings. Reserved for the
 | Raw Materials       | `view`, `create`, `edit`, `delete`, `export`, `import`                                                                           |
 | Packaging Materials | `view`, `create`, `edit`, `delete`, `export`, `import`                                                                           |
 | Vendors             | `view`, `create`, `edit`, `delete`, `export`                                                                                     |
+| Contract Clients    | `view`, `create`, `edit`, `delete`, `export`                                                                                     |
 | Units of Measure    | `view`, `create`, `edit`, `delete`                                                                                               |
 | Inventory           | `view`, `receive`, `adjust`, `transfer`, `approve_transfer`, `receive_transfer`, `opening_stock`, `reserve`, `consume`, `export` |
 | Formulations        | `view`, `create`, `edit`, `delete`, `approve`, `archive`, `import`, `export`                                                     |
@@ -201,6 +212,7 @@ Full visibility of the business including formulations, costing and every report
 | Raw Materials       | `view`, `create`, `edit`, `delete`, `export`, `import`                                                                           |
 | Packaging Materials | `view`, `create`, `edit`, `delete`, `export`, `import`                                                                           |
 | Vendors             | `view`, `create`, `edit`, `delete`, `export`                                                                                     |
+| Contract Clients    | `view`, `create`, `edit`, `delete`, `export`                                                                                     |
 | Units of Measure    | `view`, `create`, `edit`, `delete`                                                                                               |
 | Inventory           | `view`, `receive`, `adjust`, `transfer`, `approve_transfer`, `receive_transfer`, `opening_stock`, `reserve`, `consume`, `export` |
 | Formulations        | `view`, `create`, `edit`, `delete`, `approve`, `archive`, `import`, `export`                                                     |
@@ -229,6 +241,7 @@ Board-level oversight with approval authority across production, procurement and
 | Raw Materials       | `view`                                |
 | Packaging Materials | `view`                                |
 | Vendors             | `view`                                |
+| Contract Clients    | `view`                                |
 | Units of Measure    | `view`                                |
 | Inventory           | `view`, `approve_transfer`, `export`  |
 | Formulations        | `view`, `approve`, `export`           |
@@ -257,6 +270,7 @@ Cross-department visibility and approval authority, without administration right
 | Raw Materials       | `view`                               |
 | Packaging Materials | `view`                               |
 | Vendors             | `view`                               |
+| Contract Clients    | `view`, `create`, `edit`             |
 | Units of Measure    | `view`                               |
 | Inventory           | `view`, `approve_transfer`, `export` |
 | Formulations        | `view`                               |
@@ -282,6 +296,7 @@ Runs the plant: production, inventory, quality and the formulations needed to ma
 | Raw Materials       | `view`                                                                                                                           |
 | Packaging Materials | `view`                                                                                                                           |
 | Vendors             | `view`                                                                                                                           |
+| Contract Clients    | `view`, `create`, `edit`                                                                                                         |
 | Units of Measure    | `view`                                                                                                                           |
 | Inventory           | `view`, `receive`, `adjust`, `transfer`, `approve_transfer`, `receive_transfer`, `opening_stock`, `reserve`, `consume`, `export` |
 | Formulations        | `view`, `create`, `edit`, `import`, `export`                                                                                     |
@@ -304,6 +319,7 @@ Creates and runs manufacturing orders and consumes materials against them.
 | Product Master      | `view`                                        |
 | Raw Materials       | `view`                                        |
 | Packaging Materials | `view`                                        |
+| Contract Clients    | `view`                                        |
 | Units of Measure    | `view`                                        |
 | Inventory           | `view`, `reserve`, `consume`                  |
 | Formulations        | `view`                                        |
@@ -324,6 +340,7 @@ Receives, adjusts and transfers stock, and maintains warehouse master data.
 | Product Master      | `view`                                                                                 |
 | Raw Materials       | `view`                                                                                 |
 | Packaging Materials | `view`                                                                                 |
+| Contract Clients    | `view`                                                                                 |
 | Units of Measure    | `view`                                                                                 |
 | Inventory           | `view`, `receive`, `adjust`, `transfer`, `receive_transfer`, `opening_stock`, `export` |
 | Planning & Purchase | `view`                                                                                 |
@@ -345,6 +362,7 @@ Raises and approves purchase orders and maintains vendors and prices.
 | Raw Materials       | `view`, `create`, `edit`, `export`, `import`             |
 | Packaging Materials | `view`, `create`, `edit`, `export`, `import`             |
 | Vendors             | `view`, `create`, `edit`, `delete`, `export`             |
+| Contract Clients    | `view`                                                   |
 | Units of Measure    | `view`                                                   |
 | Inventory           | `view`                                                   |
 | Planning & Purchase | `view`, `export`                                         |
@@ -365,6 +383,7 @@ Approves or rejects material and batch quality, and holds stock from release.
 | Raw Materials       | `view`                                          |
 | Packaging Materials | `view`                                          |
 | Vendors             | `view`                                          |
+| Contract Clients    | `view`                                          |
 | Units of Measure    | `view`                                          |
 | Inventory           | `view`                                          |
 | Formulations        | `view`                                          |
@@ -386,6 +405,7 @@ Costing, pricing and financial reporting.
 | Raw Materials       | `view`                   |
 | Packaging Materials | `view`                   |
 | Vendors             | `view`                   |
+| Contract Clients    | `view`                   |
 | Units of Measure    | `view`                   |
 | Inventory           | `view`, `export`         |
 | Production          | `view`                   |
@@ -400,12 +420,13 @@ Costing, pricing and financial reporting.
 
 Brand, product presentation and marketing reporting.
 
-| Module         | Abilities        |
-| -------------- | ---------------- |
-| Product Master | `view`, `edit`   |
-| Sales          | `view`, `export` |
-| Marketplace    | `view`           |
-| Reports        | `view`, `export` |
+| Module           | Abilities        |
+| ---------------- | ---------------- |
+| Product Master   | `view`, `edit`   |
+| Contract Clients | `view`           |
+| Sales            | `view`, `export` |
+| Marketplace      | `view`           |
+| Reports          | `view`, `export` |
 
 ### E-commerce Manager
 
@@ -423,13 +444,14 @@ Marketplace listings, imports and reconciliation.
 
 Sales orders, customers and sales reporting.
 
-| Module         | Abilities                                    |
-| -------------- | -------------------------------------------- |
-| Product Master | `view`                                       |
-| Inventory      | `view`                                       |
-| Sales          | `view`, `create`, `edit`, `delete`, `export` |
-| Marketplace    | `view`                                       |
-| Reports        | `view`, `export`                             |
+| Module           | Abilities                                    |
+| ---------------- | -------------------------------------------- |
+| Product Master   | `view`                                       |
+| Contract Clients | `view`, `create`, `edit`, `delete`, `export` |
+| Inventory        | `view`                                       |
+| Sales            | `view`, `create`, `edit`, `delete`, `export` |
+| Marketplace      | `view`                                       |
+| Reports          | `view`, `export`                             |
 
 ### Brand Manager
 
@@ -464,6 +486,7 @@ Read-only access to operational data. No formulations.
 | Raw Materials       | `view`    |
 | Packaging Materials | `view`    |
 | Vendors             | `view`    |
+| Contract Clients    | `view`    |
 | Units of Measure    | `view`    |
 | Inventory           | `view`    |
 | Production          | `view`    |
@@ -492,6 +515,7 @@ Receives deliveries, books stock in and prints batch stickers for the stores the
 | Raw Materials       | `view`                                            |
 | Packaging Materials | `view`                                            |
 | Vendors             | `view`, `create`                                  |
+| Contract Clients    | `view`                                            |
 | Units of Measure    | `view`                                            |
 | Inventory           | `view`, `receive`, `transfer`, `receive_transfer` |
 | Procurement         | `view`, `create`, `receive`                       |

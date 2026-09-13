@@ -71,7 +71,8 @@ class MaterialRequestController extends Controller
         $this->authorize('view', $materialRequest);
 
         $materialRequest->load([
-            'plan:id,number,formula_id,product_id,planned_quantity,planned_uom_id,planned_units,planned_start_date,status',
+            'plan:id,number,formula_id,product_id,planned_quantity,planned_uom_id,planned_units,planned_start_date,status,manufacturing_type,client_id,client_po_ref,client_product_name',
+            'plan.client:id,code,name',
             'plan.formula:id,code,name',
             'plan.product:id,code,name',
             'plan.plannedUom:id,code',
@@ -87,6 +88,7 @@ class MaterialRequestController extends Controller
             'lines' => $materialRequest->lines->map(static fn (MaterialRequestLine $line): array => [
                 'id' => $line->id,
                 'line_no' => $line->line_no,
+                'source' => $line->source,
                 'item_id' => $line->item_id,
                 'item_code' => $line->item->code,
                 'item_name' => $line->item->name,

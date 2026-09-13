@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Inventory;
 
 use App\Domain\Inventory\Enums\StockAlertLevel;
 use App\Domain\Inventory\Models\InventoryLot;
+use App\Domain\Inventory\Models\StockBalance;
 use App\Domain\Inventory\Services\StockAlertService;
 use App\Domain\Inventory\Services\StockBalanceService;
 use App\Domain\Warehousing\Enums\WarehouseType;
@@ -74,8 +75,17 @@ class StockController extends Controller
         $counts = array_fill_keys(array_map(fn (StockAlertLevel $l) => $l->value, StockAlertLevel::cases()), 0);
 
         if ($selected !== null) {
+            // How much of each item in this store belongs to a client, so it
+            // is never read as ours.
+            $clientOwned = StockBalance::query()
+                ->where('warehouse_id', $selected->id)
+                ->whereIn('lot_id', InventoryLot::query()->whereNotNull('owner_client_id')->select('id'))
+                ->selectRaw('item_id, SUM(on_hand) AS on_hand')
+                ->groupBy('item_id')
+                ->pluck('on_hand', 'item_id');
+
             $rows = $this->balances->summaryForWarehouse($selected)
-                ->map(function (array $row) use ($selected): array {
+                ->map(function (array $row) use ($selected, $clientOwned): array {
                     $level = $this->alerts->levelAt($row['item'], $selected, $row['on_hand']);
 
                     return [
@@ -88,6 +98,7 @@ class StockController extends Controller
                         'on_hand' => (string) $row['on_hand'],
                         'reserved' => (string) $row['reserved'],
                         'available' => (string) $row['available'],
+                        'client_owned' => (string) ($clientOwned->get($row['item']->id) ?? '0'),
                         'reorder_level' => $row['item']->reorder_level,
                         'minimum_stock' => $row['item']->minimum_stock,
                         'level' => $level->value,

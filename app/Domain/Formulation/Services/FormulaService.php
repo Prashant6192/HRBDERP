@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Formulation\Services;
 
+use App\Domain\Contract\Enums\FormulaOwnership;
 use App\Domain\Formulation\Enums\FormulaAccessAction;
 use App\Domain\Formulation\Enums\FormulaStatus;
 use App\Domain\Formulation\Enums\FormulaVersionStatus;
@@ -53,6 +54,8 @@ class FormulaService
                 'name' => trim((string) $attributes['name']),
                 'product_id' => $attributes['product_id'] ?? null,
                 'status' => FormulaStatus::Draft,
+                'ownership' => $ownership = FormulaOwnership::from($attributes['ownership'] ?? FormulaOwnership::Company->value),
+                'client_id' => $ownership->isTiedToClient() ? ($attributes['client_id'] ?? null) : null,
                 'description' => $attributes['description'] ?? null,
                 'created_by' => $userId,
                 'updated_by' => $userId,
@@ -77,7 +80,17 @@ class FormulaService
             'product_id' => array_key_exists('product_id', $attributes) ? $attributes['product_id'] : $formula->product_id,
             'description' => array_key_exists('description', $attributes) ? $attributes['description'] : $formula->description,
             'updated_by' => $userId,
-        ])->save();
+        ]);
+
+        if (array_key_exists('ownership', $attributes)) {
+            $ownership = FormulaOwnership::from($attributes['ownership'] ?? FormulaOwnership::Company->value);
+            $formula->fill([
+                'ownership' => $ownership,
+                'client_id' => $ownership->isTiedToClient() ? ($attributes['client_id'] ?? $formula->client_id) : null,
+            ]);
+        }
+
+        $formula->save();
 
         return $formula;
     }

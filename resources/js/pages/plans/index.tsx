@@ -5,6 +5,7 @@ import {
     type DataTableColumn,
     type DataTableFilter,
 } from '@/components/data-table';
+import { ClientBadge } from '@/components/contract/client-badge';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
@@ -23,11 +24,15 @@ export default function PlanIndex({
     plans,
     table,
     statuses,
+    types,
+    clients,
     can,
 }: {
     plans: Paginated<ProductionPlan>;
     table: TableState;
     statuses: SelectOption[];
+    types: SelectOption[];
+    clients: SelectOption[];
     can: { create: boolean };
 }) {
     const columns: DataTableColumn<ProductionPlan>[] = [
@@ -49,6 +54,11 @@ export default function PlanIndex({
                     </div>
                 </div>
             ),
+        },
+        {
+            key: 'client',
+            header: 'For',
+            cell: (p) => <ClientBadge client={p.client} link={false} />,
         },
         {
             key: 'planned_quantity',
@@ -116,6 +126,22 @@ export default function PlanIndex({
             options: statuses.map((s) => ({
                 value: String(s.value),
                 label: s.label,
+            })),
+        },
+        {
+            key: 'type',
+            label: 'Manufacturing type',
+            options: types.map((t) => ({
+                value: String(t.value),
+                label: t.label,
+            })),
+        },
+        {
+            key: 'client',
+            label: 'Client',
+            options: clients.map((c) => ({
+                value: String(c.value),
+                label: c.label,
             })),
         },
     ];

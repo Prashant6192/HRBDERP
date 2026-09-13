@@ -35,7 +35,7 @@ class LotController extends Controller
         $table = TableQuery::fromRequest($request, allowedFilters: ['qc_status', 'type']);
 
         $query = InventoryLot::query()
-            ->with(['item:id,code,name,type,stock_uom_id', 'item.stockUom:id,code', 'vendor:id,name'])
+            ->with(['item:id,code,name,type,stock_uom_id', 'item.stockUom:id,code', 'vendor:id,name', 'ownerClient:id,code,name'])
             ->withSum('balances as on_hand', 'on_hand');
 
         if ($table->search !== '') {
@@ -69,7 +69,7 @@ class LotController extends Controller
 
         $lot->load([
             'item:id,code,name,type,stock_uom_id', 'item.stockUom:id,code,display_scale',
-            'vendor:id,name', 'qcDecidedBy:id,name',
+            'vendor:id,name', 'qcDecidedBy:id,name', 'ownerClient:id,code,name',
             'balances.warehouse:id,code,name,is_quarantine',
         ]);
 

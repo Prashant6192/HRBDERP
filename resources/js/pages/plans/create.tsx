@@ -1,6 +1,9 @@
 import { Head, useForm } from '@inertiajs/react';
 import { useMemo } from 'react';
 import { Field, FormSection } from '@/components/form-field';
+import { StatusBadge } from '@/components/status-badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,10 +16,16 @@ import {
 } from '@/components/ui/select';
 import { dashboard } from '@/routes';
 import { create, index, store } from '@/routes/plans';
-import type { SelectOption } from '@/types';
+import type { FormulaOwnership, SelectOption } from '@/types';
 
 type FormulaOption = SelectOption & {
     product: string | null;
+    product_client_id: number | null;
+    ownership: FormulaOwnership;
+    ownership_label: string;
+    client_id: number | null;
+    client: string | null;
+    materials: { value: number; label: string; kind: string }[];
     net_content: string | null;
     net_content_uom: string | null;
     version: number | null;
@@ -31,18 +40,41 @@ export default function CreatePlan({
     uoms,
     facilities,
     today,
+    clients,
+    manufacturingTypes,
+    materialSources,
 }: {
     formulas: FormulaOption[];
     uoms: UomOption[];
     facilities: SelectOption[];
     today: string;
+    clients: SelectOption[];
+    manufacturingTypes: SelectOption[];
+    materialSources: SelectOption[];
 }) {
-    const presetFacility =
+    const params =
         typeof window !== 'undefined'
-            ? new URLSearchParams(window.location.search).get('facility')
-            : null;
+            ? new URLSearchParams(window.location.search)
+            : new URLSearchParams();
+    const presetFacility = params.get('facility');
+    const presetClient = params.get('client');
+    const presetType =
+        params.get('type') === 'third_party' || presetClient
+            ? 'third_party'
+            : 'own';
 
     const form = useForm({
+        manufacturing_type: presetType,
+        client_id:
+            presetClient &&
+            clients.some((c) => String(c.value) === presetClient)
+                ? presetClient
+                : '',
+        client_po_ref: '',
+        client_product_name: '',
+        required_delivery_at: '',
+        material_source: 'company',
+        client_supplied_item_ids: [] as number[],
         formula_id: '',
         facility_id:
             presetFacility &&
@@ -61,6 +93,23 @@ export default function CreatePlan({
         () => formulas.find((f) => String(f.value) === form.data.formula_id),
         [formulas, form.data.formula_id],
     );
+
+    const thirdParty = form.data.manufacturing_type === 'third_party';
+    const clientId = thirdParty ? Number(form.data.client_id) || null : null;
+
+    // A client's formula is offered for that client alone; a company formula
+    // for anyone.
+    const offeredFormulas = formulas.filter(
+        (f) => f.ownership === 'company' || f.client_id === clientId,
+    );
+
+    const toggleSupplied = (id: number, on: boolean) =>
+        form.setData(
+            'client_supplied_item_ids',
+            on
+                ? [...form.data.client_supplied_item_ids, id]
+                : form.data.client_supplied_item_ids.filter((v) => v !== id),
+        );
 
     const chooseFormula = (id: string) => {
         const chosen = formulas.find((f) => String(f.value) === id);
@@ -110,6 +159,240 @@ export default function CreatePlan({
                     }}
                     className="space-y-6"
                 >
+                    <FormSection
+                        title="Whose batch"
+                        description="The factory works the same way for both. A third-party batch names the client, their PO, and whose material goes in."
+                    >
+                        <Field
+                            label="Manufacturing type"
+                            htmlFor="manufacturing_type"
+                            required
+                            error={form.errors.manufacturing_type}
+                        >
+                            <Select
+                                value={form.data.manufacturing_type}
+                                onValueChange={(v) =>
+                                    form.setData({
+                                        ...form.data,
+                                        manufacturing_type: v,
+                                        client_id:
+                                            v === 'own'
+                                                ? ''
+                                                : form.data.client_id,
+                                        formula_id: '',
+                                        material_source: 'company',
+                                        client_supplied_item_ids: [],
+                                    })
+                                }
+                            >
+                                <SelectTrigger
+                                    id="manufacturing_type"
+                                    className="w-full"
+                                >
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {manufacturingTypes.map((t) => (
+                                        <SelectItem
+                                            key={t.value}
+                                            value={String(t.value)}
+                                        >
+                                            {t.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </Field>
+                        {thirdParty && (
+                            <>
+                                <Field
+                                    label="Client / party"
+                                    htmlFor="client_id"
+                                    required
+                                    error={form.errors.client_id}
+                                >
+                                    <Select
+                                        value={form.data.client_id}
+                                        onValueChange={(v) =>
+                                            form.setData({
+                                                ...form.data,
+                                                client_id: v,
+                                                formula_id: '',
+                                            })
+                                        }
+                                    >
+                                        <SelectTrigger
+                                            id="client_id"
+                                            className="w-full"
+                                        >
+                                            <SelectValue placeholder="Choose the client" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {clients.map((c) => (
+                                                <SelectItem
+                                                    key={c.value}
+                                                    value={String(c.value)}
+                                                >
+                                                    {c.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </Field>
+                                <Field
+                                    label="Client PO / work order"
+                                    htmlFor="client_po_ref"
+                                    error={form.errors.client_po_ref}
+                                >
+                                    <Input
+                                        id="client_po_ref"
+                                        value={form.data.client_po_ref}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'client_po_ref',
+                                                e.target.value,
+                                            )
+                                        }
+                                        placeholder="ABC/PO/2026/145"
+                                    />
+                                </Field>
+                                <Field
+                                    label="Client's product name"
+                                    htmlFor="client_product_name"
+                                    error={form.errors.client_product_name}
+                                    hint="As the client calls it, if different from ours."
+                                >
+                                    <Input
+                                        id="client_product_name"
+                                        value={form.data.client_product_name}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'client_product_name',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                </Field>
+                                <Field
+                                    label="Required delivery date"
+                                    htmlFor="required_delivery_at"
+                                    error={form.errors.required_delivery_at}
+                                >
+                                    <Input
+                                        id="required_delivery_at"
+                                        type="date"
+                                        min={today}
+                                        value={form.data.required_delivery_at}
+                                        onChange={(e) =>
+                                            form.setData(
+                                                'required_delivery_at',
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                </Field>
+                                <Field
+                                    label="Material source"
+                                    htmlFor="material_source"
+                                    required
+                                    error={form.errors.material_source}
+                                    hint="Client-supplied material counts only the client's own stock; ours only ours."
+                                >
+                                    <Select
+                                        value={form.data.material_source}
+                                        onValueChange={(v) =>
+                                            form.setData({
+                                                ...form.data,
+                                                material_source: v,
+                                                client_supplied_item_ids: [],
+                                            })
+                                        }
+                                    >
+                                        <SelectTrigger
+                                            id="material_source"
+                                            className="w-full"
+                                        >
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {materialSources.map((s) => (
+                                                <SelectItem
+                                                    key={s.value}
+                                                    value={String(s.value)}
+                                                >
+                                                    {s.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </Field>
+                                {form.data.material_source === 'mixed' && (
+                                    <div className="space-y-2 sm:col-span-2">
+                                        <p className="text-sm font-medium">
+                                            Materials the client supplies
+                                        </p>
+                                        {!formula ? (
+                                            <p className="text-muted-foreground text-sm">
+                                                Choose the formula below first;
+                                                its materials are listed here.
+                                            </p>
+                                        ) : formula.materials.length === 0 ? (
+                                            <p className="text-muted-foreground text-sm">
+                                                The formula has no materials on
+                                                record.
+                                            </p>
+                                        ) : (
+                                            <div className="grid gap-2 sm:grid-cols-2">
+                                                {formula.materials.map((m) => (
+                                                    <div
+                                                        key={`${m.kind}-${m.value}`}
+                                                        className="flex items-center gap-2"
+                                                    >
+                                                        <Checkbox
+                                                            id={`supplied-${m.value}`}
+                                                            checked={form.data.client_supplied_item_ids.includes(
+                                                                m.value,
+                                                            )}
+                                                            onCheckedChange={(
+                                                                v,
+                                                            ) =>
+                                                                toggleSupplied(
+                                                                    m.value,
+                                                                    v === true,
+                                                                )
+                                                            }
+                                                        />
+                                                        <Label
+                                                            htmlFor={`supplied-${m.value}`}
+                                                            className="font-normal"
+                                                        >
+                                                            {m.label}
+                                                            <span className="text-muted-foreground ml-1 text-xs">
+                                                                {m.kind ===
+                                                                'packaging'
+                                                                    ? 'packaging'
+                                                                    : 'raw material'}
+                                                            </span>
+                                                        </Label>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {form.errors
+                                            .client_supplied_item_ids && (
+                                            <p className="text-destructive text-sm">
+                                                {
+                                                    form.errors
+                                                        .client_supplied_item_ids
+                                                }
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </FormSection>
+
                     <FormSection title="What to make">
                         <Field
                             label="Manufacturing facility"
@@ -164,7 +447,7 @@ export default function CreatePlan({
                                     <SelectValue placeholder="Choose a formula" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {formulas.map((f) => (
+                                    {offeredFormulas.map((f) => (
                                         <SelectItem
                                             key={f.value}
                                             value={String(f.value)}
@@ -173,10 +456,21 @@ export default function CreatePlan({
                                             {f.version
                                                 ? ` · v${f.version}`
                                                 : ''}
+                                            {f.ownership !== 'company'
+                                                ? ` · ${f.ownership_label}${f.client ? ` — ${f.client}` : ''}`
+                                                : ''}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
+                            {formula && formula.ownership !== 'company' && (
+                                <StatusBadge variant="info" className="mt-2">
+                                    {formula.ownership_label}
+                                    {formula.client
+                                        ? ` — ${formula.client}`
+                                        : ''}
+                                </StatusBadge>
+                            )}
                         </Field>
 
                         <Field

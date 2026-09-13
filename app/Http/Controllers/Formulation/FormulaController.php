@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Formulation;
 
+use App\Domain\Contract\Enums\FormulaOwnership;
+use App\Domain\Contract\Models\Client;
 use App\Domain\Formulation\Enums\FormulaAccessAction;
 use App\Domain\Formulation\Enums\FormulaStatus;
 use App\Domain\Formulation\Enums\FormulaVersionStatus;
@@ -108,7 +110,7 @@ class FormulaController extends Controller
     {
         $this->authorize('view', $formula);
 
-        $formula->load(['product:id,code,name', 'createdBy:id,name']);
+        $formula->load(['product:id,code,name', 'createdBy:id,name', 'client:id,code,name']);
 
         $versions = $formula->versions()
             ->with(['createdBy:id,name', 'approvedBy:id,name', 'batchUom:id,code'])
@@ -208,7 +210,7 @@ class FormulaController extends Controller
 
         return Inertia::render('formulas/form', [
             'mode' => 'edit',
-            'formula' => $formula->only(['id', 'code', 'name', 'product_id', 'description', 'status']),
+            'formula' => [...$formula->only(['id', 'code', 'name', 'product_id', 'description', 'status', 'client_id']), 'ownership' => $formula->ownership->value],
             'version' => $draft->only(['id', 'version_number', 'batch_size', 'batch_uom_id', 'notes', 'change_summary']),
             'lines' => $draft->ingredients->map(static fn (FormulaIngredient $line): array => [
                 'item_id' => (string) $line->item_id,
@@ -236,7 +238,7 @@ class FormulaController extends Controller
         }
 
         try {
-            $this->formulas->updateDetails($formula, $request->safe()->only(['name', 'product_id', 'description']), $request->user()->id);
+            $this->formulas->updateDetails($formula, $request->safe()->only(['name', 'product_id', 'description', 'ownership', 'client_id']), $request->user()->id);
             $this->formulas->updateVersion(
                 $draft,
                 $request->safe()->only(['batch_size', 'batch_uom_id', 'notes', 'change_summary']),
@@ -302,6 +304,9 @@ class FormulaController extends Controller
                 ->all(),
             'uoms' => $this->batchUomOptions(),
             'grades' => MaterialGrade::options(),
+            'ownerships' => FormulaOwnership::options(),
+            'clients' => Client::query()->active()->orderBy('name')->get(['id', 'code', 'name'])
+                ->map(static fn (Client $c): array => ['value' => $c->id, 'label' => "{$c->name} ({$c->code})"])->all(),
         ];
     }
 

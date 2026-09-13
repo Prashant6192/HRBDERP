@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Domain\Formulation\Models;
 
 use App\Domain\Audit\Concerns\RecordsAuditTrail;
+use App\Domain\Contract\Enums\FormulaOwnership;
+use App\Domain\Contract\Models\Client;
 use App\Domain\Formulation\Enums\FormulaStatus;
 use App\Domain\MasterData\Models\Product;
 use App\Models\User;
@@ -40,7 +42,7 @@ class Formula extends Model
     use RecordsAuditTrail, SoftDeletes;
 
     protected $fillable = [
-        'code', 'name', 'product_id', 'status', 'active_version_id',
+        'code', 'name', 'product_id', 'status', 'ownership', 'client_id', 'active_version_id',
         'description', 'created_by', 'updated_by',
     ];
 
@@ -50,6 +52,7 @@ class Formula extends Model
     protected function casts(): array
     {
         return [
+            'ownership' => FormulaOwnership::class,
             'status' => FormulaStatus::class,
         ];
     }
@@ -130,5 +133,23 @@ class Formula extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('status', FormulaStatus::Active->value);
+    }
+
+    /**
+     * The client a client-owned or joint formula belongs to.
+     *
+     * @return BelongsTo<Client, $this>
+     */
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class, 'client_id');
+    }
+
+    /**
+     * May this recipe be made for the given client (null: our own brand)?
+     */
+    public function canBeMadeFor(?int $clientId): bool
+    {
+        return ! $this->ownership->isTiedToClient() || $this->client_id === $clientId;
     }
 }

@@ -93,6 +93,13 @@ final class PermissionCatalogue
             'group' => 'Master Data',
             'abilities' => self::CRUD,
         ],
+        // Third-party / contract manufacturing clients: whom a batch is made
+        // for, whose material sits in the store, whose formula it is.
+        'client' => [
+            'label' => 'Contract Clients',
+            'group' => 'Master Data',
+            'abilities' => self::CRUD,
+        ],
         'uom' => [
             'label' => 'Units of Measure',
             'group' => 'Master Data',

@@ -47,11 +47,11 @@ class StockBalanceService
      *
      * @param  iterable<int>|null  $warehouseIds  Restrict to these stores; null means every active, non-quarantine store.
      */
-    public function availableForProduction(Item $item, ?iterable $warehouseIds = null): BigDecimal
+    public function availableForProduction(Item $item, ?iterable $warehouseIds = null, ?int $ownerClientId = null, bool $anyOwner = false): BigDecimal
     {
         $total = BigDecimal::zero();
 
-        foreach ($this->releasableBalances($item, $warehouseIds) as $balance) {
+        foreach ($this->releasableBalances($item, $warehouseIds, ownerClientId: $ownerClientId, anyOwner: $anyOwner) as $balance) {
             $total = $total->plus($balance->available());
         }
 
@@ -62,10 +62,15 @@ class StockBalanceService
      * The balance rows production may draw on, in the order they should be
      * drawn: earliest expiry first, then the oldest lot.
      *
+     * Ownership is part of what "may draw on" means. With no owner given,
+     * only the company's own batches count; with a client, only that
+     * client's; with `anyOwner`, everything releasable (a named batch on a
+     * transfer, a physical count).
+     *
      * @param  iterable<int>|null  $warehouseIds
      * @return Collection<int, StockBalance>
      */
-    public function releasableBalances(Item $item, ?iterable $warehouseIds = null, bool $lock = false): Collection
+    public function releasableBalances(Item $item, ?iterable $warehouseIds = null, bool $lock = false, ?int $ownerClientId = null, bool $anyOwner = false): Collection
     {
         $query = StockBalance::query()
             ->where('item_id', $item->id)
@@ -84,15 +89,22 @@ class StockBalanceService
             ->keyBy('id');
 
         return $balances
-            ->filter(function (StockBalance $balance) use ($lots): bool {
+            ->filter(function (StockBalance $balance) use ($lots, $ownerClientId, $anyOwner): bool {
                 if ($balance->lot_id === null) {
-                    // Stock with no lot has no QC dimension and no expiry.
-                    return true;
+                    // Stock with no lot has no QC dimension and no expiry,
+                    // and no owner: it is the company's.
+                    return $anyOwner || $ownerClientId === null;
                 }
 
                 $lot = $lots->get($balance->lot_id);
 
-                return $lot !== null && $lot->isReleasable();
+                if ($lot === null || ! $lot->isReleasable()) {
+                    return false;
+                }
+
+                // A client's material is only ever released to that client's
+                // job; the company's own stock only to company-sourced lines.
+                return $anyOwner || $lot->owner_client_id === $ownerClientId;
             })
             ->each(fn (StockBalance $balance) => $balance->setRelation('lot', $lots->get($balance->lot_id)))
             ->sortBy([

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\MasterData;
 
+use App\Domain\Contract\Models\Client;
 use App\Domain\Inventory\Models\StockBalance;
 use App\Domain\MasterData\Enums\ItemType;
 use App\Domain\MasterData\Models\Item;
@@ -122,6 +123,7 @@ abstract class ItemController extends Controller
 
         $item->load([
             'category:id,name',
+            'client:id,code,name',
             'stockUom:id,code,name,display_scale',
             'purchaseUom:id,code,name',
             'netContentUom:id,code,name',
@@ -205,6 +207,9 @@ abstract class ItemController extends Controller
             'categories' => $this->categoryOptions(),
             'uoms' => $this->uomOptions(),
             'itemType' => $this->itemType()->value,
+            // A product may be made for a third-party client.
+            'clients' => Client::query()->active()->orderBy('name')->get(['id', 'code', 'name'])
+                ->map(static fn (Client $c): array => ['value' => $c->id, 'label' => "{$c->name} ({$c->code})"])->all(),
         ];
     }
 

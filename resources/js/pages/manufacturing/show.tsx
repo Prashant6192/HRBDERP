@@ -8,6 +8,11 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { ClientBadge } from '@/components/contract/client-badge';
+import {
+    ThirdPartyPanel,
+    type ThirdPartyDetails,
+} from '@/components/contract/third-party-panel';
 import { DetailItem } from '@/components/form-field';
 import InputError from '@/components/input-error';
 import { PageHeader } from '@/components/page-header';
@@ -62,10 +67,13 @@ function LinesTable({
     lines,
     reservations,
     status,
+    clientItems = [],
 }: {
     lines: ManufacturingOrderLineRow[];
     reservations: Record<string, ReservationRow[]>;
     status: ManufacturingOrder['status'];
+    /** Materials the client supplies: drawn from the client's own batches. */
+    clientItems?: number[];
 }) {
     if (lines.length === 0) {
         return (
@@ -108,6 +116,14 @@ function LinesTable({
                                             : l.is_qs
                                               ? ' · QS'
                                               : ''}
+                                        {clientItems.includes(l.item_id) && (
+                                            <StatusBadge
+                                                variant="info"
+                                                className="ml-2"
+                                            >
+                                                Client supplied
+                                            </StatusBadge>
+                                        )}
                                     </div>
                                 </TableCell>
                                 <TableCell className="text-right tabular-nums">
@@ -157,13 +173,16 @@ export default function ShowManufacturingOrder({
     lines,
     reservations,
     today,
+    thirdParty,
     can,
 }: {
     order: ManufacturingOrder;
     lines: ManufacturingOrderLineRow[];
     reservations: Record<string, ReservationRow[]>;
     today: string;
+    thirdParty: ThirdPartyDetails | null;
     can: {
+        terms: boolean;
         approve: boolean;
         start: boolean;
         complete: boolean;
@@ -205,6 +224,7 @@ export default function ShowManufacturingOrder({
                     }`}
                     actions={
                         <div className="flex flex-wrap items-center gap-2">
+                            <ClientBadge client={order.client} />
                             <StatusBadge
                                 variant={MO_STATUS_VARIANT[order.status]}
                             >
@@ -591,6 +611,14 @@ export default function ShowManufacturingOrder({
                     </dl>
                 </section>
 
+                {thirdParty && (
+                    <ThirdPartyPanel
+                        order={order}
+                        details={thirdParty}
+                        canTerms={can.terms}
+                    />
+                )}
+
                 {(['raw_material', 'packaging'] as StoreKind[]).map((kind) => (
                     <section key={kind} className="bg-card rounded-xl border">
                         <div className="border-b px-5 py-4">
@@ -607,6 +635,7 @@ export default function ShowManufacturingOrder({
                             lines={byStore(kind)}
                             reservations={reservations}
                             status={order.status}
+                            clientItems={thirdParty?.client_supplied_item_ids}
                         />
                     </section>
                 ))}

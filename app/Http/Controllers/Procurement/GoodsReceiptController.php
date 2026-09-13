@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Procurement;
 
+use App\Domain\Contract\Models\Client;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\Measurement\Models\Uom;
 use App\Domain\Planning\Models\MaterialRequest;
@@ -90,6 +91,9 @@ class GoodsReceiptController extends Controller
             ],
             'vendors' => Vendor::query()->purchasable()->orderBy('name')->get(['id', 'name'])
                 ->map(fn (Vendor $v) => ['value' => $v->id, 'label' => $v->name])->all(),
+            // Who owns what is being received: us, or a client who sent it.
+            'clients' => Client::query()->active()->orderBy('name')->get(['id', 'code', 'name'])
+                ->map(fn (Client $c) => ['value' => $c->id, 'label' => "{$c->name} ({$c->code})"])->all(),
             'warehouses' => $this->warehouseOptions(),
             'items' => Item::query()->active()->with('stockUom:id,code')->orderBy('code')->get()
                 ->map(fn (Item $i) => [
@@ -231,7 +235,7 @@ class GoodsReceiptController extends Controller
         $this->authorize('view', $goodsReceipt);
 
         $goodsReceipt->load([
-            'vendor:id,name,code', 'warehouse:id,code,name', 'receivedBy:id,name', 'createdBy:id,name',
+            'vendor:id,name,code', 'ownerClient:id,code,name', 'warehouse:id,code,name', 'receivedBy:id,name', 'createdBy:id,name',
             'lines.item:id,code,name,requires_qc,stock_uom_id', 'lines.item.stockUom:id,code',
             'lines.uom:id,code', 'lines.lot:id,batch_number,qc_status,expiry_at',
             'lines.inspection:id,number,status',

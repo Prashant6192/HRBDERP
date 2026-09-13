@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Procurement\Models;
 
 use App\Domain\Audit\Concerns\RecordsAuditTrail;
+use App\Domain\Contract\Models\Client;
 use App\Domain\Planning\Models\MaterialRequest;
 use App\Domain\Procurement\Enums\GoodsReceiptStatus;
 use App\Domain\Warehousing\Models\Warehouse;
@@ -31,7 +32,7 @@ class GoodsReceipt extends Model
     protected $fillable = [
         'number', 'vendor_id', 'material_request_id', 'warehouse_id', 'received_at', 'invoice_ref',
         'status', 'notes', 'received_by', 'created_by', 'posted_at',
-        'entry_mode', 'invoice_path', 'invoice_name', 'invoice_mime', 'extraction', 'extraction_model', 'extracted_at',
+        'owner_client_id', 'entry_mode', 'invoice_path', 'invoice_name', 'invoice_mime', 'extraction', 'extraction_model', 'extracted_at',
     ];
 
     protected function casts(): array
@@ -115,5 +116,16 @@ class GoodsReceipt extends Model
                 ->orWhere('invoice_ref', 'ilike', "%{$term}%")
                 ->orWhereHas('vendor', fn (Builder $v) => $v->where('name', 'ilike', "%{$term}%"));
         });
+    }
+
+    /**
+     * Material received on a third-party client's behalf: the batches
+     * created from this receipt are theirs, not ours.
+     *
+     * @return BelongsTo<Client, $this>
+     */
+    public function ownerClient(): BelongsTo
+    {
+        return $this->belongsTo(Client::class, 'owner_client_id');
     }
 }

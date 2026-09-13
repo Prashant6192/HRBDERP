@@ -7,8 +7,9 @@ delivery to finished batch: goods receipts booked off the supplier's bill
 immutable inventory ledger with three-level stock alerts,
 PIN-protected versioned formulations with Excel import, production planning
 that checks the stores and raises material requests, manufacturing orders
-that reserve, consume and post finished batches, and a dashboard that shows
-where the plant stands. Costing, dispatch and accounting come next — see
+that reserve, consume and post finished batches, third-party (contract)
+manufacturing for other brands inside the same workflow, and a dashboard that
+shows where the plant stands. Costing, dispatch and accounting come next — see
 [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md).
 
 This file is the way in. Each area has its own document:
@@ -141,6 +142,7 @@ app/
     MasterData/      Items — raw materials, packaging, finished goods
     Measurement/     Units of measure and the conversion service
     Procurement/     Vendors, goods receipts
+    Contract/        Third-party manufacturing: clients, artwork, QC specs, job costing, reconciliation
     Warehousing/     Facilities, stores, locations, employee assignments
     Inventory/       Ledger, lots, balances, reservations, transfers, opening stock
   Http/

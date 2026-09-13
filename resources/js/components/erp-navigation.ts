@@ -10,6 +10,7 @@ import {
     ClipboardPen,
     Factory,
     FlaskConical,
+    Handshake,
     LayoutGrid,
     Package,
     PackageCheck,
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { index as auditIndex } from '@/routes/audit';
+import { index as clientsIndex } from '@/routes/clients';
 import { index as formulasIndex } from '@/routes/formulas';
 import { index as goodsReceiptsIndex } from '@/routes/goods-receipts';
 import { index as lotsIndex } from '@/routes/lots';
@@ -171,6 +173,25 @@ export const erpNavigation: ErpNavGroup[] = [
                 href: formulasIndex().url,
                 icon: Beaker,
                 permission: 'formula.view',
+            },
+        ],
+    },
+    {
+        label: 'Third-Party Manufacturing',
+        items: [
+            {
+                title: 'Third-Party Jobs',
+                href: manufacturingIndex({ query: { type: 'third_party' } })
+                    .url,
+                icon: Handshake,
+                permission: 'production.view',
+                exact: true,
+            },
+            {
+                title: 'Contract Clients',
+                href: clientsIndex().url,
+                icon: Building2,
+                permission: 'client.view',
             },
         ],
     },

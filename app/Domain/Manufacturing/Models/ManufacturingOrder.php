@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Domain\Manufacturing\Models;
 
 use App\Domain\Audit\Concerns\RecordsAuditTrail;
+use App\Domain\Contract\Enums\ManufacturingType;
+use App\Domain\Contract\Enums\MaterialSource;
+use App\Domain\Contract\Models\Client;
 use App\Domain\Formulation\Models\Formula;
 use App\Domain\Formulation\Models\FormulaVersion;
 use App\Domain\Inventory\Models\InventoryLot;
@@ -56,6 +59,7 @@ class ManufacturingOrder extends Model
 
     protected $fillable = [
         'number', 'facility_id', 'production_plan_id', 'formula_id', 'formula_version_id', 'product_id',
+        'manufacturing_type', 'client_id', 'client_po_ref', 'required_delivery_at', 'material_source', 'client_supplied_item_ids', 'charges',
         'planned_quantity', 'planned_uom_id', 'planned_units', 'status',
         'output_quantity', 'output_units', 'yield_percentage', 'output_lot_id', 'manufactured_at',
         'notes', 'created_by', 'approved_by', 'approved_at', 'started_by', 'started_at',
@@ -65,6 +69,11 @@ class ManufacturingOrder extends Model
     protected function casts(): array
     {
         return [
+            'manufacturing_type' => ManufacturingType::class,
+            'material_source' => MaterialSource::class,
+            'required_delivery_at' => 'date',
+            'client_supplied_item_ids' => 'array',
+            'charges' => 'array',
             'status' => ManufacturingOrderStatus::class,
             'planned_units' => 'integer',
             'output_units' => 'integer',
@@ -213,5 +222,37 @@ class ManufacturingOrder extends Model
                 ->orWhereHas('product', fn (Builder $p) => $p->where('name', 'ilike', "%{$term}%"))
                 ->orWhereHas('plan', fn (Builder $p) => $p->where('number', 'ilike', "%{$term}%"));
         });
+    }
+
+    /**
+     * The third-party client the batch is for; null for the company's own brand.
+     *
+     * @return BelongsTo<Client, $this>
+     */
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class, 'client_id');
+    }
+
+    public function isThirdParty(): bool
+    {
+        return $this->manufacturing_type === ManufacturingType::ThirdParty && $this->client_id !== null;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function clientSuppliedItemIds(): array
+    {
+        return $this->isThirdParty() ? array_values(array_map('intval', $this->client_supplied_item_ids ?? [])) : [];
+    }
+
+    /**
+     * Whose batches a line is met from: the client's for material they
+     * supply, otherwise the company's.
+     */
+    public function ownerForItem(int $itemId): ?int
+    {
+        return in_array($itemId, $this->clientSuppliedItemIds(), true) ? $this->client_id : null;
     }
 }

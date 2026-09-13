@@ -8,6 +8,7 @@ import {
     XCircle,
 } from 'lucide-react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { ClientBadge } from '@/components/contract/client-badge';
 import { DetailItem } from '@/components/form-field';
 import { PageHeader } from '@/components/page-header';
 import { RequirementTable } from '@/components/requirement-table';
@@ -19,8 +20,10 @@ import {
     PLAN_STATUS_VARIANT,
     PMR_STATUS_VARIANT,
 } from '@/lib/planning';
+import { MATERIAL_SOURCE_LABEL } from '@/lib/contract';
 import { date, qty } from '@/lib/stock';
 import { dashboard } from '@/routes';
+import { show as showClient } from '@/routes/clients';
 import { show as showFormula } from '@/routes/formulas';
 import { show as showOrder, store as storeOrder } from '@/routes/manufacturing';
 import { pdf, show as showRequest } from '@/routes/material-requests';
@@ -67,6 +70,9 @@ export default function ShowPlan({
     const rm = countBy(rawMaterials);
     const pm = countBy(packaging);
     const anyShort = rm.short + pm.short > 0;
+    const awaitingClient = [...rawMaterials, ...packaging].filter(
+        (l) => l.source === 'client' && Number(l.shortage) > 0,
+    ).length;
 
     return (
         <>
@@ -81,6 +87,7 @@ export default function ShowPlan({
                     }`}
                     actions={
                         <div className="flex flex-wrap items-center gap-2">
+                            <ClientBadge client={plan.client} />
                             <StatusBadge
                                 variant={PLAN_STATUS_VARIANT[plan.status]}
                             >
@@ -308,6 +315,56 @@ export default function ShowPlan({
                         </dl>
                     </div>
                 </div>
+
+                {plan.client && (
+                    <section className="bg-card rounded-xl border p-5">
+                        <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                            <DetailItem label="Client">
+                                <Link
+                                    href={showClient(plan.client.id)}
+                                    className="font-medium underline-offset-4 hover:underline"
+                                >
+                                    {plan.client.name}
+                                </Link>
+                                <span className="text-muted-foreground ml-1 font-mono text-xs">
+                                    {plan.client.code}
+                                </span>
+                            </DetailItem>
+                            <DetailItem label="Client PO / work order">
+                                {plan.client_po_ref ?? '—'}
+                            </DetailItem>
+                            <DetailItem label="Client's product name">
+                                {plan.client_product_name ?? '—'}
+                            </DetailItem>
+                            <DetailItem label="Required delivery">
+                                {date(plan.required_delivery_at)}
+                            </DetailItem>
+                            <DetailItem label="Material">
+                                {
+                                    MATERIAL_SOURCE_LABEL[
+                                        plan.material_source ?? 'company'
+                                    ]
+                                }
+                                {(plan.client_supplied_item_ids?.length ?? 0) >
+                                0
+                                    ? ` · ${plan.client_supplied_item_ids?.length} client-supplied`
+                                    : ''}
+                            </DetailItem>
+                        </dl>
+                    </section>
+                )}
+
+                {awaitingClient > 0 && plan.status !== 'cancelled' && (
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-5 py-4 text-sm">
+                        <strong>Awaiting client material.</strong>{' '}
+                        {awaitingClient} material
+                        {awaitingClient === 1 ? '' : 's'} the client supplies
+                        {awaitingClient === 1 ? ' is' : ' are'} short. Nothing
+                        is ordered for them: book their delivery in on a goods
+                        receipt with the owner set to {plan.client?.name}, then
+                        re-check.
+                    </div>
+                )}
 
                 {plan.warnings && plan.warnings.length > 0 && (
                     <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-5 py-4 text-sm">

@@ -29,7 +29,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class MaterialRequestLine extends Model
 {
     protected $fillable = [
-        'material_request_id', 'line_no', 'item_id', 'uom_id', 'required_quantity', 'available_quantity',
+        'material_request_id', 'line_no', 'source', 'item_id', 'uom_id', 'required_quantity', 'available_quantity',
         'quantity_to_order', 'restock_quantity', 'received_quantity', 'alert_level',
     ];
 

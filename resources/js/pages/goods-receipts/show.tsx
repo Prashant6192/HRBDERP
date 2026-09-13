@@ -1,6 +1,7 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { CheckCircle2, ExternalLink, FileText, XCircle } from 'lucide-react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { ClientBadge } from '@/components/contract/client-badge';
 import { DetailItem } from '@/components/form-field';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
@@ -99,6 +100,15 @@ export default function ShowGoodsReceipt({
                         <dl className="grid gap-5 sm:grid-cols-2">
                             <DetailItem label="Vendor">
                                 {receipt.vendor?.name ?? '—'}
+                            </DetailItem>
+                            <DetailItem label="Material owned by">
+                                {receipt.owner_client ? (
+                                    <ClientBadge
+                                        client={receipt.owner_client}
+                                    />
+                                ) : (
+                                    'Our company'
+                                )}
                             </DetailItem>
                             <DetailItem label="Destination store">
                                 {receipt.warehouse

@@ -19,7 +19,7 @@ import {
 import { pct, sumPercent } from '@/lib/formulas';
 import { dashboard } from '@/routes';
 import { create, edit, index, show, store, update } from '@/routes/formulas';
-import type { SelectOption } from '@/types';
+import type { FormulaOwnership, SelectOption } from '@/types';
 
 type MaterialOption = SelectOption & {
     inci_name: string | null;
@@ -45,6 +45,8 @@ type FormulaHead = {
     code: string;
     name: string;
     product_id: number | null;
+    ownership?: FormulaOwnership;
+    client_id?: number | null;
     description: string | null;
     status: string;
 };
@@ -81,6 +83,8 @@ export default function FormulaForm({
     materials,
     uoms,
     grades,
+    ownerships,
+    clients,
 }: {
     mode: 'create' | 'edit';
     formula: FormulaHead | null;
@@ -90,6 +94,8 @@ export default function FormulaForm({
     materials: MaterialOption[];
     uoms: UomOption[];
     grades: SelectOption[];
+    ownerships: SelectOption[];
+    clients: SelectOption[];
 }) {
     const defaultUom =
         uoms.find((u) => String(u.label).startsWith('G '))?.value ??
@@ -99,6 +105,8 @@ export default function FormulaForm({
     const form = useForm({
         name: formula?.name ?? '',
         product_id: formula?.product_id ? String(formula.product_id) : '',
+        ownership: formula?.ownership ?? 'company',
+        client_id: formula?.client_id ? String(formula.client_id) : '',
         description: formula?.description ?? '',
         batch_size: version?.batch_size ?? '100',
         batch_uom_id: String(version?.batch_uom_id ?? defaultUom),
@@ -302,6 +310,78 @@ export default function FormulaForm({
                                     }
                                     placeholder="e.g. Raised glycerin to 3%"
                                 />
+                            </Field>
+                        )}
+
+                        <Field
+                            label="Ownership"
+                            htmlFor="ownership"
+                            required
+                            error={errors.ownership}
+                            hint="A client-owned or joint formula is made for that client alone, and stays behind the formula PIN like every other."
+                        >
+                            <Select
+                                value={form.data.ownership}
+                                onValueChange={(v) =>
+                                    form.setData({
+                                        ...form.data,
+                                        ownership: v as FormulaOwnership,
+                                        client_id:
+                                            v === 'company'
+                                                ? ''
+                                                : form.data.client_id,
+                                    })
+                                }
+                            >
+                                <SelectTrigger
+                                    id="ownership"
+                                    className="w-full"
+                                >
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {ownerships.map((o) => (
+                                        <SelectItem
+                                            key={o.value}
+                                            value={String(o.value)}
+                                        >
+                                            {o.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </Field>
+
+                        {form.data.ownership !== 'company' && (
+                            <Field
+                                label="Client"
+                                htmlFor="client_id"
+                                required
+                                error={errors.client_id}
+                            >
+                                <Select
+                                    value={form.data.client_id}
+                                    onValueChange={(v) =>
+                                        form.setData('client_id', v)
+                                    }
+                                >
+                                    <SelectTrigger
+                                        id="client_id"
+                                        className="w-full"
+                                    >
+                                        <SelectValue placeholder="Choose the client" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {clients.map((c) => (
+                                            <SelectItem
+                                                key={c.value}
+                                                value={String(c.value)}
+                                            >
+                                                {c.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </Field>
                         )}
 

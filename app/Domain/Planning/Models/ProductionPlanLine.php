@@ -37,7 +37,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ProductionPlanLine extends Model
 {
     protected $fillable = [
-        'production_plan_id', 'line_no', 'store_kind', 'item_id', 'uom_id', 'percentage', 'is_qs', 'as_required',
+        'production_plan_id', 'line_no', 'store_kind', 'source', 'item_id', 'uom_id', 'percentage', 'is_qs', 'as_required',
         'required_quantity', 'available_quantity', 'shortage_quantity', 'restock_quantity', 'available_elsewhere',
         'level_now', 'level_after', 'notes',
     ];

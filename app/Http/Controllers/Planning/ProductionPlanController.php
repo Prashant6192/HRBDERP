@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Planning;
 
+use App\Domain\Contract\Enums\ManufacturingType;
+use App\Domain\Contract\Enums\MaterialSource;
+use App\Domain\Contract\Models\Client;
 use App\Domain\Formulation\Models\Formula;
 use App\Domain\Manufacturing\Models\ManufacturingOrder;
 use App\Domain\Measurement\Models\Uom;
@@ -41,10 +44,10 @@ class ProductionPlanController extends Controller
     {
         $this->authorize('viewAny', ProductionPlan::class);
 
-        $table = TableQuery::fromRequest($request, allowedFilters: ['status']);
+        $table = TableQuery::fromRequest($request, allowedFilters: ['status', 'type', 'client']);
 
         $query = ProductionPlan::query()
-            ->with(['formula:id,code,name', 'product:id,code,name', 'plannedUom:id,code', 'createdBy:id,name'])
+            ->with(['formula:id,code,name', 'product:id,code,name', 'plannedUom:id,code', 'createdBy:id,name', 'client:id,code,name'])
             ->withCount([
                 'lines as short_lines_count' => fn ($q) => $q->where('shortage_quantity', '>', 0),
                 'materialRequests',
@@ -55,10 +58,20 @@ class ProductionPlanController extends Controller
             $query->where('status', $status);
         }
 
+        if ($type = $table->filter('type')) {
+            $query->where('manufacturing_type', $type);
+        }
+
+        if ($client = $table->filter('client')) {
+            $query->where('client_id', (int) $client);
+        }
+
         return Inertia::render('plans/index', [
             'plans' => $table->paginate($table->applySorting($query, self::SORTABLE, fallback: 'created_at')),
             'table' => $table->toArray(),
             'statuses' => array_map(static fn (ProductionPlanStatus $s): array => ['value' => $s->value, 'label' => $s->label()], ProductionPlanStatus::cases()),
+            'types' => ManufacturingType::options(),
+            'clients' => $this->clientOptions(),
             'can' => ['create' => $request->user()->can('create', ProductionPlan::class)],
         ]);
     }
@@ -70,19 +83,38 @@ class ProductionPlanController extends Controller
         return Inertia::render('plans/create', [
             'formulas' => Formula::query()
                 ->active()
-                ->with(['product:id,code,name,net_content,net_content_uom_id', 'product.netContentUom:id,code', 'activeVersion:id,version_number,batch_uom_id', 'activeVersion.batchUom:id,code'])
+                ->with([
+                    'product:id,code,name,net_content,net_content_uom_id,client_id', 'product.netContentUom:id,code',
+                    'product.packagingLines.packagingMaterial:id,code,name',
+                    'activeVersion:id,version_number,batch_uom_id', 'activeVersion.batchUom:id,code',
+                    'activeVersion.ingredients.item:id,code,name', 'client:id,name',
+                ])
                 ->orderBy('name')
                 ->get()
                 ->map(static fn (Formula $f): array => [
                     'value' => $f->id,
                     'label' => "{$f->name} ({$f->code})",
                     'product' => $f->product?->name,
+                    'product_client_id' => $f->product?->client_id,
                     'net_content' => $f->product?->net_content,
                     'net_content_uom' => $f->product?->netContentUom?->code,
                     'version' => $f->activeVersion?->version_number,
                     'batch_uom_id' => $f->activeVersion?->batch_uom_id,
                     'batch_uom' => $f->activeVersion?->batchUom?->code,
+                    'ownership' => $f->ownership->value,
+                    'ownership_label' => $f->ownership->label(),
+                    'client_id' => $f->client_id,
+                    'client' => $f->client?->name,
+                    // What the batch will need, so a third-party plan can say
+                    // which of it the client supplies.
+                    'materials' => [
+                        ...($f->activeVersion?->ingredients->map(static fn ($i): array => ['value' => $i->item_id, 'label' => $i->item?->name ?? "#{$i->item_id}", 'kind' => 'raw_material'])->all() ?? []),
+                        ...($f->product?->packagingLines->map(static fn ($l): array => ['value' => $l->packaging_material_id, 'label' => $l->packagingMaterial?->name ?? "#{$l->packaging_material_id}", 'kind' => 'packaging'])->all() ?? []),
+                    ],
                 ])->all(),
+            'clients' => $this->clientOptions(),
+            'manufacturingTypes' => ManufacturingType::options(),
+            'materialSources' => MaterialSource::options(),
             'uoms' => Uom::query()->active()->whereIn('dimension', ['mass', 'volume'])->orderBy('dimension')->orderBy('code')->get(['id', 'code', 'name', 'dimension'])
                 ->map(static fn (Uom $u): array => ['value' => $u->id, 'label' => "{$u->code} — {$u->name}", 'dimension' => $u->dimension->value])->all(),
             'facilities' => $this->access->scopeFacilities($request->user(), Facility::query()->active()->manufacturing())->ordered()->get(['id', 'code', 'name', 'city'])
@@ -120,7 +152,8 @@ class ProductionPlanController extends Controller
 
         $plan->load([
             'facility:id,code,name',
-            'formula:id,code,name',
+            'client:id,code,name',
+            'formula:id,code,name,ownership,client_id',
             'formulaVersion:id,version_number,batch_size,batch_uom_id',
             'formulaVersion.batchUom:id,code',
             'product:id,code,name,net_content,net_content_uom_id',
@@ -150,6 +183,7 @@ class ProductionPlanController extends Controller
             'restock' => $line->restock_quantity,
             'level_now' => $line->level_now->value,
             'level_after' => $line->level_after->value,
+            'source' => $line->source,
             'reorder_level' => $line->item->reorder_level,
             'minimum_stock' => $line->item->minimum_stock,
             'notes' => $line->notes ?? [],
@@ -191,6 +225,16 @@ class ProductionPlanController extends Controller
                     && ! ManufacturingOrder::query()->where('production_plan_id', $plan->id)->open()->exists(),
             ],
         ]);
+    }
+
+    /**
+     * @return list<array{value: int, label: string}>
+     */
+    private function clientOptions(): array
+    {
+        return Client::query()->active()->orderBy('name')->get(['id', 'code', 'name'])
+            ->map(static fn (Client $c): array => ['value' => $c->id, 'label' => "{$c->name} ({$c->code})"])
+            ->all();
     }
 
     public function check(Request $request, ProductionPlan $plan): RedirectResponse

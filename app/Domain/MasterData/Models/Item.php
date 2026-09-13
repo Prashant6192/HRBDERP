@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\MasterData\Models;
 
 use App\Domain\Audit\Concerns\RecordsAuditTrail;
+use App\Domain\Contract\Models\Client;
 use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Models\StockBalance;
 use App\Domain\MasterData\Enums\ItemType;
@@ -46,7 +47,7 @@ class Item extends Model
         'code', 'name', 'inci_name', 'type', 'category_id', 'description',
         'stock_uom_id', 'purchase_uom_id', 'density_g_per_ml',
         'hsn_code', 'gst_rate', 'standard_cost',
-        'brand', 'mrp', 'net_content', 'net_content_uom_id', 'barcode',
+        'brand', 'client_id', 'mrp', 'net_content', 'net_content_uom_id', 'barcode',
         'is_batch_tracked', 'requires_qc', 'shelf_life_days',
         'reorder_level', 'minimum_stock', 'maximum_stock', 'lead_time_days',
         'is_active', 'created_by', 'updated_by',
@@ -198,5 +199,15 @@ class Item extends Model
                 ->orWhere('barcode', 'ilike', "%{$term}%")
                 ->orWhere('brand', 'ilike', "%{$term}%");
         });
+    }
+
+    /**
+     * The client a product is made for. Null is the company's own brand.
+     *
+     * @return BelongsTo<Client, $this>
+     */
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class, 'client_id');
     }
 }

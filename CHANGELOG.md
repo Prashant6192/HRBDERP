@@ -10,6 +10,65 @@ between them.
 
 ## [Unreleased]
 
+### Added — Third-party / contract manufacturing (issue #6)
+
+Manufacturing for other brands runs through the same planning, stores, QC,
+manufacturing and packaging as our own. Nothing is duplicated: a batch is
+either _Own brand_ or _Third party_, and a third-party batch carries the
+client with it everywhere.
+
+- **Contract client master.** Code (`TP-001`, given on save), company and
+  legal name, GSTIN and PAN, contact, billing and shipping addresses, payment
+  and credit terms, agreement reference and validity, notes, active flag.
+  A client with history cannot be removed, only made inactive. The client's
+  page gathers everything of theirs: jobs, material with us reconciled,
+  finished goods awaiting dispatch, products, formulas, artwork approvals,
+  QC specifications and the billing summary of completed jobs.
+- **Products say whom they are made for**, and **formulas say whose they
+  are**: company owned, client owned or joint. A client-owned or joint formula
+  can only ever be planned for that client; it stays behind the formula PIN
+  like every other.
+- **Planning asks whose batch it is.** A third-party plan names the client,
+  their PO / work order, their product name, the required delivery date and
+  the material source: ours, the client's, or mixed with the client-supplied
+  materials ticked. Everything else about planning is unchanged.
+- **Client-supplied material is the client's.** A goods receipt can be booked
+  in a client's name; its batches are then owned by that client. Ownership
+  runs through availability, reservation and consumption: an own-brand batch
+  never draws on a client's stock, a client's job never draws on another
+  client's, and a client-supplied line counts only that client's own batches.
+  A shortage of client-supplied material shows as _Awaiting client material_
+  and is never turned into a purchase requirement. The store pages show what
+  in each store is client-owned.
+- **Manufacturing orders** carry the client, PO, delivery date and material
+  source from the plan; approval holds client-supplied lines from the
+  client's batches alone; the finished batch is posted as the client's, with
+  a batch number that says so (`TP-001-260913-001`). Third-party jobs sit in
+  the same order list and dashboard pipeline, badged _THIRD PARTY — ABC
+  WELLNESS_, and can be filtered by type and by client on the plan and order
+  lists.
+- **Job costing and client billing.** Commercial terms per order —
+  manufacturing charge per kg or per unit, whether our material is billed and
+  at what markup, testing / development / artwork / freight / other charges,
+  GST — and the job's figures: our raw material and packaging at actual batch
+  cost, the value of the client's material (never charged), chargeable
+  amount, GST, total, and the margin over our material. Kept apart from
+  own-brand costing.
+- **Client material reconciliation**: per material the client supplied,
+  what production took (this job and all jobs), wastage, and the balance
+  still with us — from the ledger, batch by batch.
+- **Artwork approvals** per client and product: label, carton and bottle
+  versions with the client's sign-off date, approver and document; approving
+  a version supersedes the previous one; a job's page says when no approved
+  artwork is on file.
+- **Client QC specifications** per client and product; the QC Checkpoint
+  shows them on every batch owned by that client.
+- **Dashboard**: a third-party section with active client batches, material
+  awaited from clients, client goods awaiting dispatch, this month's output
+  for clients and delivery dates due.
+- New permission module _Contract Clients_ (`client.*`): Factory Manager and
+  Management create and edit; Sales Manager has it all; most other roles view.
+
 ### Added — Stock transfers: scan the challan to book in (issue #5)
 
 - **Dispatch prints a transfer challan.** Once a transfer is dispatched the

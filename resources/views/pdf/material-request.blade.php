@@ -39,6 +39,9 @@
         <tr><td class="k">Plan</td><td>{{ $request->plan->number }}</td></tr>
         <tr><td class="k">Formula</td><td>{{ $request->plan->formula->code }} — {{ $request->plan->formula->name }}</td></tr>
         <tr><td class="k">Product</td><td>{{ $request->plan->product?->name ?? '—' }}</td></tr>
+        @if($request->plan->client)
+        <tr><td class="k">Client</td><td><strong>THIRD PARTY — {{ strtoupper($request->plan->client->name) }}</strong> ({{ $request->plan->client->code }})@if($request->plan->client_po_ref) · PO {{ $request->plan->client_po_ref }}@endif</td></tr>
+        @endif
         <tr><td class="k">Batch</td><td>{{ rtrim(rtrim($request->plan->planned_quantity, '0'), '.') }} {{ $request->plan->plannedUom->code }}@if ($request->plan->planned_units) · {{ number_format($request->plan->planned_units) }} units @endif</td></tr>
         <tr><td class="k">Needed by</td><td>{{ $request->needed_by?->format('d M Y') ?? '—' }}</td></tr>
         <tr><td class="k">Requested by</td><td>{{ $request->requestedBy?->name ?? '—' }}</td></tr>
@@ -63,7 +66,7 @@
                 <td><strong>{{ $line->item->name }}</strong><br><span class="muted">{{ $line->item->code }}</span></td>
                 <td class="n">{{ $fmt($line->required_quantity) }}</td>
                 <td class="n">{{ $fmt($line->available_quantity) }}</td>
-                <td class="n {{ (float) $line->quantity_to_order > 0 ? 'short' : '' }}">{{ $fmt($line->quantity_to_order) }}</td>
+                <td class="n {{ (float) $line->quantity_to_order > 0 ? 'short' : '' }}">{{ $line->source === 'client' ? ((float) $line->quantity_to_order > 0 ? 'Awaiting client: '.$fmt($line->quantity_to_order) : 'Client supplied') : $fmt($line->quantity_to_order) }}</td>
                 <td class="n">{{ $fmt($line->restock_quantity) }}</td>
                 <td>{{ $line->uom->code }}</td>
                 <td class="level">{{ $line->alert_level->shortLabel() }}</td>

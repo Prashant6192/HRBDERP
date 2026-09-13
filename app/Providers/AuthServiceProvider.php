@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Domain\Audit\Models\AuditLog;
+use App\Domain\Contract\Models\Client;
 use App\Domain\Formulation\Models\Formula;
 use App\Domain\Formulation\Models\FormulaVersion;
 use App\Domain\Identity\Models\Department;
@@ -24,6 +25,7 @@ use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Models\Warehouse;
 use App\Models\User;
 use App\Policies\AuditLogPolicy;
+use App\Policies\ClientPolicy;
 use App\Policies\DepartmentPolicy;
 use App\Policies\FacilityPolicy;
 use App\Policies\FormulaPolicy;
@@ -61,6 +63,7 @@ class AuthServiceProvider extends ServiceProvider
         Facility::class => FacilityPolicy::class,
         StockTransfer::class => StockTransferPolicy::class,
         Vendor::class => VendorPolicy::class,
+        Client::class => ClientPolicy::class,
         Uom::class => UomPolicy::class,
         AuditLog::class => AuditLogPolicy::class,
         GoodsReceipt::class => GoodsReceiptPolicy::class,

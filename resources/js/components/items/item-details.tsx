@@ -1,4 +1,5 @@
 import { Link } from '@inertiajs/react';
+import { ClientBadge } from '@/components/contract/client-badge';
 import { ClipboardCheck, PackagePlus, Pencil, Trash2 } from 'lucide-react';
 import { DeleteDialog } from '@/components/confirm-dialog';
 import { DetailItem } from '@/components/form-field';
@@ -135,6 +136,9 @@ export function ItemDetails({
                             <>
                                 <DetailItem label="Brand">
                                     {item.brand ?? '—'}
+                                </DetailItem>
+                                <DetailItem label="Manufactured for">
+                                    <ClientBadge client={item.client} />
                                 </DetailItem>
                                 <DetailItem label="MRP">
                                     {money(item.mrp)}

@@ -91,6 +91,13 @@ class ManufacturingOrderService
                 'planned_uom_id' => $plan->planned_uom_id,
                 'planned_units' => $plan->planned_units,
                 'status' => ManufacturingOrderStatus::Draft,
+                // Whose batch, against which PO, and whose material.
+                'manufacturing_type' => $plan->manufacturing_type,
+                'client_id' => $plan->client_id,
+                'client_po_ref' => $plan->client_po_ref,
+                'required_delivery_at' => $plan->required_delivery_at?->toDateString(),
+                'material_source' => $plan->material_source,
+                'client_supplied_item_ids' => $plan->client_supplied_item_ids,
                 'notes' => $notes,
                 'created_by' => $userId,
             ]);
@@ -136,15 +143,19 @@ class ManufacturingOrderService
 
             foreach ($lines as $line) {
                 $store = $this->storeFor($line->store_kind, $facility);
-                $free = $this->balances->availableForProduction($line->item, [$store->id]);
+                // A client's material is drawn from the client's own batches
+                // alone; everything else from the company's.
+                $owner = $order->ownerForItem($line->item_id);
+                $free = $this->balances->availableForProduction($line->item, [$store->id], $owner);
 
                 if ($free->isLessThan($line->plannedQuantity())) {
                     $short[] = sprintf(
-                        '%s (%s %s needed, %s free)',
+                        '%s (%s %s needed, %s free%s)',
                         $line->item->name,
                         $line->plannedQuantity()->strippedOfTrailingZeros(),
                         $line->item->stockUom->code,
                         $free->strippedOfTrailingZeros(),
+                        $owner !== null ? ' — client supplied, awaiting client material' : '',
                     );
                 }
             }
@@ -158,7 +169,7 @@ class ManufacturingOrderService
                 $store = $this->storeFor($line->store_kind, $facility);
 
                 try {
-                    $held = $this->reservations->reserve($order, $line->item, $store, $line->plannedQuantity(), $userId, "Manufacturing order {$order->number}");
+                    $held = $this->reservations->reserve($order, $line->item, $store, $line->plannedQuantity(), $userId, "Manufacturing order {$order->number}", null, $order->ownerForItem($line->item_id));
                 } catch (InsufficientStockException $e) {
                     // Someone else took it between the look and the hold.
                     throw new ManufacturingException("Quantity not available: {$line->item->name} was taken by another order a moment ago. Try again.");
@@ -218,7 +229,7 @@ class ManufacturingOrderService
     public function complete(ManufacturingOrder $order, ?int $userId, array $output): ManufacturingOrder
     {
         return DB::transaction(function () use ($order, $userId, $output): ManufacturingOrder {
-            $order = ManufacturingOrder::query()->lockForUpdate()->with(['lines', 'product.stockUom', 'plannedUom', 'plan', 'facility'])->findOrFail($order->getKey());
+            $order = ManufacturingOrder::query()->lockForUpdate()->with(['lines', 'product.stockUom', 'plannedUom', 'plan', 'facility', 'client'])->findOrFail($order->getKey());
 
             if ($order->status !== ManufacturingOrderStatus::InProgress) {
                 throw new ManufacturingException("{$order->number} is {$order->status->label()}; only an order in progress can be completed.");
@@ -353,9 +364,12 @@ class ManufacturingOrderService
 
         $needsQc = (bool) $product->requires_qc;
 
+        // A client's batch is theirs from the moment it exists, and its
+        // number says so: TP-001-260913-001.
         $lot = InventoryLot::create([
             'item_id' => $product->id,
-            'batch_number' => $this->batchNumbers->generate($product, $manufacturedAt),
+            'batch_number' => $this->batchNumbers->generate($product, $manufacturedAt, $order->isThirdParty() ? $order->client?->code : null),
+            'owner_client_id' => $order->isThirdParty() ? $order->client_id : null,
             'manufactured_at' => $manufacturedAt->toDateString(),
             'received_at' => now()->toDateString(),
             'expiry_at' => $expiry?->toDateString(),
@@ -422,7 +436,7 @@ class ManufacturingOrderService
         $rest = $count - count($shown);
 
         return sprintf(
-            'Quantity not available for %d material%s: %s%s. Raise or receive the material requests first.',
+            'Quantity not available for %d material%s: %s%s. Raise or receive the material requests first; client-supplied material has to arrive from the client.',
             $count,
             $count === 1 ? '' : 's',
             implode('; ', $shown),

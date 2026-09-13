@@ -134,6 +134,7 @@ export default function CreateGoodsReceipt({
     intake,
     reader,
     can,
+    clients,
 }: {
     vendors: SelectOption[];
     warehouses: (SelectOption & { type: string })[];
@@ -147,6 +148,7 @@ export default function CreateGoodsReceipt({
     intake: Intake | null;
     reader: { available: boolean; model: string | null };
     can: { manual: boolean };
+    clients: SelectOption[];
 }) {
     // Without the right to key a receipt by hand, the particulars are the
     // bill's: only the item mapping and the unit are chosen on screen.
@@ -203,6 +205,8 @@ export default function CreateGoodsReceipt({
         notes: '',
         post_now: true,
         intake_token: intake?.token ?? '',
+        // Material a third-party client sent for their own job stays theirs.
+        owner_client_id: '',
         lines:
             billLines.length > 0 ? billLines.map(lineFromBill) : [emptyLine()],
     });
@@ -538,6 +542,43 @@ export default function CreateGoodsReceipt({
                                     }}
                                 />
                             </div>
+                        </Field>
+
+                        <Field
+                            label="Material owned by"
+                            htmlFor="owner_client_id"
+                            error={errors.owner_client_id}
+                            hint="Client-supplied material is booked in the client's name and is never used for anyone else."
+                        >
+                            <Select
+                                value={form.data.owner_client_id || NONE}
+                                onValueChange={(v) =>
+                                    form.setData(
+                                        'owner_client_id',
+                                        v === NONE ? '' : v,
+                                    )
+                                }
+                            >
+                                <SelectTrigger
+                                    id="owner_client_id"
+                                    className="w-full"
+                                >
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={NONE}>
+                                        Our company
+                                    </SelectItem>
+                                    {clients.map((c) => (
+                                        <SelectItem
+                                            key={c.value}
+                                            value={String(c.value)}
+                                        >
+                                            Client: {c.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </Field>
 
                         <Field

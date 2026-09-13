@@ -4,6 +4,7 @@ import {
     type DataTableColumn,
     type DataTableFilter,
 } from '@/components/data-table';
+import { ClientBadge } from '@/components/contract/client-badge';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
@@ -73,6 +74,16 @@ export default function LotIndex({
             header: 'Vendor',
             cell: (r) => r.vendor?.name ?? '—',
             defaultHidden: true,
+        },
+        {
+            key: 'owner',
+            header: 'Owned by',
+            cell: (r) =>
+                r.owner_client ? (
+                    <ClientBadge client={r.owner_client} link={false} />
+                ) : (
+                    <span className="text-muted-foreground">Ours</span>
+                ),
         },
         {
             key: 'qc_status',

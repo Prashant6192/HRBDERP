@@ -261,6 +261,9 @@ export default function StockIndex({
                                     Available
                                 </TableHead>
                                 <TableHead className="text-right">
+                                    Client-owned
+                                </TableHead>
+                                <TableHead className="text-right">
                                     Reorder at
                                 </TableHead>
                                 <TableHead>Alert</TableHead>
@@ -270,7 +273,7 @@ export default function StockIndex({
                             {rows.length === 0 ? (
                                 <TableRow className="hover:bg-transparent">
                                     <TableCell
-                                        colSpan={6}
+                                        colSpan={7}
                                         className="py-14 text-center"
                                     >
                                         <p className="font-medium">
@@ -322,6 +325,14 @@ export default function StockIndex({
                                                     row.available,
                                                     row.display_scale,
                                                 )}
+                                            </TableCell>
+                                            <TableCell className="text-right text-sky-700 tabular-nums dark:text-sky-300">
+                                                {Number(row.client_owned) > 0
+                                                    ? qty(
+                                                          row.client_owned,
+                                                          row.display_scale,
+                                                      )
+                                                    : '—'}
                                             </TableCell>
                                             <TableCell className="text-muted-foreground text-right tabular-nums">
                                                 {row.reorder_level

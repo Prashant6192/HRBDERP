@@ -19,12 +19,22 @@ class BatchNumberGenerator
 {
     public function __construct(private readonly SequenceService $sequences) {}
 
-    public function generate(Item $item, ?CarbonInterface $date = null): string
+    /**
+     * @param  string|null  $prefix  a third-party client's code, so their batches read TP-001-260913-001
+     */
+    public function generate(Item $item, ?CarbonInterface $date = null, ?string $prefix = null): string
     {
         $date ??= now();
-        $prefix = $this->prefixFor($item->type);
         $day = $date->format('ymd');
 
+        if ($prefix !== null && trim($prefix) !== '') {
+            $prefix = strtoupper(trim($prefix));
+            $sequence = $this->sequences->next("batch:{$prefix}:{$day}");
+
+            return sprintf('%s-%s-%03d', $prefix, $day, $sequence);
+        }
+
+        $prefix = $this->prefixFor($item->type);
         $sequence = $this->sequences->next("batch:{$prefix}:{$day}");
 
         return sprintf('%s%s-%03d', $prefix, $day, $sequence);

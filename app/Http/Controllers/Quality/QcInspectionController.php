@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Quality;
 
+use App\Domain\Contract\Models\ClientQcSpec;
 use App\Domain\Identity\Exceptions\PinException;
 use App\Domain\Identity\Services\PersonalPinService;
 use App\Domain\Inventory\Enums\LotQcStatus;
@@ -78,7 +79,7 @@ class QcInspectionController extends Controller
         $this->authorize('view', $qcInspection);
 
         $qcInspection->load([
-            'lot.vendor:id,name', 'lot.qcDecidedBy:id,name',
+            'lot.vendor:id,name', 'lot.qcDecidedBy:id,name', 'lot.ownerClient:id,code,name',
             'item:id,code,name,stock_uom_id,requires_qc,shelf_life_days', 'item.stockUom:id,code,display_scale',
             'receiptLine.receipt:id,number,received_at,invoice_ref',
             'destinationWarehouse:id,code,name', 'decidedBy:id,name',
@@ -95,8 +96,15 @@ class QcInspectionController extends Controller
                 'on_hand' => $b->on_hand,
             ]);
 
+        // A client's batch is checked against what that client asked for.
+        $spec = $qcInspection->lot?->owner_client_id === null
+            ? null
+            : ClientQcSpec::query()->where('client_id', $qcInspection->lot->owner_client_id)->where('product_id', $qcInspection->item_id)->first();
+
         return Inertia::render('qc/show', [
             'inspection' => $qcInspection,
+            'owner' => $qcInspection->lot?->ownerClient === null ? null : ['id' => $qcInspection->lot->ownerClient->id, 'code' => $qcInspection->lot->ownerClient->code, 'name' => $qcInspection->lot->ownerClient->name],
+            'clientSpec' => $spec === null ? null : ['parameters' => $spec->parameters, 'notes' => $spec->notes],
             'stockLocations' => $where,
             'destinations' => Warehouse::query()->availableForIssue()->orderBy('code')->get(['id', 'code', 'name'])
                 ->map(fn (Warehouse $w) => ['value' => $w->id, 'label' => "{$w->code} — {$w->name}"])->all(),

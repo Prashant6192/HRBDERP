@@ -37,6 +37,12 @@ class UpdateFormulaRequest extends FormRequest
                 Rule::exists('items', 'id')->where(fn ($q) => $q->where('type', ItemType::FinishedGood->value)->whereNull('deleted_at')),
             ],
             'description' => ['nullable', 'string', 'max:2000'],
+            // Whose recipe it is; a client-owned or joint formula names the client.
+            'ownership' => ['nullable', Rule::in(['company', 'client', 'joint'])],
+            'client_id' => [
+                'nullable', 'integer', 'required_if:ownership,client', 'required_if:ownership,joint',
+                Rule::exists('clients', 'id')->whereNull('deleted_at'),
+            ],
         ] + $this->versionRules();
     }
 

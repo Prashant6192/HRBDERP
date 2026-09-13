@@ -5,6 +5,9 @@ declare(strict_types=1);
 use App\Http\Controllers\Administration\AuditLogController;
 use App\Http\Controllers\Administration\RoleController;
 use App\Http\Controllers\Administration\UserController;
+use App\Http\Controllers\Contract\ClientArtworkController;
+use App\Http\Controllers\Contract\ClientController;
+use App\Http\Controllers\Contract\ClientQcSpecController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Formulation\FormulaController;
 use App\Http\Controllers\Formulation\FormulaImportController;
@@ -100,6 +103,15 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('vendors/quick', [VendorController::class, 'quick'])->name('vendors.quick');
     Route::resource('vendors', VendorController::class);
 
+    // Third-party / contract manufacturing clients and what is theirs.
+    Route::resource('clients', ClientController::class);
+    Route::post('clients/{client}/artworks', [ClientArtworkController::class, 'store'])->name('clients.artworks.store');
+    Route::post('clients/{client}/artworks/{artwork}/status', [ClientArtworkController::class, 'status'])->name('clients.artworks.status');
+    Route::get('clients/{client}/artworks/{artwork}/document', [ClientArtworkController::class, 'document'])->name('clients.artworks.document');
+    Route::delete('clients/{client}/artworks/{artwork}', [ClientArtworkController::class, 'destroy'])->name('clients.artworks.destroy');
+    Route::put('clients/{client}/qc-specs/{product}', [ClientQcSpecController::class, 'upsert'])->name('clients.qc-specs.upsert');
+    Route::delete('clients/{client}/qc-specs/{spec}', [ClientQcSpecController::class, 'destroy'])->name('clients.qc-specs.destroy');
+
     // ---- Store: receiving, quality, stock ---------------------------------
     Route::post('goods-receipts/intake', [GoodsReceiptController::class, 'intake'])->name('goods-receipts.intake');
     Route::get('goods-receipts/{goodsReceipt}/document', [GoodsReceiptController::class, 'document'])->name('goods-receipts.document');
@@ -149,6 +161,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('manufacturing/{order}/start', [ManufacturingOrderController::class, 'start'])->name('manufacturing.start');
     Route::post('manufacturing/{order}/complete', [ManufacturingOrderController::class, 'complete'])->name('manufacturing.complete');
     Route::post('manufacturing/{order}/cancel', [ManufacturingOrderController::class, 'cancel'])->name('manufacturing.cancel');
+    Route::put('manufacturing/{order}/terms', [ManufacturingOrderController::class, 'terms'])->name('manufacturing.terms');
 
     // ---- Formulations -----------------------------------------------------
     // The list and the PIN screens need only formula.view. Anything that

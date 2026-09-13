@@ -31,7 +31,13 @@ import { cn } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import { index as auditIndex } from '@/routes/audit';
 import { index as lotsIndex } from '@/routes/lots';
-import { index as manufacturingIndex } from '@/routes/manufacturing';
+import { index as clientsIndex } from '@/routes/clients';
+import { show as showLot } from '@/routes/lots';
+import {
+    index as manufacturingIndex,
+    show as showOrder,
+} from '@/routes/manufacturing';
+import { show as showPlan } from '@/routes/plans';
 import { index as stockIndex } from '@/routes/stock';
 import type {
     ActivityEntry,
@@ -39,6 +45,7 @@ import type {
     ExpiringRow,
     InProductionRow,
     KpiTile as Tile,
+    ThirdPartySummary,
     OutputPoint,
     ReceivingPoint,
     StoreLevels,
@@ -97,6 +104,7 @@ export default function Dashboard({
     output,
     inProduction,
     upcoming,
+    thirdParty,
     recentActivity,
     quickActions,
 }: {
@@ -118,6 +126,7 @@ export default function Dashboard({
     output: OutputPoint[] | null;
     inProduction: InProductionRow[] | null;
     upcoming: UpcomingRow[] | null;
+    thirdParty: ThirdPartySummary | null;
     recentActivity: ActivityEntry[] | null;
     quickActions: {
         plan: boolean;
@@ -254,6 +263,188 @@ export default function Dashboard({
                         ))}
                     </div>
                 )}
+
+                {thirdParty &&
+                    (thirdParty.active.length > 0 ||
+                        thirdParty.awaiting_material.length > 0 ||
+                        thirdParty.awaiting_dispatch.length > 0 ||
+                        thirdParty.this_month.batches > 0) && (
+                        <Card
+                            title="Third-party manufacturing"
+                            description="Client jobs in the same pipeline as our own."
+                            action={
+                                <div className="flex gap-1">
+                                    <Button variant="ghost" size="sm" asChild>
+                                        <Link href={clientsIndex()}>
+                                            Clients
+                                        </Link>
+                                    </Button>
+                                    <Button variant="ghost" size="sm" asChild>
+                                        <Link
+                                            href={manufacturingIndex({
+                                                query: { type: 'third_party' },
+                                            })}
+                                        >
+                                            All jobs
+                                        </Link>
+                                    </Button>
+                                </div>
+                            }
+                        >
+                            <div className="grid gap-6 lg:grid-cols-3">
+                                <div>
+                                    <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
+                                        Active client batches
+                                    </p>
+                                    {thirdParty.active.length === 0 ? (
+                                        <p className="text-muted-foreground text-sm">
+                                            None in hand.
+                                        </p>
+                                    ) : (
+                                        <ul className="space-y-2 text-sm">
+                                            {thirdParty.active.map((o) => (
+                                                <li key={o.id}>
+                                                    <Link
+                                                        href={showOrder(o.id)}
+                                                        className="font-medium underline-offset-4 hover:underline"
+                                                    >
+                                                        {o.client ?? '—'}
+                                                    </Link>
+                                                    <span className="text-muted-foreground">
+                                                        {' '}
+                                                        ·{' '}
+                                                        {o.product ??
+                                                            o.number}{' '}
+                                                        · {o.batch}
+                                                    </span>
+                                                    <div className="text-muted-foreground text-xs">
+                                                        {o.status_label}
+                                                        {o.required_delivery_at
+                                                            ? ` · due ${o.required_delivery_at}`
+                                                            : ''}
+                                                    </div>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                    <p className="text-muted-foreground mt-3 text-xs">
+                                        This month:{' '}
+                                        {thirdParty.this_month.batches} batch
+                                        {thirdParty.this_month.batches === 1
+                                            ? ''
+                                            : 'es'}
+                                        ,{' '}
+                                        {thirdParty.this_month.units.toLocaleString()}{' '}
+                                        units, {thirdParty.this_month.clients}{' '}
+                                        client
+                                        {thirdParty.this_month.clients === 1
+                                            ? ''
+                                            : 's'}
+                                        .
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
+                                        Awaiting client material
+                                    </p>
+                                    {thirdParty.awaiting_material.length ===
+                                    0 ? (
+                                        <p className="text-muted-foreground text-sm">
+                                            Nothing outstanding.
+                                        </p>
+                                    ) : (
+                                        <ul className="space-y-2 text-sm">
+                                            {thirdParty.awaiting_material.map(
+                                                (m, i) => (
+                                                    <li key={i}>
+                                                        <Link
+                                                            href={showPlan(
+                                                                m.plan_id,
+                                                            )}
+                                                            className="font-medium underline-offset-4 hover:underline"
+                                                        >
+                                                            {m.item}
+                                                        </Link>
+                                                        <span className="text-muted-foreground">
+                                                            {' '}
+                                                            · {m.shortage}{' '}
+                                                            {m.uom} from{' '}
+                                                            {m.client}
+                                                        </span>
+                                                    </li>
+                                                ),
+                                            )}
+                                        </ul>
+                                    )}
+                                    {thirdParty.upcoming.length > 0 && (
+                                        <>
+                                            <p className="text-muted-foreground mt-4 mb-2 text-xs font-medium tracking-wide uppercase">
+                                                Deliveries due
+                                            </p>
+                                            <ul className="space-y-1 text-sm">
+                                                {thirdParty.upcoming.map(
+                                                    (u) => (
+                                                        <li
+                                                            key={u.id}
+                                                            className={
+                                                                u.overdue
+                                                                    ? 'text-red-700 dark:text-red-300'
+                                                                    : ''
+                                                            }
+                                                        >
+                                                            {u.date} ·{' '}
+                                                            {u.client} ·{' '}
+                                                            {u.product ??
+                                                                u.number}
+                                                            {u.overdue
+                                                                ? ' · overdue'
+                                                                : ''}
+                                                        </li>
+                                                    ),
+                                                )}
+                                            </ul>
+                                        </>
+                                    )}
+                                </div>
+                                <div>
+                                    <p className="text-muted-foreground mb-2 text-xs font-medium tracking-wide uppercase">
+                                        Client goods awaiting dispatch
+                                    </p>
+                                    {thirdParty.awaiting_dispatch.length ===
+                                    0 ? (
+                                        <p className="text-muted-foreground text-sm">
+                                            Nothing waiting.
+                                        </p>
+                                    ) : (
+                                        <ul className="space-y-2 text-sm">
+                                            {thirdParty.awaiting_dispatch.map(
+                                                (g) => (
+                                                    <li key={g.lot_id}>
+                                                        <Link
+                                                            href={showLot(
+                                                                g.lot_id,
+                                                            )}
+                                                            className="font-mono font-medium underline-offset-4 hover:underline"
+                                                        >
+                                                            {g.batch_number}
+                                                        </Link>
+                                                        <span className="text-muted-foreground">
+                                                            {' '}
+                                                            · {g.client} ·{' '}
+                                                            {g.product} ·{' '}
+                                                            {Number(
+                                                                g.on_hand,
+                                                            ).toLocaleString()}
+                                                        </span>
+                                                    </li>
+                                                ),
+                                            )}
+                                        </ul>
+                                    )}
+                                </div>
+                            </div>
+                        </Card>
+                    )}
 
                 <div className="grid gap-4 xl:grid-cols-3">
                     {show('production') && inProduction && (

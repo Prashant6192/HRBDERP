@@ -3,6 +3,7 @@ import { CheckCircle2, PauseCircle, Printer, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { DetailItem } from '@/components/form-field';
 import InputError from '@/components/input-error';
+import { ClientBadge } from '@/components/contract/client-badge';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,12 @@ import { show as showReceipt } from '@/routes/goods-receipts';
 import { show as showLot, sticker } from '@/routes/lots';
 import { approve, hold, index, reject, show, slip } from '@/routes/qc';
 import { edit as securitySettings } from '@/routes/security';
-import type { QcInspection, SelectOption } from '@/types';
+import type {
+    ClientRef,
+    QcInspection,
+    QcSpecParameter,
+    SelectOption,
+} from '@/types';
 
 type Decision = 'approve' | 'reject' | 'hold';
 
@@ -29,10 +35,14 @@ export default function ShowQcInspection({
     inspection,
     stockLocations,
     destinations,
+    owner,
+    clientSpec,
     can,
     pin,
 }: {
     inspection: QcInspection;
+    owner: ClientRef | null;
+    clientSpec: { parameters: QcSpecParameter[]; notes: string | null } | null;
     stockLocations: {
         warehouse: string | null;
         is_quarantine: boolean | null;
@@ -109,6 +119,34 @@ export default function ShowQcInspection({
                     }
                 />
 
+                {clientSpec && owner && (
+                    <section className="rounded-xl border border-sky-500/30 bg-sky-500/5 px-5 py-4 text-sm">
+                        <h2 className="font-semibold">
+                            {owner.name}&rsquo;s QC specification for this
+                            product
+                        </h2>
+                        <ul className="mt-2 flex flex-wrap gap-x-6 gap-y-1">
+                            {clientSpec.parameters.map((p, i) => (
+                                <li key={i}>
+                                    <span className="font-medium">
+                                        {p.name}
+                                    </span>
+                                    {p.min !== null || p.max !== null
+                                        ? ` ${p.min ?? '…'} – ${p.max ?? '…'}`
+                                        : ''}
+                                    {p.target ? ` (target ${p.target})` : ''}
+                                    {p.unit ? ` ${p.unit}` : ''}
+                                </li>
+                            ))}
+                        </ul>
+                        {clientSpec.notes && (
+                            <p className="text-muted-foreground mt-2">
+                                {clientSpec.notes}
+                            </p>
+                        )}
+                    </section>
+                )}
+
                 <div className="grid gap-6 lg:grid-cols-3">
                     <section className="bg-card rounded-xl border p-6 lg:col-span-2">
                         <h2 className="mb-5 font-semibold">Batch</h2>
@@ -130,6 +168,13 @@ export default function ShowQcInspection({
                             </DetailItem>
                             <DetailItem label="Vendor">
                                 {lot?.vendor?.name ?? '—'}
+                            </DetailItem>
+                            <DetailItem label="Owned by">
+                                {owner ? (
+                                    <ClientBadge client={owner} />
+                                ) : (
+                                    'Our company'
+                                )}
                             </DetailItem>
                             <DetailItem label="Received">
                                 {date(lot?.received_at)}

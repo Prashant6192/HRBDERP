@@ -238,6 +238,34 @@ bill, which stays attached to it. Purchase orders with approval, and supplier
 price history with its dashboards (last, average, previous, change, cheapest
 supplier, trend), are next.
 
+### Third-party / contract manufacturing — _built_
+
+The company also manufactures for other brands, and does so through the same
+workflow: Planning & Purchase → Raw Material → QC → Manufacturing → Bulk QC →
+Packaging → Finished Goods. A batch is either _Own brand_ or _Third party_;
+nothing is duplicated.
+
+A **contract client master** holds each client (`TP-001`), their addresses,
+GSTIN, terms and agreement. Products record whom they are made for; formulas
+record whose they are (company, client owned, joint), and a client's formula
+can only be planned for that client. A third-party **plan** names the client,
+their PO, product name, delivery date and the material source — ours, the
+client's, or mixed with the client-supplied materials ticked. **Client-supplied
+material** is booked in on a goods receipt in the client's name and stays the
+client's: an own-brand batch never uses it, another client's job never uses
+it, and a client-supplied line counts only that client's own batches, showing
+_Awaiting client material_ rather than a purchase requirement when short.
+Manufacturing orders carry the client through approval (client lines held from
+the client's batches), the kettle and completion; the finished batch is posted
+as the client's with a batch number that says so. Each job records its
+**commercial terms** and shows its costing: our material at actual batch
+cost, the client's material valued but not charged, the manufacturing charge,
+other charges, GST, total and margin. The client's material is **reconciled**
+from the ledger (supplied, consumed, wastage, balance). Artwork approvals and
+client QC specifications are kept per client and product, and the dashboard
+carries a third-party section. Dispatch and accounting will pick the client up
+from the finished batch when they are built.
+
 ### Dashboard — _built_
 
 A greeting with the day's headlines; in production, plans awaiting production,

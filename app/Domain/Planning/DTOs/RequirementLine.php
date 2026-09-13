@@ -38,7 +38,14 @@ final readonly class RequirementLine
         public StockAlertLevel $levelAfter,
         public array $notes = [],
         public array $availableElsewhere = [],
+        /** 'company' or 'client': whose material this line is met from. */
+        public string $source = 'company',
     ) {}
+
+    public function isClientSupplied(): bool
+    {
+        return $this->source === 'client';
+    }
 
     public function isShort(): bool
     {
@@ -68,6 +75,7 @@ final readonly class RequirementLine
             'level_after' => $this->levelAfter->value,
             'notes' => $this->notes,
             'available_elsewhere' => $this->availableElsewhere,
+            'source' => $this->source,
         ];
     }
 }

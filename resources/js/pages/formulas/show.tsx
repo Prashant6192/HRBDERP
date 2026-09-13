@@ -13,6 +13,7 @@ import { ConfirmDialog, DeleteDialog } from '@/components/confirm-dialog';
 import { DetailItem } from '@/components/form-field';
 import { FormulaLockChip } from '@/components/formula-lock-chip';
 import { PageHeader } from '@/components/page-header';
+import { OWNERSHIP_LABEL } from '@/lib/contract';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -141,7 +142,7 @@ export default function ShowFormula({
             <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
                 <PageHeader
                     title={formula.name}
-                    description={`${formula.code}${formula.product ? ` · ${formula.product.name}` : ''}`}
+                    description={`${formula.code}${formula.product ? ` · ${formula.product.name}` : ''}${formula.ownership && formula.ownership !== 'company' ? ` · ${OWNERSHIP_LABEL[formula.ownership]}${formula.client ? ` — ${formula.client.name}` : ''}` : ''}`}
                     actions={
                         <div className="flex flex-wrap items-center gap-2">
                             <FormulaLockChip />

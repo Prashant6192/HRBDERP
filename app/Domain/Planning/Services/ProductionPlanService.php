@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Domain\Planning\Services;
 
+use App\Domain\Contract\Enums\ManufacturingType;
+use App\Domain\Contract\Enums\MaterialSource;
+use App\Domain\Contract\Models\Client;
 use App\Domain\Formulation\Models\Formula;
 use App\Domain\Inventory\Services\SequenceService;
 use App\Domain\Measurement\Models\Uom;
@@ -35,13 +38,13 @@ class ProductionPlanService
     /**
      * Raise a plan and check it straight away.
      *
-     * @param  array{formula_id: int, quantity: string, uom_id: int, facility_id?: int|null, planned_start_date?: string|null, notes?: string|null}  $attributes
+     * @param  array{formula_id: int, quantity: string, uom_id: int, facility_id?: int|null, planned_start_date?: string|null, notes?: string|null, manufacturing_type?: string|null, client_id?: int|null, client_po_ref?: string|null, client_product_name?: string|null, required_delivery_at?: string|null, material_source?: string|null, client_supplied_item_ids?: list<int>|null}  $attributes
      */
     public function create(array $attributes, ?int $userId): ProductionPlan
     {
         return DB::transaction(function () use ($attributes, $userId): ProductionPlan {
             $facility = $this->manufacturingFacility($attributes['facility_id'] ?? null);
-            $formula = Formula::query()->with('activeVersion', 'product')->findOrFail($attributes['formula_id']);
+            $formula = Formula::query()->with(['activeVersion.ingredients', 'product.packagingLines', 'client'])->findOrFail($attributes['formula_id']);
 
             if ($formula->isArchived()) {
                 throw new PlanningException("{$formula->name} is archived and cannot be planned.");
@@ -49,6 +52,46 @@ class ProductionPlanService
 
             if ($formula->activeVersion === null) {
                 throw new PlanningException("{$formula->name} has no active version. Activate a recipe before planning a batch from it.");
+            }
+
+            // Whose batch: the company's, or a client's under contract.
+            $type = ManufacturingType::from($attributes['manufacturing_type'] ?? ManufacturingType::Own->value);
+            $client = null;
+
+            if ($type->isThirdParty()) {
+                $client = Client::query()->find($attributes['client_id'] ?? null);
+
+                if ($client === null) {
+                    throw new PlanningException('Choose the client the batch is made for.');
+                }
+
+                if (! $client->is_active) {
+                    throw new PlanningException("{$client->name} is inactive; reactivate the client before planning a batch for them.");
+                }
+            }
+
+            // A client's formula is made for that client and nobody else.
+            if (! $formula->canBeMadeFor($client?->id)) {
+                throw new PlanningException(sprintf(
+                    '%s is %s%s and can only be made for that client.',
+                    $formula->name,
+                    strtolower($formula->ownership->label()),
+                    $formula->client ? " by {$formula->client->name}" : '',
+                ));
+            }
+
+            $source = $type->isThirdParty() ? MaterialSource::from($attributes['material_source'] ?? MaterialSource::Company->value) : MaterialSource::Company;
+            $supplied = match ($source) {
+                MaterialSource::Company => [],
+                MaterialSource::Client => array_values(array_unique([
+                    ...$formula->activeVersion->ingredients->pluck('item_id')->map(fn ($id) => (int) $id)->all(),
+                    ...($formula->product?->packagingLines->pluck('packaging_material_id')->map(fn ($id) => (int) $id)->all() ?? []),
+                ])),
+                MaterialSource::Mixed => array_values(array_unique(array_map('intval', $attributes['client_supplied_item_ids'] ?? []))),
+            };
+
+            if ($source === MaterialSource::Mixed && $supplied === []) {
+                throw new PlanningException('Tick the materials the client supplies, or choose "Our material".');
             }
 
             $uom = Uom::findOrFail($attributes['uom_id']);
@@ -64,6 +107,13 @@ class ProductionPlanService
                 'status' => ProductionPlanStatus::Draft,
                 'planned_start_date' => $attributes['planned_start_date'] ?? null,
                 'notes' => $attributes['notes'] ?? null,
+                'manufacturing_type' => $type,
+                'client_id' => $client?->id,
+                'client_po_ref' => $type->isThirdParty() ? ($attributes['client_po_ref'] ?? null) : null,
+                'client_product_name' => $type->isThirdParty() ? ($attributes['client_product_name'] ?? null) : null,
+                'required_delivery_at' => $type->isThirdParty() ? ($attributes['required_delivery_at'] ?? null) : null,
+                'material_source' => $source,
+                'client_supplied_item_ids' => $supplied === [] ? null : $supplied,
                 'created_by' => $userId,
             ]);
 
@@ -77,7 +127,7 @@ class ProductionPlanService
     public function check(ProductionPlan $plan): ProductionPlan
     {
         return DB::transaction(function () use ($plan): ProductionPlan {
-            $plan = ProductionPlan::query()->lockForUpdate()->with(['formulaVersion', 'plannedUom', 'product', 'facility'])->findOrFail($plan->getKey());
+            $plan = ProductionPlan::query()->lockForUpdate()->with(['formulaVersion', 'plannedUom', 'product.client', 'facility', 'client'])->findOrFail($plan->getKey());
 
             if (! $plan->status->canBeChecked()) {
                 throw new PlanningException("{$plan->number} is {$plan->status->label()} and cannot be re-checked.");
@@ -89,7 +139,18 @@ class ProductionPlanService
                 $plan->facility()->associate($this->manufacturingFacility(null));
             }
 
-            $result = $this->requirements->calculate($plan->formulaVersion, $plan->planned_quantity, $plan->plannedUom, $plan->product, $plan->facility);
+            $result = $this->requirements->calculate($plan->formulaVersion, $plan->planned_quantity, $plan->plannedUom, $plan->product, $plan->facility, $plan->client_id, $plan->clientSuppliedItemIds());
+
+            // A product on file as made for one client, planned for another
+            // (or for our own brand), is worth a second look.
+            if ($plan->product?->client_id !== null && $plan->product->client_id !== $plan->client_id) {
+                $result->warnings[] = sprintf(
+                    '%s is on file as manufactured for %s; this batch is %s.',
+                    $plan->product->name,
+                    $plan->product->client?->name ?? 'another client',
+                    $plan->isThirdParty() ? "for {$plan->client?->name}" : 'for our own brand',
+                );
+            }
 
             $plan->lines()->delete();
 
@@ -100,6 +161,7 @@ class ProductionPlanService
                 $plan->lines()->create([
                     'line_no' => ++$lineNo,
                     'store_kind' => $line->storeKind,
+                    'source' => $line->source,
                     'item_id' => $line->itemId,
                     'uom_id' => $line->uomId,
                     'percentage' => $line->percentage?->__toString(),
@@ -179,6 +241,7 @@ class ProductionPlanService
                 foreach ($lines as $index => $line) {
                     $request->lines()->create([
                         'line_no' => $index + 1,
+                        'source' => $line->source,
                         'item_id' => $line->item_id,
                         'uom_id' => $line->uom_id,
                         'required_quantity' => $line->required_quantity,

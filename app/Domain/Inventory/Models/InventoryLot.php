@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Inventory\Models;
 
 use App\Domain\Audit\Concerns\RecordsAuditTrail;
+use App\Domain\Contract\Models\Client;
 use App\Domain\Inventory\Enums\LotQcStatus;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\Procurement\Models\Vendor;
@@ -40,7 +41,7 @@ class InventoryLot extends Model
     use RecordsAuditTrail;
 
     protected $fillable = [
-        'item_id', 'batch_number', 'supplier_batch_ref', 'vendor_id',
+        'item_id', 'batch_number', 'supplier_batch_ref', 'vendor_id', 'owner_client_id',
         'manufactured_at', 'received_at', 'expiry_at',
         'qc_status', 'qc_decided_at', 'qc_decided_by',
         'initial_quantity', 'unit_cost',
@@ -143,5 +144,22 @@ class InventoryLot extends Model
     {
         return $query->whereNotNull('expiry_at')
             ->whereDate('expiry_at', '<=', now()->addDays($days)->toDateString());
+    }
+
+    /**
+     * The third-party client this batch belongs to while it sits in our
+     * store: material they supplied, or finished goods made for them.
+     * Null is the company's own stock.
+     *
+     * @return BelongsTo<Client, $this>
+     */
+    public function ownerClient(): BelongsTo
+    {
+        return $this->belongsTo(Client::class, 'owner_client_id');
+    }
+
+    public function isClientOwned(): bool
+    {
+        return $this->owner_client_id !== null;
     }
 }

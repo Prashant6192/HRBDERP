@@ -353,6 +353,44 @@ and `parameters` (`jsonb`) for test results.
 
 ---
 
+## Third-party / contract manufacturing
+
+### `clients`
+
+A brand the company manufactures for: `code` (`TP-001`), `name`,
+`legal_name`, `gstin`, `pan`, contact, billing and shipping address columns,
+`payment_terms_days`, `credit_limit`, `agreement_ref`, `agreement_expires_at`,
+`notes`, `is_active`. Soft-deleted; a client with jobs, stock, products or
+formulas cannot be removed.
+
+### `client_artworks`, `client_qc_specs`
+
+An artwork version per client (and optionally product): `kind` (label,
+carton, bottle, other), `title`, `version`, `status` (pending, approved,
+superseded, rejected), the client's approval date and approver, the approval
+document (private `local` disk under `clients/artworks/`). A QC specification
+per client and product: `parameters` (`jsonb`: name, min, max, target, unit)
+and notes; unique per pair.
+
+### The client as a tag
+
+Nothing else is duplicated; the client rides on the ordinary tables:
+
+- `items.client_id` — the product is made for this client (null: own brand).
+- `formulas.ownership` (company, client, joint) and `formulas.client_id`.
+- `inventory_lots.owner_client_id` — the batch is the client's while it is in
+  our store: material they supplied, or finished goods made for them. Every
+  availability, reservation and consumption query honours it.
+- `goods_receipts.owner_client_id` — the receipt was booked in the client's
+  name; its batches take the owner.
+- `production_plans` and `manufacturing_orders`: `manufacturing_type` (own,
+  third_party), `client_id`, `client_po_ref`, `required_delivery_at`,
+  `material_source` (company, client, mixed), `client_supplied_item_ids`
+  (`jsonb` list); plans also `client_product_name`; orders also `charges`
+  (`jsonb`: the commercial terms).
+- `production_plan_lines.source` and `material_request_lines.source`
+  (company, client) — whose material meets the line.
+
 ## Formulations
 
 ### `formulas`

@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Domain\Planning\Models;
 
 use App\Domain\Audit\Concerns\RecordsAuditTrail;
+use App\Domain\Contract\Enums\ManufacturingType;
+use App\Domain\Contract\Enums\MaterialSource;
+use App\Domain\Contract\Models\Client;
 use App\Domain\Formulation\Models\Formula;
 use App\Domain\Formulation\Models\FormulaVersion;
 use App\Domain\MasterData\Models\Product;
@@ -46,6 +49,8 @@ class ProductionPlan extends Model
     protected $fillable = [
         'number', 'facility_id', 'formula_id', 'formula_version_id', 'product_id', 'planned_quantity', 'planned_uom_id',
         'planned_units', 'status', 'planned_start_date', 'notes', 'warnings', 'created_by',
+        'manufacturing_type', 'client_id', 'client_po_ref', 'client_product_name', 'required_delivery_at',
+        'material_source', 'client_supplied_item_ids',
         'checked_at', 'requested_at', 'cancelled_at',
     ];
 
@@ -55,6 +60,10 @@ class ProductionPlan extends Model
     protected function casts(): array
     {
         return [
+            'manufacturing_type' => ManufacturingType::class,
+            'material_source' => MaterialSource::class,
+            'required_delivery_at' => 'date',
+            'client_supplied_item_ids' => 'array',
             'status' => ProductionPlanStatus::class,
             'planned_start_date' => 'date',
             'planned_units' => 'integer',
@@ -175,5 +184,28 @@ class ProductionPlan extends Model
             ProductionPlanStatus::Requested->value,
             ProductionPlanStatus::InProduction->value,
         ]);
+    }
+
+    /**
+     * The third-party client the batch is for; null for the company's own brand.
+     *
+     * @return BelongsTo<Client, $this>
+     */
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class, 'client_id');
+    }
+
+    public function isThirdParty(): bool
+    {
+        return $this->manufacturing_type === ManufacturingType::ThirdParty && $this->client_id !== null;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function clientSuppliedItemIds(): array
+    {
+        return $this->isThirdParty() ? array_values(array_map('intval', $this->client_supplied_item_ids ?? [])) : [];
     }
 }

@@ -21,6 +21,8 @@ class StoreGoodsReceiptRequest extends FormRequest
     {
         return [
             'vendor_id' => ['nullable', 'integer', Rule::exists('vendors', 'id')->whereNull('deleted_at')],
+            // Material a third-party client sent for their own job.
+            'owner_client_id' => ['nullable', 'integer', Rule::exists('clients', 'id')->where('is_active', true)->whereNull('deleted_at')],
 
             // Booked in against a material request: its lines close as stock lands.
             'material_request_id' => [

@@ -41,6 +41,16 @@ use Brick\Math\RoundingMode;
  */
 class ProductionRequirementService
 {
+    /** The client a third-party batch is for, while a calculation runs. */
+    private ?int $clientId = null;
+
+    /**
+     * Items the client supplies for that batch.
+     *
+     * @var list<int>
+     */
+    private array $clientSupplied = [];
+
     public function __construct(
         private readonly FormulaScalingService $scaling,
         private readonly StockBalanceService $balances,
@@ -50,8 +60,14 @@ class ProductionRequirementService
         private readonly StockTransferService $transfers,
     ) {}
 
-    public function calculate(FormulaVersion $version, BigDecimal|string|int $quantity, Uom $uom, ?Product $product = null, ?Facility $facility = null): RequirementResult
+    /**
+     * @param  list<int>  $clientSuppliedItemIds  materials the client supplies: only that client's own stock counts for them
+     */
+    public function calculate(FormulaVersion $version, BigDecimal|string|int $quantity, Uom $uom, ?Product $product = null, ?Facility $facility = null, ?int $clientId = null, array $clientSuppliedItemIds = []): RequirementResult
     {
+        $this->clientId = $clientId;
+        $this->clientSupplied = array_map('intval', $clientSuppliedItemIds);
+
         $batch = BigDecimal::of($quantity);
         $result = new RequirementResult($batch, $uom->code, null);
 
@@ -202,9 +218,15 @@ class ProductionRequirementService
         $scale = (int) config('erp.precision.quantity_scale', 6);
         $required = $required->toScale($scale, RoundingMode::HalfUp);
 
+        // A client-supplied material is met from that client's own batches
+        // alone; anything else from the company's, never from another
+        // client's.
+        $clientSupplied = in_array($item->id, $this->clientSupplied, true);
+        $owner = $clientSupplied ? $this->clientId : null;
+
         $available = $store === null
             ? BigDecimal::zero()
-            : $this->balances->availableForProduction($item, [$store->id])->toScale($scale, RoundingMode::HalfUp);
+            : $this->balances->availableForProduction($item, [$store->id], $owner)->toScale($scale, RoundingMode::HalfUp);
 
         $shortage = $required->minus($available);
         $shortage = $shortage->isNegative() ? BigDecimal::zero() : $shortage;
@@ -226,7 +248,16 @@ class ProductionRequirementService
         // a transfer instead of a purchase.
         $elsewhere = [];
 
-        if ($shortage->isPositive() && $facility !== null) {
+        if ($clientSupplied) {
+            // Nothing to order or to restock: the client sends it.
+            $restock = $shortage;
+
+            if ($shortage->isPositive()) {
+                $notes[] = sprintf('Awaiting client material: %s %s still to come from the client.', $shortage->strippedOfTrailingZeros(), $item->stockUom->code);
+            }
+        }
+
+        if ($shortage->isPositive() && $facility !== null && ! $clientSupplied) {
             $elsewhere = $this->transfers->availableElsewhere($item, $facility, $kind->warehouseType())
                 ->map(static fn (array $row): array => [
                     'facility_id' => $row['facility_id'],
@@ -254,6 +285,7 @@ class ProductionRequirementService
             levelAfter: $shortage->isPositive() ? StockAlertLevel::OutOfStock : $this->alerts->levelAt($item, $store, $afterRun),
             notes: $notes,
             availableElsewhere: $elsewhere,
+            source: $clientSupplied ? 'client' : 'company',
         );
     }
 }

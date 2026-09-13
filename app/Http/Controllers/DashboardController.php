@@ -60,6 +60,7 @@ class DashboardController extends Controller
             'output' => fn () => $user->can('production.view') && $manufacturing ? $this->dashboard->output(12, $facility) : null,
             'inProduction' => fn () => $user->can('production.view') && $manufacturing ? $this->dashboard->inProduction(6, $facility) : null,
             'upcoming' => fn () => $user->can('planning.view') || $user->can('purchase.view') ? $this->dashboard->upcoming($user, 14, $facility) : null,
+            'thirdParty' => fn () => $user->can('production.view') && $manufacturing ? $this->dashboard->thirdParty($facility) : null,
 
             'recentActivity' => fn () => $user->can('audit.view') ? $this->recentActivity() : null,
             'quickActions' => [

@@ -9,11 +9,13 @@ export default function EditProduct({
     item,
     categories,
     uoms,
+    clients,
     itemType,
 }: {
     item: Item;
     categories: SelectOption[];
     uoms: UomOption[];
+    clients: SelectOption[];
     itemType: string;
 }) {
     return (
@@ -32,6 +34,7 @@ export default function EditProduct({
                         itemType={itemType}
                         categories={categories}
                         uoms={uoms}
+                        clients={clients}
                         action={{ url: update(item.id).url, method: 'put' }}
                         submitLabel="Save changes"
                     />

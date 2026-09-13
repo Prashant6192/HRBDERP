@@ -15,7 +15,7 @@ class MaterialRequestPdfService
 {
     public function render(MaterialRequest $request): PdfDocument
     {
-        $request->load(['plan.formula', 'plan.product', 'plan.plannedUom', 'warehouse', 'requestedBy', 'lines.item', 'lines.uom']);
+        $request->load(['plan.formula', 'plan.product', 'plan.plannedUom', 'plan.client', 'warehouse', 'requestedBy', 'lines.item', 'lines.uom']);
 
         return Pdf::loadView('pdf.material-request', [
             'request' => $request,

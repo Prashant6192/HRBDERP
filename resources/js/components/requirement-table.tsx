@@ -83,6 +83,14 @@ export function RequirementTable({
                                             : line.is_qs
                                               ? ' · QS'
                                               : ''}
+                                        {line.source === 'client' && (
+                                            <StatusBadge
+                                                variant="info"
+                                                className="ml-2"
+                                            >
+                                                Client supplied
+                                            </StatusBadge>
+                                        )}
                                     </div>
                                     {line.notes.map((n, i) => (
                                         <div
@@ -138,7 +146,14 @@ export function RequirementTable({
                                     {qty(line.available)} {line.uom}
                                 </TableCell>
                                 <TableCell className="text-right tabular-nums">
-                                    {short ? (
+                                    {short && line.source === 'client' ? (
+                                        <span className="font-semibold text-amber-700 dark:text-amber-300">
+                                            {qty(line.shortage)} {line.uom}
+                                            <span className="block text-xs font-normal">
+                                                awaiting client
+                                            </span>
+                                        </span>
+                                    ) : short ? (
                                         <span className="font-semibold text-red-700 dark:text-red-300">
                                             {qty(line.shortage)} {line.uom}
                                         </span>
@@ -149,9 +164,11 @@ export function RequirementTable({
                                     )}
                                 </TableCell>
                                 <TableCell className="text-right tabular-nums">
-                                    {Number(line.restock) > 0
-                                        ? `${qty(line.restock)} ${line.uom}`
-                                        : '—'}
+                                    {line.source === 'client'
+                                        ? 'from client'
+                                        : Number(line.restock) > 0
+                                          ? `${qty(line.restock)} ${line.uom}`
+                                          : '—'}
                                 </TableCell>
                                 <TableCell>
                                     <div className="flex items-center gap-1.5 whitespace-nowrap">

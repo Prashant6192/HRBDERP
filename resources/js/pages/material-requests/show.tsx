@@ -1,6 +1,7 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { FileDown, PackagePlus, XCircle } from 'lucide-react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { ClientBadge } from '@/components/contract/client-badge';
 import { DetailItem } from '@/components/form-field';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
@@ -49,6 +50,9 @@ export default function ShowMaterialRequest({
                     description={`${STORE_LABEL[request.store_kind]} · ${request.warehouse?.code ?? ''} ${request.warehouse?.name ?? ''}`}
                     actions={
                         <div className="flex flex-wrap items-center gap-2">
+                            {request.plan?.client && (
+                                <ClientBadge client={request.plan.client} />
+                            )}
                             <StatusBadge
                                 variant={PMR_STATUS_VARIANT[request.status]}
                             >
@@ -221,6 +225,14 @@ export default function ShowMaterialRequest({
                                         <TableCell>
                                             <div className="font-medium">
                                                 {l.item_name}
+                                                {l.source === 'client' && (
+                                                    <StatusBadge
+                                                        variant="info"
+                                                        className="ml-2"
+                                                    >
+                                                        Client supplied
+                                                    </StatusBadge>
+                                                )}
                                             </div>
                                             <div className="text-muted-foreground text-xs">
                                                 {l.item_code}
@@ -235,6 +247,9 @@ export default function ShowMaterialRequest({
                                         <TableCell className="text-right tabular-nums">
                                             {Number(l.to_order) > 0 ? (
                                                 <span className="font-semibold text-red-700 dark:text-red-300">
+                                                    {l.source === 'client'
+                                                        ? 'Awaiting client: '
+                                                        : ''}
                                                     {qty(l.to_order)} {l.uom}
                                                 </span>
                                             ) : (

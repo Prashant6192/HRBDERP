@@ -15,6 +15,7 @@ use App\Domain\Planning\Enums\ProductionPlanStatus;
 use App\Domain\Planning\Models\MaterialRequest;
 use App\Domain\Planning\Models\MaterialRequestLine;
 use App\Domain\Planning\Models\ProductionPlan;
+use App\Domain\Planning\Models\ProductionPlanLine;
 use App\Domain\Procurement\Models\GoodsReceiptLine;
 use App\Domain\Quality\Models\QcInspection;
 use App\Domain\Warehousing\Enums\WarehouseType;
@@ -444,5 +445,126 @@ class DashboardService
         }
 
         return $lines;
+    }
+
+    /**
+     * Third-party manufacturing at a glance: the client jobs in hand, what
+     * is waiting on a client's material, finished goods of theirs awaiting
+     * dispatch, this month's output for clients, and the delivery dates
+     * coming up. Same pipeline as own-brand work; a different lens on it.
+     *
+     * @return array<string, mixed>
+     */
+    public function thirdParty(?Facility $facility = null, int $days = 14): array
+    {
+        $today = CarbonImmutable::today();
+        $storeIds = $this->storeIds($facility);
+
+        $active = ManufacturingOrder::query()
+            ->where('manufacturing_type', 'third_party')
+            ->when($facility, fn ($q) => $q->where('facility_id', $facility->id))
+            ->open()
+            ->with(['client:id,code,name', 'product:id,name', 'plannedUom:id,code', 'outputLot:id,qc_status'])
+            ->orderByRaw("case status when 'in_progress' then 0 when 'approved' then 1 else 2 end")
+            ->orderBy('required_delivery_at')
+            ->limit(8)
+            ->get()
+            ->map(fn (ManufacturingOrder $o): array => [
+                'id' => $o->id,
+                'number' => $o->number,
+                'client' => $o->client?->name,
+                'product' => $o->product?->name,
+                'batch' => rtrim(rtrim($o->planned_quantity, '0'), '.').' '.($o->plannedUom?->code ?? '').($o->planned_units ? " · {$o->planned_units} units" : ''),
+                'status' => $o->status->value,
+                'status_label' => $o->status->label(),
+                'stage' => match ($o->status) {
+                    ManufacturingOrderStatus::InProgress => 2,
+                    ManufacturingOrderStatus::Approved => 1,
+                    default => 0,
+                },
+                'required_delivery_at' => $o->required_delivery_at?->toDateString(),
+                'client_po_ref' => $o->client_po_ref,
+            ])
+            ->all();
+
+        $awaitingMaterial = ProductionPlanLine::query()
+            ->where('source', 'client')
+            ->where('shortage_quantity', '>', 0)
+            ->whereHas('plan', fn ($q) => $q
+                ->whereIn('status', [ProductionPlanStatus::Checked->value, ProductionPlanStatus::Requested->value])
+                ->when($facility, fn ($q) => $q->where('facility_id', $facility->id)))
+            ->with(['plan:id,number,client_id,client_po_ref', 'plan.client:id,name', 'item:id,name,stock_uom_id', 'item.stockUom:id,code'])
+            ->orderByDesc('id')
+            ->limit(8)
+            ->get()
+            ->map(fn (ProductionPlanLine $l): array => [
+                'plan_id' => $l->production_plan_id,
+                'plan' => $l->plan?->number,
+                'client' => $l->plan?->client?->name,
+                'item' => $l->item?->name,
+                'shortage' => $l->shortage_quantity,
+                'uom' => $l->item?->stockUom?->code,
+            ])
+            ->all();
+
+        $awaitingDispatch = InventoryLot::query()
+            ->whereNotNull('owner_client_id')
+            ->whereIn('qc_status', [LotQcStatus::Approved->value, LotQcStatus::NotRequired->value])
+            ->whereHas('item', fn ($q) => $q->where('type', 'finished_good'))
+            ->with(['ownerClient:id,name', 'item:id,name'])
+            ->withSum(['balances as on_hand' => fn ($q) => $q->when($storeIds !== null, fn ($q) => $q->whereIn('warehouse_id', $storeIds))], 'on_hand')
+            ->orderByDesc('id')
+            ->get()
+            ->filter(fn (InventoryLot $lot) => (float) ($lot->on_hand ?? 0) > 0)
+            ->take(8)
+            ->map(fn (InventoryLot $lot): array => [
+                'lot_id' => $lot->id,
+                'batch_number' => $lot->batch_number,
+                'client' => $lot->ownerClient?->name,
+                'product' => $lot->item?->name,
+                'on_hand' => (string) $lot->on_hand,
+                'manufactured_at' => $lot->manufactured_at?->toDateString(),
+            ])
+            ->values()
+            ->all();
+
+        $completedThisMonth = ManufacturingOrder::query()
+            ->where('manufacturing_type', 'third_party')
+            ->where('status', ManufacturingOrderStatus::Completed->value)
+            ->when($facility, fn ($q) => $q->where('facility_id', $facility->id))
+            ->whereBetween('completed_at', [$today->startOfMonth(), $today->endOfMonth()])
+            ->get(['id', 'output_units', 'client_id']);
+
+        $upcoming = ManufacturingOrder::query()
+            ->where('manufacturing_type', 'third_party')
+            ->open()
+            ->when($facility, fn ($q) => $q->where('facility_id', $facility->id))
+            ->whereNotNull('required_delivery_at')
+            ->where('required_delivery_at', '<=', $today->addDays($days))
+            ->with(['client:id,name', 'product:id,name'])
+            ->orderBy('required_delivery_at')
+            ->limit(8)
+            ->get()
+            ->map(fn (ManufacturingOrder $o): array => [
+                'id' => $o->id,
+                'number' => $o->number,
+                'client' => $o->client?->name,
+                'product' => $o->product?->name,
+                'date' => $o->required_delivery_at?->toDateString(),
+                'overdue' => $o->required_delivery_at !== null && $o->required_delivery_at->lt($today),
+            ])
+            ->all();
+
+        return [
+            'active' => $active,
+            'awaiting_material' => $awaitingMaterial,
+            'awaiting_dispatch' => $awaitingDispatch,
+            'this_month' => [
+                'batches' => $completedThisMonth->count(),
+                'units' => (int) $completedThisMonth->sum('output_units'),
+                'clients' => $completedThisMonth->pluck('client_id')->unique()->count(),
+            ],
+            'upcoming' => $upcoming,
+        ];
     }
 }

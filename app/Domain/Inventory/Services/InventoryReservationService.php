@@ -38,7 +38,9 @@ class InventoryReservationService
 
     /**
      * Reserve a quantity of an item in a warehouse, drawing on released lots
-     * in expiry order. One reservation row is written per lot used.
+     * in expiry order. One reservation row is written per lot used. Only
+     * the company's own batches are drawn unless a client is named, in
+     * which case only that client's are.
      *
      * @return Collection<int, StockReservation>
      *
@@ -52,6 +54,8 @@ class InventoryReservationService
         ?int $userId = null,
         ?string $notes = null,
         ?int $lotId = null,
+        ?int $ownerClientId = null,
+        bool $anyOwner = false,
     ): Collection {
         $requested = BigDecimal::of($quantity);
 
@@ -59,8 +63,10 @@ class InventoryReservationService
             throw new InvalidArgumentException('A reservation must be for a positive quantity.');
         }
 
-        return DB::transaction(function () use ($reservable, $item, $warehouse, $requested, $userId, $notes, $lotId): Collection {
-            $candidates = $this->balances->releasableBalances($item, [$warehouse->id], lock: true);
+        return DB::transaction(function () use ($reservable, $item, $warehouse, $requested, $userId, $notes, $lotId, $ownerClientId, $anyOwner): Collection {
+            // A named batch is taken whoever owns it; otherwise only batches
+            // of the right owner (the company's, or one client's) qualify.
+            $candidates = $this->balances->releasableBalances($item, [$warehouse->id], lock: true, ownerClientId: $ownerClientId, anyOwner: $anyOwner || $lotId !== null);
 
             // A caller that names the batch gets that batch or nothing.
             if ($lotId !== null) {

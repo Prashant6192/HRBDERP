@@ -43,6 +43,8 @@ class StoreItemRequest extends FormRequest
             'standard_cost' => ['nullable', 'numeric', 'min:0'],
 
             'brand' => ['nullable', 'string', 'max:128'],
+            // "Manufactured for": a third-party client, or nobody for our own brand.
+            'client_id' => ['nullable', 'integer', Rule::exists('clients', 'id')->whereNull('deleted_at')],
             'mrp' => ['nullable', 'numeric', 'min:0'],
             'net_content' => ['nullable', 'numeric', 'gt:0'],
             'net_content_uom_id' => ['nullable', 'integer', Rule::exists('uoms', 'id')],

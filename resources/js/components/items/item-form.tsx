@@ -19,6 +19,8 @@ type ItemFormProps = {
     itemType: string;
     categories: SelectOption[];
     uoms: UomOption[];
+    /** Third-party clients a product may be made for. */
+    clients?: SelectOption[];
     action: { url: string; method: 'post' | 'put' };
     submitLabel: string;
 };
@@ -40,9 +42,14 @@ export function ItemForm({
     itemType,
     categories,
     uoms,
+    clients = [],
     action,
     submitLabel,
 }: ItemFormProps) {
+    const OWN = '__own__';
+    const [clientId, setClientId] = useState(
+        item?.client_id ? String(item.client_id) : '',
+    );
     const isProduct = itemType === 'finished_good';
     const isRawMaterial = itemType === 'raw_material';
     const isMaterial = !isProduct;
@@ -257,6 +264,45 @@ export function ItemForm({
                                     name="brand"
                                     defaultValue={item?.brand ?? ''}
                                 />
+                            </Field>
+
+                            <Field
+                                label="Manufactured for"
+                                htmlFor="client_id"
+                                error={errors.client_id}
+                                hint="Our own brand, or a third-party client the product is made for."
+                            >
+                                <input
+                                    type="hidden"
+                                    name="client_id"
+                                    value={clientId}
+                                />
+                                <Select
+                                    value={clientId || OWN}
+                                    onValueChange={(v) =>
+                                        setClientId(v === OWN ? '' : v)
+                                    }
+                                >
+                                    <SelectTrigger
+                                        id="client_id"
+                                        className="w-full"
+                                    >
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value={OWN}>
+                                            Our own brand
+                                        </SelectItem>
+                                        {clients.map((c) => (
+                                            <SelectItem
+                                                key={c.value}
+                                                value={String(c.value)}
+                                            >
+                                                {c.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </Field>
 
                             <Field

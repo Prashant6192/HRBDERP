@@ -8,10 +8,12 @@ import type { SelectOption, UomOption } from '@/types';
 export default function CreateProduct({
     categories,
     uoms,
+    clients,
     itemType,
 }: {
     categories: SelectOption[];
     uoms: UomOption[];
+    clients: SelectOption[];
     itemType: string;
 }) {
     return (
@@ -29,6 +31,7 @@ export default function CreateProduct({
                         itemType={itemType}
                         categories={categories}
                         uoms={uoms}
+                        clients={clients}
                         action={{ url: store().url, method: 'post' }}
                         submitLabel="Create product"
                     />

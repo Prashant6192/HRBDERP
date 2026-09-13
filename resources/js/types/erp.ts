@@ -73,6 +73,8 @@ export type Item = {
     gst_rate: string | null;
     standard_cost: string | null;
     brand: string | null;
+    client_id?: number | null;
+    client?: ClientRef | null;
     mrp: string | null;
     net_content: string | null;
     barcode: string | null;
@@ -267,6 +269,140 @@ export type Warehouse = {
     created_at: string;
 };
 
+// ---- Third-party / contract manufacturing ---------------------------------
+
+export type ManufacturingType = 'own' | 'third_party';
+export type FormulaOwnership = 'company' | 'client' | 'joint';
+export type MaterialSource = 'company' | 'client' | 'mixed';
+export type ArtworkStatus = 'pending' | 'approved' | 'superseded' | 'rejected';
+
+/** Enough of a client to name it and link to it. */
+export type ClientRef = { id: number; code: string; name: string };
+
+export type Client = {
+    id: number;
+    code: string;
+    name: string;
+    legal_name: string | null;
+    gstin: string | null;
+    pan: string | null;
+    contact_person: string | null;
+    phone: string | null;
+    email: string | null;
+    billing_address_line_1: string | null;
+    billing_address_line_2: string | null;
+    billing_city: string | null;
+    billing_state: string | null;
+    billing_pincode: string | null;
+    shipping_address_line_1: string | null;
+    shipping_address_line_2: string | null;
+    shipping_city: string | null;
+    shipping_state: string | null;
+    shipping_pincode: string | null;
+    payment_terms_days: number | null;
+    credit_limit: string | null;
+    agreement_ref: string | null;
+    agreement_expires_at: string | null;
+    notes: string | null;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+};
+
+export type QcSpecParameter = {
+    name: string;
+    min: string | null;
+    max: string | null;
+    target: string | null;
+    unit: string | null;
+};
+
+export type JobCosting = {
+    has_terms: boolean;
+    basis: 'estimate' | 'actual';
+    terms: {
+        manufacturing_rate: string;
+        rate_basis: 'per_quantity' | 'per_unit';
+        rate_unit: string;
+        bill_materials: boolean;
+        material_markup_pct: string;
+        gst_rate: string;
+        testing: string;
+        development: string;
+        artwork: string;
+        freight: string;
+        other: string;
+        notes: string | null;
+    };
+    estimated_material_cost: string;
+    raw_material_cost: string;
+    packaging_cost: string;
+    company_material_cost: string;
+    client_material_value: string;
+    material_charge: string;
+    manufacturing_charge: string;
+    charged_quantity: string;
+    other_charges: string;
+    chargeable: string;
+    gst: string;
+    total: string;
+    margin: string;
+};
+
+export type ReconciliationRow = {
+    item_id: number;
+    item_code: string;
+    item_name: string;
+    item_type: string;
+    uom: string | null;
+    lots: number;
+    supplied: string;
+    consumed: string;
+    consumed_on_job: string;
+    wastage: string;
+    balance: string;
+};
+
+export type ThirdPartySummary = {
+    active: {
+        id: number;
+        number: string;
+        client: string | null;
+        product: string | null;
+        batch: string;
+        status: string;
+        status_label: string;
+        stage: number;
+        required_delivery_at: string | null;
+        client_po_ref: string | null;
+    }[];
+    awaiting_material: {
+        plan_id: number;
+        plan: string | null;
+        client: string | null;
+        item: string | null;
+        shortage: string;
+        uom: string | null;
+    }[];
+    awaiting_dispatch: {
+        lot_id: number;
+        batch_number: string;
+        client: string | null;
+        product: string | null;
+        on_hand: string;
+        manufactured_at: string | null;
+    }[];
+    this_month: { batches: number; units: number; clients: number };
+    upcoming: {
+        id: number;
+        number: string;
+        client: string | null;
+        product: string | null;
+        date: string | null;
+        overdue: boolean;
+    }[];
+};
+
 export type Vendor = {
     id: number;
     code: string;
@@ -352,6 +488,8 @@ export type InventoryLot = {
     batch_number: string;
     supplier_batch_ref: string | null;
     vendor?: { id: number; name: string } | null;
+    owner_client_id?: number | null;
+    owner_client?: ClientRef | null;
     manufactured_at: string | null;
     received_at: string | null;
     expiry_at: string | null;
@@ -406,6 +544,7 @@ export type GoodsReceipt = {
     id: number;
     number: string;
     vendor?: { id: number; name: string; code?: string } | null;
+    owner_client?: ClientRef | null;
     warehouse?: { id: number; code: string; name: string } | null;
     received_at: string;
     invoice_ref: string | null;
@@ -463,6 +602,7 @@ export type StockRow = {
     on_hand: string;
     reserved: string;
     available: string;
+    client_owned: string;
     reorder_level: string | null;
     minimum_stock: string | null;
     level: StockAlertLevel;
@@ -512,6 +652,9 @@ export type FormulaSummary = {
     status: FormulaStatus;
     product_id: number | null;
     product?: { id: number; code: string; name: string } | null;
+    ownership: FormulaOwnership;
+    client_id: number | null;
+    client?: ClientRef | null;
     active_version_id: number | null;
     active_version?: {
         id: number;
@@ -718,6 +861,14 @@ export type ProductionPlan = {
     planned_units: number | null;
     status: ProductionPlanStatus;
     planned_start_date: string | null;
+    manufacturing_type: ManufacturingType;
+    client_id?: number | null;
+    client?: ClientRef | null;
+    client_po_ref?: string | null;
+    client_product_name?: string | null;
+    required_delivery_at?: string | null;
+    material_source?: MaterialSource;
+    client_supplied_item_ids?: number[] | null;
     notes: string | null;
     warnings: string[] | null;
     created_by?: { id: number; name: string } | null;
@@ -747,6 +898,8 @@ export type RequirementLineRow = {
     restock: string;
     level_now: StockAlertLevel;
     level_after: StockAlertLevel;
+    /** Whose material meets the line: ours, or the client's. */
+    source: 'company' | 'client';
     reorder_level: string | null;
     minimum_stock: string | null;
     notes: string[];
@@ -782,6 +935,10 @@ export type MaterialRequest = {
         planned_units?: number | null;
         planned_start_date?: string | null;
         status?: ProductionPlanStatus;
+        manufacturing_type?: ManufacturingType;
+        client?: ClientRef | null;
+        client_po_ref?: string | null;
+        client_product_name?: string | null;
     } | null;
     store_kind: StoreKind;
     warehouse?: { id: number; code: string; name: string } | null;
@@ -816,6 +973,7 @@ export type MaterialRequestLineRow = {
     received: string;
     outstanding: string;
     covered: boolean;
+    source?: 'company' | 'client';
     alert_level: StockAlertLevel;
 };
 
@@ -861,6 +1019,13 @@ export type ManufacturingOrder = {
         initial_quantity: string;
     } | null;
     manufactured_at: string | null;
+    manufacturing_type: ManufacturingType;
+    client_id?: number | null;
+    client?: ClientRef | null;
+    client_po_ref?: string | null;
+    required_delivery_at?: string | null;
+    material_source?: MaterialSource;
+    client_supplied_item_ids?: number[] | null;
     notes: string | null;
     created_by?: { id: number; name: string } | null;
     approved_by?: { id: number; name: string } | null;

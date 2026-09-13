@@ -100,6 +100,7 @@ class QcInspectionController extends Controller
                 'reject' => $qcInspection->isOpen() && $request->user()->can('reject', $qcInspection),
                 'hold' => $qcInspection->status === LotQcStatus::Pending && $request->user()->can('hold', $qcInspection),
                 'sticker' => $qcInspection->status === LotQcStatus::Approved && $request->user()->can('printSticker', $qcInspection->lot),
+                'view_receipt' => $request->user()->can('purchase.view'),
             ],
         ]);
     }

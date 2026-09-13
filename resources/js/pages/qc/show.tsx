@@ -36,7 +36,13 @@ export default function ShowQcInspection({
         on_hand: string;
     }[];
     destinations: SelectOption[];
-    can: { approve: boolean; reject: boolean; hold: boolean; sticker: boolean };
+    can: {
+        approve: boolean;
+        reject: boolean;
+        hold: boolean;
+        sticker: boolean;
+        view_receipt: boolean;
+    };
 }) {
     const [decision, setDecision] = useState<Decision | null>(null);
 
@@ -116,14 +122,22 @@ export default function ShowQcInspection({
                             </DetailItem>
                             <DetailItem label="Goods receipt">
                                 {inspection.receipt_line?.receipt ? (
-                                    <Link
-                                        href={showReceipt(
-                                            inspection.receipt_line.receipt.id,
-                                        )}
-                                        className="hover:underline"
-                                    >
-                                        {inspection.receipt_line.receipt.number}
-                                    </Link>
+                                    can.view_receipt ? (
+                                        <Link
+                                            href={showReceipt(
+                                                inspection.receipt_line.receipt
+                                                    .id,
+                                            )}
+                                            className="hover:underline"
+                                        >
+                                            {
+                                                inspection.receipt_line.receipt
+                                                    .number
+                                            }
+                                        </Link>
+                                    ) : (
+                                        inspection.receipt_line.receipt.number
+                                    )
                                 ) : (
                                     '—'
                                 )}

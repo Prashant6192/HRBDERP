@@ -57,6 +57,10 @@ class DemoDataSeeder extends Seeder
         'Sanjay Bose' => ['role' => RoleName::BrandManager, 'department' => 'MKTG'],
         'Ritu Malhotra' => ['role' => RoleName::Designer, 'department' => 'DSGN'],
         'Ganesh Iyer' => ['role' => RoleName::Viewer, 'department' => 'ADMIN'],
+        'Pooja Sharma' => ['role' => RoleName::QcExecutive, 'department' => 'QC'],
+        'Ravi Kumar' => ['role' => RoleName::StoreExecutive, 'department' => 'WH'],
+        'Amit Yadav' => ['role' => RoleName::PackagingExecutive, 'department' => 'PROD'],
+        'Manoj Singh' => ['role' => RoleName::ProductionOperator, 'department' => 'PROD'],
     ];
 
     public function run(): void

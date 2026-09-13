@@ -36,6 +36,13 @@ enum RoleName: string
     case Designer = 'Designer';
     case Viewer = 'Viewer';
 
+    // Shop-floor roles: one job, one set of screens. Everything else in the
+    // ERP is hidden from them and, more importantly, closed to them.
+    case QcExecutive = 'QC Executive';
+    case StoreExecutive = 'Store Executive';
+    case PackagingExecutive = 'Packaging Executive';
+    case ProductionOperator = 'Production Operator';
+
     /**
      * Whether this role bypasses individual permission checks entirely.
      */
@@ -66,6 +73,10 @@ enum RoleName: string
             self::BrandManager => 'Product master and brand-level reporting.',
             self::Designer => 'Packaging artwork and product imagery. No access to formulations or costing.',
             self::Viewer => 'Read-only access to operational data. No formulations.',
+            self::QcExecutive => 'Works the QC Checkpoint only: inspects, approves, rejects and prints QC slips. Cannot touch batches, orders or stock.',
+            self::StoreExecutive => 'Receives deliveries, books stock in and prints batch stickers for the stores they are assigned to. No planning or production.',
+            self::PackagingExecutive => 'Packs finished batches: sees orders ready to pack, records packaging consumption and completion. Nothing else.',
+            self::ProductionOperator => 'Runs the kettle: sees approved orders, starts them and records consumption. No approvals, no planning.',
         };
     }
 
@@ -247,6 +258,35 @@ enum RoleName: string
                 'packaging_material.view', 'vendor.view', 'uom.view',
                 'inventory.view', 'production.view', 'purchase.view',
                 'qc.view', 'sales.view', 'report.view',
+            ],
+
+            // Only the QC Checkpoint. The batch sticker is theirs to print;
+            // the receipt, the order and the stores are not theirs to open.
+            self::QcExecutive => [
+                'qc.view', 'qc.create', 'qc.approve', 'qc.reject',
+            ],
+
+            // Receiving and the stores. Where they may act is narrowed further
+            // by their facility and store assignments.
+            self::StoreExecutive => [
+                'facility.view', 'warehouse.view',
+                'raw_material.view', 'packaging_material.view', 'product.view', 'vendor.view', 'uom.view',
+                'inventory.view', 'inventory.receive', 'inventory.transfer', 'inventory.receive_transfer',
+                'purchase.view', 'purchase.create', 'purchase.receive',
+                'qc.view',
+            ],
+
+            // Batches to pack: consumption of packaging and completion of the
+            // order. Raw material issue and approvals stay with production.
+            self::PackagingExecutive => [
+                'product.view', 'packaging_material.view', 'uom.view',
+                'production.view', 'production.consume',
+            ],
+
+            // The kettle: start an approved order and record what went in.
+            self::ProductionOperator => [
+                'raw_material.view', 'uom.view',
+                'production.view', 'production.consume',
             ],
         };
     }

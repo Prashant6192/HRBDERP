@@ -53,7 +53,7 @@ class SyncPermissionsCommand extends Command
 
             if ($this->option('roles')) {
                 $this->syncRoles($guard);
-            } elseif ($missing !== []) {
+            } else {
                 $this->grantNewPermissions($guard, $missing);
             }
         });
@@ -93,7 +93,12 @@ class SyncPermissionsCommand extends Command
     {
         foreach (RoleName::all() as $roleName) {
             $role = Role::firstOrCreate(['name' => $roleName->value, 'guard_name' => $guard]);
-            $gains = array_values(array_intersect($roleName->permissions(), $added));
+
+            // A role that is new to the code has no rows at all yet: it takes
+            // its full defaults. An existing role only gains what is new.
+            $gains = $role->wasRecentlyCreated || $role->permissions()->count() === 0
+                ? $roleName->permissions()
+                : array_values(array_intersect($roleName->permissions(), $added));
 
             if ($gains === []) {
                 continue;

@@ -136,6 +136,11 @@ The factory manager reads those masters and does not maintain them.
 
 ## The roles
 
+Four shop-floor roles — QC Executive, Store Executive, Packaging Executive
+and Production Operator — hold one job's screens and nothing else. A QC
+Executive sees the QC Checkpoint alone; the batch, the order and the stores
+behind it are closed to them. Managers and Super Admin keep full control.
+
 Generated from `RoleName::permissions()` — the code is the source of truth,
 and a deploy hands each built-in role any ability that is new to the
 catalogue without disturbing what an administrator has changed on the
@@ -458,6 +463,52 @@ Read-only access to operational data. No formulations.
 | Quality Control     | `view`    |
 | Sales               | `view`    |
 | Reports             | `view`    |
+
+### QC Executive
+
+Works the QC Checkpoint only: inspects, approves, rejects and prints QC slips. Cannot touch batches, orders or stock.
+
+| Module          | Abilities                             |
+| --------------- | ------------------------------------- |
+| Quality Control | `view`, `create`, `approve`, `reject` |
+
+### Store Executive
+
+Receives deliveries, books stock in and prints batch stickers for the stores they are assigned to. No planning or production.
+
+| Module              | Abilities                                         |
+| ------------------- | ------------------------------------------------- |
+| Facilities          | `view`                                            |
+| Stores              | `view`                                            |
+| Product Master      | `view`                                            |
+| Raw Materials       | `view`                                            |
+| Packaging Materials | `view`                                            |
+| Vendors             | `view`                                            |
+| Units of Measure    | `view`                                            |
+| Inventory           | `view`, `receive`, `transfer`, `receive_transfer` |
+| Procurement         | `view`, `create`, `receive`                       |
+| Quality Control     | `view`                                            |
+
+### Packaging Executive
+
+Packs finished batches: sees orders ready to pack, records packaging consumption and completion. Nothing else.
+
+| Module              | Abilities         |
+| ------------------- | ----------------- |
+| Product Master      | `view`            |
+| Packaging Materials | `view`            |
+| Units of Measure    | `view`            |
+| Production          | `view`, `consume` |
+
+### Production Operator
+
+Runs the kettle: sees approved orders, starts them and records consumption. No approvals, no planning.
+
+| Module           | Abilities         |
+| ---------------- | ----------------- |
+| Raw Materials    | `view`            |
+| Units of Measure | `view`            |
+| Production       | `view`, `consume` |
 
 ---
 

@@ -12,6 +12,7 @@ use App\Domain\MasterData\Models\RawMaterial;
 use App\Domain\Warehousing\Enums\WarehouseType;
 use App\Domain\Warehousing\Models\Warehouse;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\UomSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -50,8 +51,9 @@ class DashboardTest extends TestCase
                 ->component('dashboard')
                 ->where('greeting.first_name', 'Suresh')
                 ->where('period.days', 7)
-                ->has('kpis', 6)
+                ->has('kpis', 7)
                 ->where('kpis.4.key', 'critical')
+                ->where('kpis.6.key', 'reorder')
                 ->where('kpis.4.value', 1)
                 ->has('stores', 3)
                 ->where('stores.0.kind', 'raw_material')
@@ -69,6 +71,33 @@ class DashboardTest extends TestCase
                 ->where('quickActions.plan', true)
                 // The plant head may book a delivery, by hand if need be.
                 ->where('quickActions.receive', true)
+            );
+    }
+
+    #[Test]
+    public function the_greeting_carries_the_factory_clock_and_the_moment_they_signed_in(): void
+    {
+        config(['erp.company.timezone' => 'Asia/Kolkata']);
+        $user = User::factory()->create(['name' => 'Suresh Pillai', 'last_login_at' => null, 'last_login_ip' => null]);
+        $user->assignRole(RoleName::StoreExecutive->value);
+
+        $this->actingAs($user)->get(route('dashboard'))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('greeting.timezone', 'Asia/Kolkata')
+                ->where('greeting.signed_in_at', null)
+                ->where('erp.timezone', 'Asia/Kolkata')
+            );
+
+        // A real sign-in stamps the moment; the dashboard shows it.
+        $this->app['auth']->logout();
+        $this->flushSession();
+        $this->post(route('login.store'), ['email' => $user->email, 'password' => 'password'])->assertRedirect();
+        $this->assertAuthenticatedAs($user);
+
+        $this->get(route('dashboard'))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('greeting.signed_in_at', fn ($at) => is_string($at) && abs(now()->diffInSeconds(CarbonImmutable::parse($at))) < 5)
+                ->where('greeting.signed_in_from', '127.0.0.1')
             );
     }
 

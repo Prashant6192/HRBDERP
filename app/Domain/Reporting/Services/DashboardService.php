@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Domain\Reporting\Services;
 
+use App\Domain\Intelligence\DTOs\ItemOutlook;
+use App\Domain\Intelligence\Services\StockOutlookService;
 use App\Domain\Inventory\Enums\LotQcStatus;
 use App\Domain\Inventory\Enums\StockAlertLevel;
 use App\Domain\Inventory\Models\InventoryLot;
@@ -23,6 +25,7 @@ use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Services\WarehouseResolver;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * The figures behind the dashboard.
@@ -36,6 +39,7 @@ class DashboardService
         private readonly StockBalanceService $balances,
         private readonly StockAlertService $alerts,
         private readonly WarehouseResolver $warehouses,
+        private readonly StockOutlookService $outlook,
     ) {}
 
     /**
@@ -142,6 +146,27 @@ class DashboardService
                 'icon' => 'calendar-clock',
                 'href' => route('lots.index'),
                 'tone' => $expiring > 0 ? 'warning' : 'success',
+            ];
+        }
+
+        if ($user->can('purchase.view')) {
+            // Predictive, not reactive: what must be ordered before it runs out.
+            $advice = Cache::remember(
+                'dashboard.reorder.'.($facility?->id ?? 'all'),
+                now()->addMinutes(10),
+                fn () => $this->outlook->reorderAdvice($facility)->groupBy('status')->map->count()->all(),
+            );
+            $today = (int) ($advice[ItemOutlook::ORDER_TODAY] ?? 0);
+            $soon = (int) ($advice[ItemOutlook::ORDER_SOON] ?? 0);
+
+            $tiles[] = [
+                'key' => 'reorder',
+                'label' => 'Materials to order',
+                'value' => $today + $soon,
+                'hint' => $today > 0 ? "{$today} today · {$soon} within the week" : ($soon > 0 ? "{$soon} within the week" : 'nothing due yet'),
+                'icon' => 'shopping-cart',
+                'href' => route('purchase.reorder-advice', $facility ? ['facility' => $facility->id] : []),
+                'tone' => $today > 0 ? 'danger' : ($soon > 0 ? 'warning' : 'success'),
             ];
         }
 
@@ -442,6 +467,11 @@ class DashboardService
         if ($by->has('material_requests') && $by['material_requests']['value'] > 0) {
             $n = $by['material_requests']['value'];
             $lines[] = "{$n} material request".($n === 1 ? '' : 's').' open.';
+        }
+
+        if ($by->has('reorder') && $by['reorder']['value'] > 0) {
+            $n = $by['reorder']['value'];
+            $lines[] = "{$n} material".($n === 1 ? '' : 's').' will run out before a delivery could land — see the reorder advice.';
         }
 
         return $lines;

@@ -268,12 +268,50 @@ from the finished batch when they are built.
 
 ### Dashboard — _built_
 
-A greeting with the day's headlines; in production, plans awaiting production,
+A greeting with the date, a live clock in the factory's time zone and the
+moment the person signed in, then the day's headlines; in production, plans awaiting production,
 open material requests, awaiting QC, critically low materials, expiring
-batches; each store's items by alert level; what is on the floor and at which
+batches, materials to order before they run out; each store's items by alert level; what is on the floor and at which
 stage; receiving and QC per day over 7 / 30 / 90 days; units packed per week;
 materials to watch; what is coming up. Every card is gated by the permission of
 the module behind it, and each person can hide the ones they do not need.
+
+### Factory intelligence — _first layer built_
+
+Every screen should answer three questions: what is happening now, what is
+likely to go wrong next, and what should we do. The first layer answers them
+for stock.
+
+**Predictive reordering.** Rather than waiting for a material to fall Low or
+Critical, the outlook for each material is read from the ledger and the
+planning documents: usable stock (released, not quarantined, not expired,
+not reserved), what approved and running batches still need beyond their
+reservations, what checked plans will take, what purchase has already
+requested, the average daily use over the last 90 days, the supplier lead
+time (the material's, else measured from the supplier's deliveries, else a
+default), the days of cover and the run-out date. From these the shortfall,
+the recommended order quantity (minimum order quantity, pack multiple and
+maximum stock respected), the date to order by, and a status: Order today,
+Order this week, Watch, Covered. The **Reorder Advice** screen lists the
+urgent first; the **outlook panel** on every material's page says the same
+in sentences.
+
+**Smart purchase recommendation.** The supplier with the best recent price
+per stock unit, their last price, measured lead time, delivery count and
+last delivery, and what is pending.
+
+**Slow-moving stock.** Batches idle 30 / 60 / 90 / 180+ days since their
+last issue, valued at landed cost, so management sees blocked working
+capital.
+
+**Expiry risk.** Whether each batch expiring in the window will be used
+before it expires, first-expiry-first-out at the material's rate; the
+quantity and value at risk.
+
+**Still to come in this layer:** the command centre and exception feed,
+batch stages, consumption and yield analytics, cost variance, client
+profitability, what-if simulation, capacity, risk-based approvals, recall
+tracing, shop-floor scanning and the assistant.
 
 ### Costing — _planned_
 

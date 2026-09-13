@@ -62,6 +62,8 @@ class StoreItemRequest extends FormRequest
             'minimum_stock' => [$this->isMaterial() ? 'required' : 'nullable', 'numeric', 'gte:0', 'lte:reorder_level'],
             'maximum_stock' => ['nullable', 'numeric', 'min:0', 'gte:minimum_stock', 'gte:reorder_level'],
             'lead_time_days' => ['nullable', 'integer', 'min:0', 'max:3650'],
+            'min_order_quantity' => ['nullable', 'numeric', 'gt:0'],
+            'order_multiple' => ['nullable', 'numeric', 'gt:0'],
 
             'is_active' => ['boolean'],
         ];

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\MasterData;
 
 use App\Domain\Contract\Models\Client;
+use App\Domain\Intelligence\Services\StockOutlookService;
 use App\Domain\Inventory\Models\StockBalance;
 use App\Domain\MasterData\Enums\ItemType;
 use App\Domain\MasterData\Models\Item;
@@ -141,8 +142,13 @@ abstract class ItemController extends Controller
                 'receive' => $request->user()->can('create', GoodsReceipt::class),
                 'view_stock' => $request->user()->can('inventory.view'),
                 'view_qc' => $request->user()->can('qc.view'),
+                'purchase' => $request->user()->can('purchase.view'),
             ],
             'stock' => $this->stockSummary($item),
+            // Where the material is heading, for those who may see stock.
+            'outlook' => $request->user()->can('inventory.view') && in_array($item->type, [ItemType::RawMaterial, ItemType::PackagingMaterial], true)
+                ? app(StockOutlookService::class)->forItem($item)->toArray()
+                : null,
             ...$this->extraShowProps($item),
         ]);
     }

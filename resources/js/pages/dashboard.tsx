@@ -112,6 +112,9 @@ export default function Dashboard({
         name: string;
         first_name: string;
         date: string;
+        timezone: string;
+        signed_in_at: string | null;
+        signed_in_from: string | null;
         roles: string[];
     };
     headlines: string[];
@@ -234,6 +237,9 @@ export default function Dashboard({
                 <Hero
                     firstName={greeting.first_name}
                     date={greeting.date}
+                    timezone={greeting.timezone}
+                    signedInAt={greeting.signed_in_at}
+                    signedInFrom={greeting.signed_in_from}
                     headlines={headlines}
                     actions={quickActions}
                 />

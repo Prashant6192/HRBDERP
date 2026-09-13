@@ -10,6 +10,56 @@ between them.
 
 ## [Unreleased]
 
+### Added — Factory intelligence, first layer: stock that says what to do
+
+The first step from a recording ERP to a deciding one. Every figure comes
+from the ledger and the planning documents; nothing is estimated that can
+be read.
+
+- **Predictive reordering.** For every raw and packaging material: on hand,
+  reserved, usable (released by QC, not in quarantine, not expired), what
+  approved and running batches still need beyond their reservations, what
+  checked plans will take, what purchase has already requested, the rate of
+  use over the last 90 days, the supplier lead time, the days of cover and
+  the run-out date. From these: the shortfall, the recommended order quantity
+  (rounded up to the minimum order quantity and the pack multiple, capped by
+  the maximum stock), the date to order by, and a status — _Order today_,
+  _Order this week_, _Watch_ or _Covered_. Under **Planning & Purchase →
+  Reorder Advice**, most urgent first, with a purchase value at last prices.
+- **Smart purchase recommendation.** Each recommendation names the supplier
+  with the best price per stock unit in the last year, their last price,
+  their measured lead time (material request to receipt), how many
+  deliveries they have made and when the last was, and what is already
+  pending.
+- **The outlook panel on every material's page** reads as sentences:
+  "42 KG on hand. 18 KG already reserved. 24 KG usable. Upcoming production
+  requires 67 KG, the first of it by 21 Sep. Shortfall: 43 KG. Supplier lead
+  time: 5 days. Recommended action: order 50 KG by 16 Sep from Vendor ABC
+  (last price ₹118.00 per KG)."
+- **Slow-moving stock** under **Store → Slow-moving Stock**: every batch
+  idle for 30, 60, 90 or 180+ days — idle since its last issue, or since it
+  arrived if it never was — valued at the batch's landed cost (the standard
+  cost when the batch has none), with the blocked working capital per bucket.
+- **Expiry risk** under **Store → Expiry Risk**: for every batch expiring
+  within 180 days (or 30 / 60 / 90 / 365), the expected use before expiry at
+  the material's rate after the batches that expire sooner are used first,
+  the coverage, and the quantity and value at risk. "Aloe Extract lot X will
+  expire in 40 days; expected consumption before expiry is only 40%.
+  ₹6,000 of inventory at risk."
+- **A dashboard tile, _Materials to order_**, with the headline sentence when
+  something would run out before a delivery could land.
+- **Ordering terms on the masters**: minimum order quantity and order
+  multiple on materials; lead time on vendors. Settings in `config/erp.php`
+  under `intelligence` (consumption window, planning horizon, default lead
+  time, buckets, risk window).
+
+### Changed — Dashboard clock
+
+The greeting shows the date and a clock ticking every second in the
+factory's time zone (`ERP_TIMEZONE`, Asia/Kolkata by default), and the
+moment the person signed in and from where. Timestamps are still stored in
+UTC.
+
 ### Added — Third-party / contract manufacturing (issue #6)
 
 Manufacturing for other brands runs through the same planning, stores, QC,

@@ -101,6 +101,16 @@ ERP_AI_MODEL=claude-opus-5
 # reader never takes them for the vendor's.
 ERP_COMPANY_GSTIN=
 ERP_COMPANY_PAN=
+
+# The clock on the factory wall. Timestamps are stored in UTC and shown in
+# this zone.
+ERP_TIMEZONE=Asia/Kolkata
+
+# Factory intelligence (all optional; days).
+ERP_CONSUMPTION_WINDOW_DAYS=90   # use is averaged over this much history
+ERP_PLANNING_HORIZON_DAYS=30     # demand is looked at this far ahead
+ERP_DEFAULT_LEAD_TIME_DAYS=7     # when neither material nor vendor says
+ERP_EXPIRY_RISK_DAYS=180         # batches expiring within this are assessed
 ```
 
 To check a real supplier's bill against the reader without booking anything:

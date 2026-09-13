@@ -9,6 +9,7 @@ import type { BreadcrumbItem } from '@/types/navigation';
 export type SharedData = {
     name: string;
     auth: Auth;
+    erp: { company: string; timezone: string; currency_symbol: string };
     sidebarOpen: boolean;
     formulaAccess: FormulaAccess | null;
     [key: string]: unknown;

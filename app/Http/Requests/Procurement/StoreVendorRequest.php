@@ -41,6 +41,7 @@ class StoreVendorRequest extends FormRequest
             'country' => ['nullable', 'string', 'max:128'],
 
             'payment_terms_days' => ['nullable', 'integer', 'min:0', 'max:365'],
+            'lead_time_days' => ['nullable', 'integer', 'min:0', 'max:365'],
             'credit_limit' => ['nullable', 'numeric', 'min:0'],
             'supply_type' => ['required', Rule::in(['raw_material', 'packaging', 'services', 'mixed'])],
 

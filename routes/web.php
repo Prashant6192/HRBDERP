@@ -13,6 +13,9 @@ use App\Http\Controllers\Formulation\FormulaController;
 use App\Http\Controllers\Formulation\FormulaImportController;
 use App\Http\Controllers\Formulation\FormulaSecurityController;
 use App\Http\Controllers\Formulation\FormulaVersionController;
+use App\Http\Controllers\Intelligence\ExpiryRiskController;
+use App\Http\Controllers\Intelligence\ReorderAdviceController;
+use App\Http\Controllers\Intelligence\SlowMovingStockController;
 use App\Http\Controllers\Inventory\LotController;
 use App\Http\Controllers\Inventory\OpeningStockController;
 use App\Http\Controllers\Inventory\StockController;
@@ -129,6 +132,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('qc/{qcInspection}/slip', [QcInspectionController::class, 'slip'])->name('qc.slip');
 
     Route::get('stock', [StockController::class, 'index'])->name('stock.index');
+    Route::get('stock/slow-moving', SlowMovingStockController::class)->name('stock.slow-moving');
+    Route::get('stock/expiry-risk', ExpiryRiskController::class)->name('stock.expiry-risk');
+    Route::get('purchase/reorder-advice', ReorderAdviceController::class)->name('purchase.reorder-advice');
     Route::get('lots', [LotController::class, 'index'])->name('lots.index');
     Route::get('lots/{lot}', [LotController::class, 'show'])->name('lots.show');
     Route::get('lots/{lot}/sticker', [QcInspectionController::class, 'sticker'])->name('lots.sticker');

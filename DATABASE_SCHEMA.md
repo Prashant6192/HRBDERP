@@ -126,7 +126,9 @@ Notable columns:
 | `mrp`, `net_content`, `brand`, `barcode`          |                      | Finished goods                                                                                  |
 | `is_batch_tracked`                                | `boolean`            | What makes a batch traceable to its inputs                                                      |
 | `requires_qc`                                     | `boolean`            | Received stock is quarantined until QC releases it                                              |
-| `reorder_level`, `minimum_stock`, `maximum_stock` | `NUMERIC(20,6)`      |                                                                                                 |
+| `reorder_level`, `minimum_stock`, `maximum_stock` | `NUMERIC(20,6)`      | Alert thresholds; the minimum is the safety stock the reorder advice keeps                      |
+| `lead_time_days`                                  | `smallint`           | How long a delivery takes; the reorder advice falls back to the vendor's, then a default        |
+| `min_order_quantity`, `order_multiple`            | `NUMERIC(20,6)`      | The least a supplier sells and the pack it comes in; a recommendation is rounded up to them     |
 
 ```sql
 ALTER TABLE items ADD CONSTRAINT items_non_negative_levels CHECK (
@@ -195,6 +197,9 @@ and moderate multiplier; unique per (store, item). Absent figures fall back
 to the item.
 
 ### `vendors`
+
+`lead_time_days` is the supplier's usual delivery time, used by the reorder
+advice when the material carries none and no delivery has been measured.
 
 ```sql
 CREATE UNIQUE INDEX vendors_gstin_unique ON vendors (gstin)
@@ -472,6 +477,16 @@ it. Lines: the material list with `planned_quantity`, `reserved_quantity` and
 the order polymorphically.
 
 ---
+
+## Intelligence
+
+Nothing is stored. The reorder advice, slow-moving and expiry-risk reports
+are read from `stock_balances`, `inventory_lots`, the ledger,
+`manufacturing_order_lines`, `production_plan_lines`,
+`material_request_lines` and `goods_receipt_lines` at the moment they are
+asked for (the dashboard tile caches its count for ten minutes). The
+queries are grouped, so the cost is a fixed handful of statements however
+many materials there are.
 
 ## Still to come
 

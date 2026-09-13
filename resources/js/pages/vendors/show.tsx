@@ -96,6 +96,11 @@ export default function ShowVendor({
                                     ? `${vendor.payment_terms_days} days`
                                     : '—'}
                             </DetailItem>
+                            <DetailItem label="Lead time">
+                                {vendor.lead_time_days
+                                    ? `${vendor.lead_time_days} days`
+                                    : '—'}
+                            </DetailItem>
                             <DetailItem label="Credit limit">
                                 {vendor.credit_limit
                                     ? `₹${Number(vendor.credit_limit).toLocaleString('en-IN')}`

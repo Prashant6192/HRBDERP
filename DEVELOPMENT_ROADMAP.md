@@ -61,6 +61,22 @@ Where the build has got to, and what comes next.
 | Facility filter on dashboard and stock; store-specific thresholds                                                                                                                                                                                                                               | Built |
 | 300+ tests against PostgreSQL                                                                                                                                                                                                                                                                   | Built |
 
+### Phase I — Factory intelligence
+
+| Area                                                                                                                      | State |
+| ------------------------------------------------------------------------------------------------------------------------- | ----- |
+| Dashboard clock in the factory's time zone with the sign-in moment                                                        | Built |
+| Predictive reordering: usable vs upcoming need, rate of use, lead time, run-out date, order-by date, recommended quantity | Built |
+| Smart purchase recommendation: best and last price, measured lead time, deliveries, pending                               | Built |
+| Outlook panel on every material's page, in sentences                                                                      | Built |
+| Slow-moving stock by 30 / 60 / 90 / 180 days with blocked working capital                                                 | Built |
+| Expiry risk: expected use before expiry, first-expiry-first-out, value at risk                                            | Built |
+| Command centre, exception feed, notifications, escalation                                                                 | Next  |
+| Batch stages, consumption intelligence, yield analytics, cost variance, client profitability, what-if, capacity           | Next  |
+| Risk-based approvals, maker-checker, signatures, reversals, recall tracing, document versions                             | Next  |
+| Shop-floor scanning, stock counts, mobile floor mode                                                                      | Next  |
+| Department scorecards, OTIF, the assistant                                                                                | Next  |
+
 ---
 
 ## Next

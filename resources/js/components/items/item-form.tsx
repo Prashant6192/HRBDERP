@@ -488,6 +488,34 @@ export function ItemForm({
                         </Field>
 
                         <Field
+                            label="Minimum order quantity"
+                            htmlFor="min_order_quantity"
+                            error={errors.min_order_quantity}
+                            hint="Optional. The least a supplier will sell; the reorder advice rounds up to it."
+                        >
+                            <QuantityInput
+                                id="min_order_quantity"
+                                name="min_order_quantity"
+                                unit={stockUnit}
+                                defaultValue={item?.min_order_quantity ?? ''}
+                            />
+                        </Field>
+
+                        <Field
+                            label="Order multiple"
+                            htmlFor="order_multiple"
+                            error={errors.order_multiple}
+                            hint="Optional. The pack it comes in, e.g. 25 for 25 KG bags."
+                        >
+                            <QuantityInput
+                                id="order_multiple"
+                                name="order_multiple"
+                                unit={stockUnit}
+                                defaultValue={item?.order_multiple ?? ''}
+                            />
+                        </Field>
+
+                        <Field
                             label="Shelf life (days)"
                             htmlFor="shelf_life_days"
                             error={errors.shelf_life_days}

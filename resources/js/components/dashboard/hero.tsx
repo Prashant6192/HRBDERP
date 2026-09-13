@@ -3,29 +3,63 @@ import {
     Beaker,
     CalendarPlus,
     ClipboardCheck,
+    Clock,
+    LogIn,
     PackagePlus,
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { index as formulasIndex } from '@/routes/formulas';
 import { create as createReceipt } from '@/routes/goods-receipts';
 import { create as createPlan } from '@/routes/plans';
 import { index as qcIndex } from '@/routes/qc';
 
-function timeOfDay(date: Date): string {
-    const h = date.getHours();
+function hourIn(date: Date, timeZone: string): number {
+    return Number(
+        new Intl.DateTimeFormat('en-GB', {
+            hour: 'numeric',
+            hour12: false,
+            timeZone,
+        }).format(date),
+    );
+}
+
+function timeOfDay(date: Date, timeZone: string): string {
+    const h = hourIn(date, timeZone);
     if (h < 12) return 'Good morning';
     if (h < 17) return 'Good afternoon';
     return 'Good evening';
 }
 
+/**
+ * The factory's wall clock: the browser's current time, shown in the
+ * factory's zone and ticking every second. The server's timestamp only
+ * seeds it so the first paint is right before the first tick.
+ */
+function useLiveClock(serverIso: string): Date {
+    const [now, setNow] = useState(() => new Date(serverIso));
+    useEffect(() => {
+        setNow(new Date());
+        const id = window.setInterval(() => setNow(new Date()), 1000);
+        return () => window.clearInterval(id);
+    }, []);
+    return now;
+}
+
 export function Hero({
     firstName,
     date,
+    timezone,
+    signedInAt,
+    signedInFrom,
     headlines,
     actions,
 }: {
     firstName: string;
     date: string;
+    timezone: string;
+    signedInAt: string | null;
+    signedInFrom: string | null;
     headlines: string[];
     actions: {
         plan: boolean;
@@ -34,7 +68,30 @@ export function Hero({
         formulas: boolean;
     };
 }) {
-    const now = new Date(date);
+    const now = useLiveClock(date);
+    const signedIn = signedInAt ? new Date(signedInAt) : null;
+    const dayFormat = new Intl.DateTimeFormat('en-IN', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: timezone,
+    });
+    const timeFormat = new Intl.DateTimeFormat('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+        timeZone: timezone,
+    });
+    const signedInFormat = new Intl.DateTimeFormat('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: timezone,
+    });
 
     return (
         <section className="bg-card relative overflow-hidden rounded-2xl border">
@@ -50,17 +107,26 @@ export function Hero({
 
             <div className="relative grid gap-6 p-6 sm:p-8 lg:grid-cols-5">
                 <div className="lg:col-span-3">
-                    <p className="text-muted-foreground text-sm">
-                        {now.toLocaleDateString('en-IN', {
-                            weekday: 'long',
-                            day: 'numeric',
-                            month: 'long',
-                            year: 'numeric',
-                        })}
-                    </p>
+                    <div className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                        <span>{dayFormat.format(now)}</span>
+                        <span
+                            className="inline-flex items-center gap-1 font-mono tabular-nums"
+                            data-testid="live-clock"
+                        >
+                            <Clock className="size-3.5" />
+                            {timeFormat.format(now)}
+                        </span>
+                    </div>
                     <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
-                        {timeOfDay(now)}, {firstName}
+                        {timeOfDay(now, timezone)}, {firstName}
                     </h1>
+                    {signedIn && (
+                        <p className="text-muted-foreground mt-1 inline-flex items-center gap-1.5 text-xs">
+                            <LogIn className="size-3.5" />
+                            Signed in {signedInFormat.format(signedIn)}
+                            {signedInFrom ? ` from ${signedInFrom}` : ''}
+                        </p>
+                    )}
                     {headlines.length > 0 ? (
                         <ul className="mt-3 space-y-1 text-sm">
                             {headlines.map((line, i) => (

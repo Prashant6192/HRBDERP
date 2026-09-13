@@ -3,12 +3,14 @@ import { ItemDetails, type ItemStock } from '@/components/items/item-details';
 import { create as createReceipt } from '@/routes/goods-receipts';
 import { dashboard } from '@/routes';
 import { destroy, edit, index, show } from '@/routes/raw-materials';
+import type { ItemOutlook } from '@/lib/intelligence';
 import type { Item } from '@/types';
 
 export default function ShowRawMaterial({
     item,
     can,
     stock,
+    outlook,
 }: {
     item: Item;
     can: {
@@ -17,8 +19,10 @@ export default function ShowRawMaterial({
         receive: boolean;
         view_stock: boolean;
         view_qc: boolean;
+        purchase?: boolean;
     };
     stock: ItemStock | null;
+    outlook: ItemOutlook | null;
 }) {
     return (
         <>
@@ -30,6 +34,7 @@ export default function ShowRawMaterial({
                 deleteUrl={destroy(item.id).url}
                 receiveUrl={createReceipt({ query: { item: item.id } }).url}
                 stock={stock}
+                outlook={outlook}
             />
         </>
     );

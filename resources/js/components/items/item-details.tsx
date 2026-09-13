@@ -1,5 +1,7 @@
 import { Link } from '@inertiajs/react';
 import { ClientBadge } from '@/components/contract/client-badge';
+import { OutlookPanel } from '@/components/items/outlook-panel';
+import type { ItemOutlook } from '@/lib/intelligence';
 import { ClipboardCheck, PackagePlus, Pencil, Trash2 } from 'lucide-react';
 import { DeleteDialog } from '@/components/confirm-dialog';
 import { DetailItem } from '@/components/form-field';
@@ -48,6 +50,7 @@ export function ItemDetails({
     deleteUrl,
     receiveUrl,
     stock,
+    outlook,
 }: {
     item: Item;
     can: {
@@ -56,12 +59,15 @@ export function ItemDetails({
         receive?: boolean;
         view_stock?: boolean;
         view_qc?: boolean;
+        purchase?: boolean;
     };
     editUrl: string;
     deleteUrl: string;
     /** Where "Receive stock" goes: the goods receipt form with this item preset. */
     receiveUrl?: string;
     stock?: ItemStock | null;
+    /** Where the material is heading; only for raw and packaging materials. */
+    outlook?: ItemOutlook | null;
 }) {
     const isProduct = item.type === 'finished_good';
     const stockUnit = item.stock_uom?.code;
@@ -250,6 +256,13 @@ export function ItemDetails({
                                     </p>
                                 )}
                         </section>
+                    )}
+
+                    {can.view_stock && outlook && (
+                        <OutlookPanel
+                            outlook={outlook}
+                            canPurchase={can.purchase ?? false}
+                        />
                     )}
 
                     <section className="bg-card rounded-xl border p-6">

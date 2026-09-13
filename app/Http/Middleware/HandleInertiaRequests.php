@@ -45,6 +45,11 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'name' => config('app.name'),
+            'erp' => [
+                'company' => config('erp.company.name'),
+                'timezone' => config('erp.company.timezone'),
+                'currency_symbol' => config('erp.company.currency_symbol'),
+            ],
             'auth' => [
                 'user' => $user,
                 'roles' => $user instanceof User ? $user->getRoleNames()->values()->all() : [],

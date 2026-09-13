@@ -28,7 +28,7 @@ class Vendor extends Model
         'code', 'name', 'legal_name', 'gstin', 'pan',
         'contact_person', 'email', 'phone',
         'address_line_1', 'address_line_2', 'city', 'state', 'pincode', 'country',
-        'payment_terms_days', 'credit_limit', 'supply_type',
+        'payment_terms_days', 'lead_time_days', 'credit_limit', 'supply_type',
         'is_approved', 'is_active', 'notes',
         'created_by', 'updated_by',
     ];

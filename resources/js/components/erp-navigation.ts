@@ -4,6 +4,7 @@ import {
     Boxes,
     Building2,
     Calculator,
+    CalendarX2,
     CalendarCheck,
     ClipboardCheck,
     ClipboardList,
@@ -14,8 +15,10 @@ import {
     LayoutGrid,
     Package,
     PackageCheck,
+    PackageX,
     ScrollText,
     ShieldCheck,
+    ShoppingCart,
     Truck,
     Users,
     Warehouse,
@@ -34,7 +37,8 @@ import { index as productsIndex } from '@/routes/products';
 import { index as qcIndex } from '@/routes/qc';
 import { index as rawMaterialsIndex } from '@/routes/raw-materials';
 import { index as rolesIndex } from '@/routes/roles';
-import { index as stockIndex } from '@/routes/stock';
+import { expiryRisk, index as stockIndex, slowMoving } from '@/routes/stock';
+import { reorderAdvice } from '@/routes/purchase';
 import { index as usersIndex } from '@/routes/users';
 import { index as vendorsIndex } from '@/routes/vendors';
 import { index as facilitiesIndex } from '@/routes/facilities';
@@ -122,6 +126,18 @@ export const erpNavigation: ErpNavGroup[] = [
                 icon: ArrowLeftRight,
                 permission: 'inventory.view',
             },
+            {
+                title: 'Slow-moving Stock',
+                href: slowMoving().url,
+                icon: PackageX,
+                permission: 'inventory.view',
+            },
+            {
+                title: 'Expiry Risk',
+                href: expiryRisk().url,
+                icon: CalendarX2,
+                permission: 'inventory.view',
+            },
         ],
     },
     {
@@ -148,6 +164,12 @@ export const erpNavigation: ErpNavGroup[] = [
                 title: 'Material Requests',
                 href: materialRequestsIndex().url,
                 icon: ClipboardPen,
+                permission: 'purchase.view',
+            },
+            {
+                title: 'Reorder Advice',
+                href: reorderAdvice().url,
+                icon: ShoppingCart,
                 permission: 'purchase.view',
             },
             {

@@ -19,6 +19,10 @@ return [
         // vendor's.
         'gstin' => env('ERP_COMPANY_GSTIN'),
         'pan' => env('ERP_COMPANY_PAN'),
+        // The clock on the wall of the factory. Timestamps are stored in UTC
+        // and shown in this zone, so a shift's records read the same from
+        // any browser.
+        'timezone' => env('ERP_TIMEZONE', 'Asia/Kolkata'),
     ],
 
     /*
@@ -134,6 +138,36 @@ return [
     | reorder_level x moderate_multiplier. See StockAlertService.
     |
     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | Factory intelligence
+    |--------------------------------------------------------------------------
+    |
+    | The figures behind the predictions: how far back consumption is
+    | averaged, how far ahead demand is looked at, and what counts as slow
+    | or at risk. All in days unless stated.
+    |
+    */
+
+    'intelligence' => [
+        // Consumption is averaged over this many days of ledger history.
+        'consumption_window_days' => (int) env('ERP_CONSUMPTION_WINDOW_DAYS', 90),
+        // An item with less history than this is averaged over at least this many days.
+        'consumption_floor_days' => 14,
+        // Demand is looked at this far ahead when recommending an order.
+        'planning_horizon_days' => (int) env('ERP_PLANNING_HORIZON_DAYS', 30),
+        // When neither the item nor a supplier says how long delivery takes.
+        'default_lead_time_days' => (int) env('ERP_DEFAULT_LEAD_TIME_DAYS', 7),
+        // Order "soon" when the order date is within this many days.
+        'order_soon_days' => 7,
+        // Slow-moving buckets, oldest first.
+        'slow_moving_buckets' => [180, 90, 60, 30],
+        // Lots expiring within this many days are assessed for expiry risk.
+        'expiry_risk_days' => (int) env('ERP_EXPIRY_RISK_DAYS', 180),
+        // Supplier prices are compared over this many days of receipts.
+        'price_history_days' => 365,
+    ],
 
     'stock_alerts' => [
         'moderate_multiplier' => env('ERP_STOCK_MODERATE_MULTIPLIER', '2'),

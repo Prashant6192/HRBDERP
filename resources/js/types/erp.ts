@@ -85,6 +85,8 @@ export type Item = {
     minimum_stock: string | null;
     maximum_stock: string | null;
     lead_time_days: number | null;
+    min_order_quantity: string | null;
+    order_multiple: string | null;
     is_active: boolean;
     created_at: string;
     updated_at: string;
@@ -420,6 +422,7 @@ export type Vendor = {
     pincode: string | null;
     country: string | null;
     payment_terms_days: number | null;
+    lead_time_days: number | null;
     credit_limit: string | null;
     supply_type: string;
     is_approved: boolean;

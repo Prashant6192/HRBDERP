@@ -45,6 +45,10 @@ class DashboardController extends Controller
                 'name' => $user->name,
                 'first_name' => explode(' ', trim($user->name))[0],
                 'date' => now()->toIso8601String(),
+                'timezone' => config('erp.company.timezone'),
+                // Written by RecordSuccessfulLogin the moment they signed in.
+                'signed_in_at' => $user->last_login_at?->toIso8601String(),
+                'signed_in_from' => $user->last_login_ip,
                 'roles' => $user->getRoleNames()->values()->all(),
             ],
             'headlines' => $this->dashboard->headlines($kpis),

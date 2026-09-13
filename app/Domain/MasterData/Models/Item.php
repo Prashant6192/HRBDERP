@@ -50,6 +50,7 @@ class Item extends Model
         'brand', 'client_id', 'mrp', 'net_content', 'net_content_uom_id', 'barcode',
         'is_batch_tracked', 'requires_qc', 'shelf_life_days',
         'reorder_level', 'minimum_stock', 'maximum_stock', 'lead_time_days',
+        'min_order_quantity', 'order_multiple',
         'is_active', 'created_by', 'updated_by',
     ];
 

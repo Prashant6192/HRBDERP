@@ -7,6 +7,7 @@ import {
     ClipboardCheck,
     ClipboardPen,
     Factory,
+    ShoppingCart,
     type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -19,6 +20,7 @@ const ICONS: Record<string, LucideIcon> = {
     'clipboard-check': ClipboardCheck,
     'alert-triangle': AlertTriangle,
     'calendar-clock': CalendarClock,
+    'shopping-cart': ShoppingCart,
 };
 
 const TONE: Record<Tile['tone'], string> = {

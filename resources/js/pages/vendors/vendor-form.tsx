@@ -231,6 +231,20 @@ export function VendorForm({
                         </Field>
 
                         <Field
+                            label="Lead time (days)"
+                            htmlFor="lead_time_days"
+                            error={errors.lead_time_days}
+                            hint="How long a delivery usually takes from ordering. Used by the reorder advice."
+                        >
+                            <Input
+                                id="lead_time_days"
+                                name="lead_time_days"
+                                inputMode="numeric"
+                                defaultValue={vendor?.lead_time_days ?? ''}
+                            />
+                        </Field>
+
+                        <Field
                             label="Credit limit (₹)"
                             htmlFor="credit_limit"
                             error={errors.credit_limit}

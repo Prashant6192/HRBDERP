@@ -10,6 +10,43 @@ between them.
 
 ## [Unreleased]
 
+### Added — Shop floor: scan before issue, stock counts, the mobile floor mode
+
+The floor gets a phone-sized ERP and the ERP gets a check at the kettle.
+
+- **QR codes on everything that moves.** Batch stickers carry a QR, stores
+  and racks print labels (**store page → Print labels**), and every
+  manufacturing order prints an A5 **batch card** with its own QR and the
+  material list. Codes read `LOT:<batch>`, `MO:<order>`, `LOC:<store>/<rack>`,
+  `ITEM:<code>`; the QR points at `/floor/scan?c=<code>`, so any phone camera
+  opens the right thing.
+- **Scan before issue.** At the kettle each drum is scanned against the
+  batch. It passes only when the material is on the recipe, the batch has
+  been released by QC, it has not expired, it belongs to whoever the batch is
+  for, and it is the batch the store reserved for this order. Anything else
+  is **blocked, with the reason, and recorded** (`manufacturing_order_scans`)
+  — wrong ingredient, wrong batch, expired stock and the wrong owner's
+  material are caught before they go in. The order page shows what has been
+  verified and the blocked attempts. With `ERP_REQUIRE_SCAN_BEFORE_START=true`
+  a batch cannot start until every raw material has passed a scan.
+- **Stock counts** under **Store → Stock Counts**: a count freezes what the
+  system says a store holds, batch by batch; the counter scans each batch and
+  enters what is on the shelf (a batch found on the shelf but unknown to the
+  system is added with a zero system quantity); once submitted, **someone
+  other than the counters approves it** and every difference is posted as a
+  stock adjustment through the ledger, referencing the count. **Inventory
+  accuracy** (the share of lines where shelf matched system) and the value
+  of the differences are read from the lines.
+- **Floor mode** at `/floor`: one column, big targets, no sidebar; a
+  camera scanner (typed entry where the browser cannot scan); scan anything
+  to see what it is and what you may do with it; issue by scan; record the
+  production stage and progress; take a photo against a batch, an order or a
+  count. Installable as a home-screen app (web manifest and a shell-only
+  service worker; data is never cached offline).
+- **Permissions.** `inventory.count` (Warehouse Manager, Store Executive)
+  starts and records a count; `inventory.approve_count` (Warehouse Manager)
+  approves one.
+
 ### Added — Factory intelligence, first layer: stock that says what to do
 
 The first step from a recording ERP to a deciding one. Every figure comes

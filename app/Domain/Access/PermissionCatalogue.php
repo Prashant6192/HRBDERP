@@ -112,7 +112,7 @@ final class PermissionCatalogue
             'group' => 'Operations',
             'abilities' => [
                 'view', 'receive', 'adjust', 'reverse', 'transfer', 'approve_transfer', 'receive_transfer',
-                'opening_stock', 'reserve', 'consume', 'export',
+                'opening_stock', 'reserve', 'consume', 'count', 'approve_count', 'export',
             ],
         ],
         'formula' => [

@@ -11,6 +11,7 @@ use App\Domain\Formulation\Models\Formula;
 use App\Domain\Formulation\Models\FormulaVersion;
 use App\Domain\Identity\Models\Department;
 use App\Domain\Inventory\Models\InventoryLot;
+use App\Domain\Inventory\Models\StockCount;
 use App\Domain\Inventory\Models\StockTransfer;
 use App\Domain\Manufacturing\Models\ManufacturingOrder;
 use App\Domain\MasterData\Models\PackagingMaterial;
@@ -41,6 +42,7 @@ use App\Policies\ProductionPlanPolicy;
 use App\Policies\ProductPolicy;
 use App\Policies\QcInspectionPolicy;
 use App\Policies\RawMaterialPolicy;
+use App\Policies\StockCountPolicy;
 use App\Policies\StockTransferPolicy;
 use App\Policies\UomPolicy;
 use App\Policies\UserPolicy;
@@ -77,6 +79,7 @@ class AuthServiceProvider extends ServiceProvider
         QcInspection::class => QcInspectionPolicy::class,
         InventoryLot::class => InventoryLotPolicy::class,
         Document::class => DocumentPolicy::class,
+        StockCount::class => StockCountPolicy::class,
 
         // Each item type has its own policy so that Laravel can resolve one
         // from the model class alone, which is all it has for class-level

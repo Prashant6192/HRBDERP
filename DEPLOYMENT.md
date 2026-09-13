@@ -112,6 +112,11 @@ ERP_QC_MAKER_CHECKER=true
 # this zone.
 ERP_TIMEZONE=Asia/Kolkata
 
+# Scan before issue: when true, an approved batch cannot start until every
+# raw material has passed a scan at the kettle. Off by default so a factory
+# can print stickers and labels first.
+ERP_REQUIRE_SCAN_BEFORE_START=false
+
 # Factory intelligence (all optional; days).
 ERP_CONSUMPTION_WINDOW_DAYS=90   # use is averaged over this much history
 ERP_PLANNING_HORIZON_DAYS=30     # demand is looked at this far ahead

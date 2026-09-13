@@ -32,6 +32,9 @@
     </div>
 
     <div class="batch">{{ $lot->batch_number }}</div>
+    @isset($qr)
+        <img src="{{ $qr }}" alt="{{ $scan_code }}" style="position:absolute; right:3mm; top:3mm; width:16mm; height:16mm;">
+    @endisset
 
     <table class="facts">
         <tr>

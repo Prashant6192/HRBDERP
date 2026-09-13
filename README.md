@@ -8,8 +8,13 @@ immutable inventory ledger with three-level stock alerts,
 PIN-protected versioned formulations with Excel import, production planning
 that checks the stores and raises material requests, manufacturing orders
 that reserve, consume and post finished batches, third-party (contract)
-manufacturing for other brands inside the same workflow, and a dashboard that
-shows where the plant stands. Costing, dispatch and accounting come next — see
+manufacturing for other brands inside the same workflow, a dashboard that
+shows where the plant stands, and a factory intelligence layer: predictive
+reordering, a command centre with exception-based management and escalation,
+batch stages and yield, cost variance and client profitability, risk-based
+approvals with maker-checker and signed decisions, recall tracing, controlled
+documents, QR scanning with scan-before-issue at the kettle, stock counts and
+a phone-sized floor mode. Costing, dispatch and accounting come next — see
 [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md).
 
 This file is the way in. Each area has its own document:

@@ -151,6 +151,14 @@ class ManufacturingOrder extends Model
     }
 
     /**
+     * @return HasMany<ManufacturingOrderScan, $this>
+     */
+    public function scans(): HasMany
+    {
+        return $this->hasMany(ManufacturingOrderScan::class, 'manufacturing_order_id');
+    }
+
+    /**
      * @return HasMany<ManufacturingOrderAdjustment, $this>
      */
     public function adjustments(): HasMany

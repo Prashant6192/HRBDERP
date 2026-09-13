@@ -12,6 +12,7 @@ use App\Http\Controllers\Contract\ClientProfitabilityController;
 use App\Http\Controllers\Contract\ClientQcSpecController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Documents\DocumentController;
+use App\Http\Controllers\Floor\FloorController;
 use App\Http\Controllers\Formulation\FormulaController;
 use App\Http\Controllers\Formulation\FormulaImportController;
 use App\Http\Controllers\Formulation\FormulaSecurityController;
@@ -27,6 +28,7 @@ use App\Http\Controllers\Inventory\LedgerController;
 use App\Http\Controllers\Inventory\LotController;
 use App\Http\Controllers\Inventory\OpeningStockController;
 use App\Http\Controllers\Inventory\StockController;
+use App\Http\Controllers\Inventory\StockCountController;
 use App\Http\Controllers\Inventory\StockTransferController;
 use App\Http\Controllers\Manufacturing\ManufacturingOrderController;
 use App\Http\Controllers\MasterData\PackagingMaterialController;
@@ -77,6 +79,22 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 
     Route::post('ledger/{transaction}/reverse', [LedgerController::class, 'reverse'])->name('ledger.reverse');
 
+    // The mobile floor mode.
+    Route::get('floor', [FloorController::class, 'index'])->name('floor.index');
+    Route::get('floor/scan', [FloorController::class, 'scan'])->name('floor.scan');
+    Route::post('floor/lookup', [FloorController::class, 'lookup'])->name('floor.lookup');
+    Route::get('floor/issue/{order}', [FloorController::class, 'issue'])->name('floor.issue');
+    Route::get('floor/production', [FloorController::class, 'production'])->name('floor.production');
+    Route::post('floor/photo', [FloorController::class, 'photo'])->name('floor.photo');
+
+    Route::get('counts', [StockCountController::class, 'index'])->name('counts.index');
+    Route::post('counts', [StockCountController::class, 'store'])->name('counts.store');
+    Route::get('counts/{count}', [StockCountController::class, 'show'])->name('counts.show');
+    Route::post('counts/{count}/lines', [StockCountController::class, 'line'])->name('counts.line');
+    Route::post('counts/{count}/submit', [StockCountController::class, 'submit'])->name('counts.submit');
+    Route::post('counts/{count}/approve', [StockCountController::class, 'approve'])->name('counts.approve');
+    Route::post('counts/{count}/cancel', [StockCountController::class, 'cancel'])->name('counts.cancel');
+
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
     Route::post('notifications/{notification}/read', [NotificationController::class, 'read'])->name('notifications.read');
@@ -92,6 +110,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('facilities/{facility}/opening-stock', [OpeningStockController::class, 'store'])->name('facilities.opening-stock.store');
 
     Route::get('stores/{warehouse}', [FacilityStoreController::class, 'show'])->name('stores.show');
+    Route::get('stores/{warehouse}/labels', [FacilityStoreController::class, 'labels'])->name('stores.labels');
     Route::put('stores/{warehouse}', [FacilityStoreController::class, 'update'])->name('stores.update');
     Route::post('stores/{warehouse}/deactivate', [FacilityStoreController::class, 'deactivate'])->name('stores.deactivate');
     Route::post('stores/{warehouse}/activate', [FacilityStoreController::class, 'activate'])->name('stores.activate');
@@ -198,6 +217,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::put('manufacturing/{order}/terms', [ManufacturingOrderController::class, 'terms'])->name('manufacturing.terms');
     Route::post('manufacturing/{order}/stage', [ManufacturingOrderController::class, 'stage'])->name('manufacturing.stage');
     Route::post('manufacturing/{order}/adjustments', [ManufacturingOrderController::class, 'adjust'])->name('manufacturing.adjust');
+    Route::post('manufacturing/{order}/scan', [ManufacturingOrderController::class, 'scan'])->name('manufacturing.scan');
+    Route::get('manufacturing/{order}/card', [ManufacturingOrderController::class, 'card'])->name('manufacturing.card');
     Route::get('analytics/production', ProductionAnalyticsController::class)->name('analytics.production');
     Route::get('planning/simulate', WhatIfController::class)->name('planning.simulate');
     Route::get('planning/capacity', CapacityController::class)->name('planning.capacity');

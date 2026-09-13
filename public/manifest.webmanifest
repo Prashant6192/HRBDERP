@@ -1,0 +1,25 @@
+{
+    "name": "HRBD ERP Floor",
+    "short_name": "ERP Floor",
+    "description": "Scan, receive, issue, count and record production from the shop floor.",
+    "start_url": "/floor",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#ffffff",
+    "theme_color": "#0f172a",
+    "icons": [
+        {
+            "src": "/apple-touch-icon.png",
+            "sizes": "180x180",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        }
+    ]
+}

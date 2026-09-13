@@ -333,22 +333,22 @@ Creates and runs manufacturing orders and consumes materials against them.
 
 Receives, adjusts and transfers stock, and maintains warehouse master data.
 
-| Module              | Abilities                                                                              |
-| ------------------- | -------------------------------------------------------------------------------------- |
-| Facilities          | `view`                                                                                 |
-| Stores              | `view`, `create`, `edit`, `delete`, `export`, `deactivate`                             |
-| Product Master      | `view`                                                                                 |
-| Raw Materials       | `view`                                                                                 |
-| Packaging Materials | `view`                                                                                 |
-| Contract Clients    | `view`                                                                                 |
-| Units of Measure    | `view`                                                                                 |
-| Inventory           | `view`, `receive`, `adjust`, `transfer`, `receive_transfer`, `opening_stock`, `export` |
-| Planning & Purchase | `view`                                                                                 |
-| Production          | `view`                                                                                 |
-| Procurement         | `view`, `receive`                                                                      |
-| Quality Control     | `view`                                                                                 |
-| Reports             | `view`, `export`                                                                       |
-| Approvals           | `view`                                                                                 |
+| Module              | Abilities                                                                                                                   |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Facilities          | `view`                                                                                                                      |
+| Stores              | `view`, `create`, `edit`, `delete`, `export`, `deactivate`                                                                  |
+| Product Master      | `view`                                                                                                                      |
+| Raw Materials       | `view`                                                                                                                      |
+| Packaging Materials | `view`                                                                                                                      |
+| Contract Clients    | `view`                                                                                                                      |
+| Units of Measure    | `view`                                                                                                                      |
+| Inventory           | `view`, `receive`, `adjust`, `reverse`, `count`, `approve_count`, `transfer`, `receive_transfer`, `opening_stock`, `export` |
+| Planning & Purchase | `view`                                                                                                                      |
+| Production          | `view`                                                                                                                      |
+| Procurement         | `view`, `receive`                                                                                                           |
+| Quality Control     | `view`                                                                                                                      |
+| Reports             | `view`, `export`                                                                                                            |
+| Approvals           | `view`                                                                                                                      |
 
 ### Purchase Manager
 
@@ -507,19 +507,19 @@ Works the QC Checkpoint only: inspects, approves, rejects and prints QC slips. C
 
 Receives deliveries, books stock in and prints batch stickers for the stores they are assigned to. No planning or production.
 
-| Module              | Abilities                                         |
-| ------------------- | ------------------------------------------------- |
-| Facilities          | `view`                                            |
-| Stores              | `view`                                            |
-| Product Master      | `view`                                            |
-| Raw Materials       | `view`                                            |
-| Packaging Materials | `view`                                            |
-| Vendors             | `view`, `create`                                  |
-| Contract Clients    | `view`                                            |
-| Units of Measure    | `view`                                            |
-| Inventory           | `view`, `receive`, `transfer`, `receive_transfer` |
-| Procurement         | `view`, `create`, `receive`                       |
-| Quality Control     | `view`                                            |
+| Module              | Abilities                                                  |
+| ------------------- | ---------------------------------------------------------- |
+| Facilities          | `view`                                                     |
+| Stores              | `view`                                                     |
+| Product Master      | `view`                                                     |
+| Raw Materials       | `view`                                                     |
+| Packaging Materials | `view`                                                     |
+| Vendors             | `view`, `create`                                           |
+| Contract Clients    | `view`                                                     |
+| Units of Measure    | `view`                                                     |
+| Inventory           | `view`, `receive`, `count`, `transfer`, `receive_transfer` |
+| Procurement         | `view`, `create`, `receive`                                |
+| Quality Control     | `view`                                                     |
 
 ### Packaging Executive
 
@@ -580,6 +580,13 @@ requester. The person who booked a delivery in cannot release it from QC.
 
 `inventory.reverse` (Warehouse Manager, Factory Manager, Owner) reverses a
 stock posting; nothing else can change one.
+
+`inventory.count` (Warehouse Manager, Store Executive) starts a stock count
+and records what is on the shelf; `inventory.approve_count` (Warehouse
+Manager) approves a submitted count and posts the differences. Whoever
+counted, started or submitted a count cannot approve it. The floor mode at
+`/floor` is open to every signed-in employee and shows only the actions
+their permissions allow; scanning at the kettle needs `production.consume`.
 
 `document.view / create / approve / withdraw / delete` govern controlled
 documents: Owner, Director and Factory Manager hold all; QC Manager may

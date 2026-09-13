@@ -18,6 +18,8 @@ use App\Domain\Warehousing\Services\StoreService;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Warehousing\StoreStoreRequest;
 use App\Http\Requests\Warehousing\UpdateStoreRequest;
+use App\Support\Scanning\Qr;
+use App\Support\Scanning\ScanCode;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -139,6 +141,30 @@ class FacilityStoreController extends Controller
                 'transfer' => $user->can('create', StockTransfer::class) && $this->access->canWorkIn($user, $warehouse),
                 'opening_stock' => $warehouse->facility !== null && $warehouse->facility->opening_stock_enabled && $user->can('inventory.opening_stock') && $this->access->canWorkIn($user, $warehouse),
             ],
+        ]);
+    }
+
+    /**
+     * Printable rack and shelf labels with QR codes for a store.
+     */
+    public function labels(Request $request, Warehouse $warehouse): Response
+    {
+        $this->authorize('view', $warehouse);
+        $warehouse->load(['locations' => fn ($q) => $q->where('is_active', true)->orderBy('code'), 'facility:id,name']);
+
+        $labels = $warehouse->locations->map(fn ($l) => [
+            'id' => $l->id,
+            'code' => $l->code,
+            'name' => $l->name,
+            'type' => $l->type,
+            'scan_code' => ScanCode::location($warehouse->code, $l->code),
+            'qr' => Qr::dataUri(ScanCode::url(ScanCode::location($warehouse->code, $l->code)), 180),
+        ])->values()->all();
+
+        return Inertia::render('stores/labels', [
+            'store' => ['id' => $warehouse->id, 'code' => $warehouse->code, 'name' => $warehouse->name, 'facility' => $warehouse->facility?->name, 'qr' => Qr::dataUri(ScanCode::url(ScanCode::location($warehouse->code, '')), 180), 'scan_code' => ScanCode::location($warehouse->code, '')],
+            'labels' => $labels,
+            'company' => config('erp.company.name'),
         ]);
     }
 

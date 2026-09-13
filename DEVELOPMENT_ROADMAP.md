@@ -71,7 +71,7 @@ Where the build has got to, and what comes next.
 | Outlook panel on every material's page, in sentences                                                                      | Built |
 | Slow-moving stock by 30 / 60 / 90 / 180 days with blocked working capital                                                 | Built |
 | Expiry risk: expected use before expiry, first-expiry-first-out, value at risk                                            | Built |
-| Command centre, exception feed, notifications, escalation                                                                 | Next  |
+| Command centre, exception feed, notifications, escalation                                                                 | Built |
 | Real-time batch stages with a trail; returns and wastage on a batch                                                       | Built |
 | Consumption intelligence per batch and per material across batches; yield analytics per product                           | Built |
 | Cost variance engine: price, usage, wastage, charges and yield effects                                                    | Built |
@@ -81,7 +81,7 @@ Where the build has got to, and what comes next.
 | Ledger reversals instead of edits; database-level lock on critical tables                                                 | Built |
 | Recall trace forwards and backwards from any lot                                                                          | Built |
 | Controlled documents with versions, approval and supersession                                                             | Built |
-| Shop-floor scanning, stock counts, mobile floor mode                                                                      | Next  |
+| Shop-floor scanning with scan-before-issue, stock counts with inventory accuracy, mobile floor mode (PWA)                 | Built |
 | Department scorecards, OTIF, the assistant                                                                                | Next  |
 
 ---

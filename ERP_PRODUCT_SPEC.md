@@ -362,8 +362,25 @@ clients; backwards to the lots a batch was made from and their suppliers.
 standards with version history and approval status; production references
 the approved current version.
 
-**Still to come in this layer:** shop-floor scanning, stock counts, the
-mobile floor mode, scorecards and the assistant.
+**QR and barcode on the floor.** Batch stickers, rack labels and batch
+cards carry QR codes; a phone camera opens the thing scanned in the floor
+mode. **Scan before issue:** at the kettle every drum is scanned against the
+batch and passes only when it is the right material, released by QC, in
+date, the owner's own stock and the batch the store reserved; anything else
+is blocked with the reason and the attempt is recorded. The factory can
+require every raw material to pass before a batch starts.
+
+**Stock counts and inventory accuracy.** A count freezes the system
+quantity per batch, the counter scans and enters what is on the shelf, and a
+different person approves it, at which point every difference is posted
+through the ledger. Inventory accuracy is the share of lines where shelf
+matched system.
+
+**Mobile floor mode.** A one-column, large-target screen for a phone at
+`/floor`, installable to the home screen: scan, issue, record the stage,
+count, photograph. No data is cached offline.
+
+**Still to come in this layer:** scorecards, OTIF and the assistant.
 
 ### Costing — _planned_
 

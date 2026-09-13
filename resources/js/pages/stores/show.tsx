@@ -3,6 +3,7 @@ import {
     ArrowLeftRight,
     PackagePlus,
     Pencil,
+    QrCode,
     Plus,
     Power,
     PowerOff,
@@ -33,7 +34,7 @@ import {
 import openingStock from '@/routes/facilities/opening-stock';
 import { create as createReceipt } from '@/routes/goods-receipts';
 import { show as showLot } from '@/routes/lots';
-import { activate, deactivate, destroy, update } from '@/routes/stores';
+import { activate, deactivate, destroy, labels, update } from '@/routes/stores';
 import {
     create as createTransfer,
     show as showTransfer,
@@ -165,6 +166,16 @@ export default function ShowStore({
                     description={`${store.code} · ${store.category ?? store.type}${store.facility ? ` · ${store.facility.name}` : ''}`}
                     actions={
                         <>
+                            <Button variant="outline" asChild>
+                                <a
+                                    href={labels(store.id).url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                >
+                                    <QrCode className="size-4" />
+                                    Print labels
+                                </a>
+                            </Button>
                             {isRm && can.receive && store.is_active && (
                                 <Button variant="outline" asChild>
                                     <Link

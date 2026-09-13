@@ -3,12 +3,15 @@ import {
     CheckCircle2,
     Flame,
     PackageCheck,
+    QrCode,
+    ScanLine,
     ShieldCheck,
     XCircle,
 } from 'lucide-react';
 import { useState } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { ClientBadge } from '@/components/contract/client-badge';
+import { VerificationPanel } from '@/components/manufacturing/verification-panel';
 import {
     ThirdPartyPanel,
     type ThirdPartyDetails,
@@ -56,9 +59,11 @@ import { index as approvalsIndex } from '@/routes/approvals';
 import { download as downloadDocument } from '@/routes/documents';
 import { show as showFormula } from '@/routes/formulas';
 import { show as showLot } from '@/routes/lots';
+import { issue as floorIssue } from '@/routes/floor';
 import {
     approve,
     cancel,
+    card,
     complete,
     index,
     show,
@@ -66,6 +71,7 @@ import {
 } from '@/routes/manufacturing';
 import { show as showPlan } from '@/routes/plans';
 import { show as showProduct } from '@/routes/products';
+import type { Verification } from '@/pages/floor/issue';
 import type {
     ManufacturingOrder,
     ManufacturingOrderLineRow,
@@ -187,6 +193,8 @@ export default function ShowManufacturingOrder({
     stages,
     approval,
     documents,
+    verification,
+    scanCode,
     analytics,
     lots,
     can,
@@ -213,6 +221,8 @@ export default function ShowManufacturingOrder({
         effective_from: string | null;
         has_file: boolean;
     }[];
+    verification: Verification | null;
+    scanCode: string;
     analytics: BatchAnalytics | null;
     lots: { item_id: number; lot_id: number; batch_number: string }[];
     can: {
@@ -266,6 +276,24 @@ export default function ShowManufacturingOrder({
                             >
                                 {MO_STATUS_LABEL[order.status]}
                             </StatusBadge>
+                            <Button size="sm" variant="outline" asChild>
+                                <a
+                                    href={card(order.id).url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                >
+                                    <QrCode className="size-4" />
+                                    Batch card
+                                </a>
+                            </Button>
+                            {verification && (
+                                <Button size="sm" variant="outline" asChild>
+                                    <Link href={floorIssue(order.id)}>
+                                        <ScanLine className="size-4" />
+                                        Issue by scan
+                                    </Link>
+                                </Button>
+                            )}
                             {can.approve && (
                                 <ConfirmDialog
                                     trigger={
@@ -672,6 +700,15 @@ export default function ShowManufacturingOrder({
                             ))}
                         </ul>
                     </section>
+                )}
+
+                {verification && (
+                    <VerificationPanel
+                        verification={verification}
+                        scanCode={scanCode}
+                        orderId={order.id}
+                        status={order.status}
+                    />
                 )}
 
                 {documents.length > 0 && (

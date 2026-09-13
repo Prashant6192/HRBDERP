@@ -208,6 +208,18 @@ class ManufacturingOrderService
                 throw new ManufacturingException("{$order->number} is {$order->status->label()}; only an approved order can be started.");
             }
 
+            // Scan before issue: when the floor is set to verify every drum,
+            // a batch does not start until every raw material has passed.
+            if (config('erp.shop_floor.require_scan_before_start', false)) {
+                $status = app(IssueVerificationService::class)->status($order, StoreKind::RawMaterial);
+
+                if (! $status['complete']) {
+                    $missing = collect($status['lines'])->where('verified', false)->pluck('name')->implode(', ');
+
+                    throw new ManufacturingException("Scan every raw material against {$order->number} before starting it. Not yet verified: {$missing}.");
+                }
+            }
+
             $this->consumeHeld($order, StoreKind::RawMaterial, $userId);
 
             $order->fill([

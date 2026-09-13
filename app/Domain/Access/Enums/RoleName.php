@@ -170,6 +170,7 @@ enum RoleName: string
                 'facility.view', 'warehouse.*', 'product.view', 'raw_material.view',
                 'packaging_material.view', 'uom.view', 'client.view',
                 'inventory.view', 'inventory.receive', 'inventory.adjust', 'inventory.reverse',
+                'inventory.count', 'inventory.approve_count',
                 'inventory.transfer', 'inventory.receive_transfer',
                 'inventory.opening_stock', 'inventory.export',
                 'purchase.view', 'purchase.receive',
@@ -286,7 +287,7 @@ enum RoleName: string
                 'raw_material.view', 'packaging_material.view', 'product.view', 'uom.view',
                 // A vendor not yet on file is added from the bill on the receipt screen.
                 'vendor.view', 'vendor.create', 'client.view',
-                'inventory.view', 'inventory.receive', 'inventory.transfer', 'inventory.receive_transfer',
+                'inventory.view', 'inventory.receive', 'inventory.count', 'inventory.transfer', 'inventory.receive_transfer',
                 'purchase.view', 'purchase.create', 'purchase.receive',
                 'qc.view',
             ],

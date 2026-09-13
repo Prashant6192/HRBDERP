@@ -26,6 +26,7 @@ use App\Domain\Manufacturing\Models\ManufacturingOrder;
 use App\Domain\Manufacturing\Models\ManufacturingOrderAdjustment;
 use App\Domain\Manufacturing\Models\ManufacturingOrderLine;
 use App\Domain\Manufacturing\Services\BatchAdjustmentService;
+use App\Domain\Manufacturing\Services\IssueVerificationService;
 use App\Domain\Manufacturing\Services\ManufacturingOrderService;
 use App\Domain\Manufacturing\Services\ProductionStageService;
 use App\Domain\MasterData\Models\Item;
@@ -34,7 +35,10 @@ use App\Domain\Warehousing\Services\FacilityAccess;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Manufacturing\CompleteManufacturingOrderRequest;
 use App\Http\Requests\Manufacturing\UpdateOrderTermsRequest;
+use App\Support\Scanning\Qr;
+use App\Support\Scanning\ScanCode;
 use App\Support\Tables\TableQuery;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -57,6 +61,7 @@ class ManufacturingOrderController extends Controller
         private readonly ProductionAnalyticsService $analytics,
         private readonly RiskAssessor $risk,
         private readonly ApprovalService $approvals,
+        private readonly IssueVerificationService $verification,
     ) {}
 
     public function index(Request $request): Response
@@ -174,6 +179,8 @@ class ManufacturingOrderController extends Controller
             // Where the batch is on the floor, and what it took and cost.
             'stages' => $this->stages->summary($order),
             'approval' => $this->pendingApproval($order),
+            'verification' => in_array($order->status, [ManufacturingOrderStatus::Approved, ManufacturingOrderStatus::InProgress], true) ? $this->verification->status($order) : null,
+            'scanCode' => ScanCode::order($order->number),
             'documents' => app(DocumentService::class)->currentFor($order->product_id, $order->client_id),
             'analytics' => $order->status === ManufacturingOrderStatus::Draft || $order->status === ManufacturingOrderStatus::Approved
                 ? null
@@ -193,6 +200,44 @@ class ManufacturingOrderController extends Controller
                 'stage' => $request->user()->can('production.consume') && $order->status === ManufacturingOrderStatus::InProgress,
                 'adjust' => $request->user()->can('production.consume') && in_array($order->status, [ManufacturingOrderStatus::InProgress, ManufacturingOrderStatus::Completed], true),
             ],
+        ]);
+    }
+
+    /**
+     * Scan before issue: a batch code checked against this order.
+     */
+    public function scan(Request $request, ManufacturingOrder $order): RedirectResponse|JsonResponse
+    {
+        $this->authorize('start', $order);
+
+        $data = $request->validate(['code' => ['required', 'string', 'max:255']]);
+        $result = $this->verification->scan($order, $data['code'], $request->user()->id);
+
+        if ($request->wantsJson()) {
+            return response()->json($result);
+        }
+
+        return back()->withToast(
+            $result['verdict'] === 'ok' ? 'success' : 'error',
+            $result['verdict'] === 'ok'
+                ? (($result['lot']['batch_number'] ?? $data['code']).' verified for '.$order->number.'.')
+                : 'Blocked: '.implode(' ', $result['reasons']),
+        );
+    }
+
+    /**
+     * A printable batch card with the order's QR for the floor.
+     */
+    public function card(Request $request, ManufacturingOrder $order): Response
+    {
+        $this->authorize('view', $order);
+        $order->load(['product:id,code,name', 'formula:id,code,name', 'formulaVersion:id,version_number', 'plannedUom:id,code', 'lines.item:id,code,name', 'lines.uom:id,code', 'client:id,name', 'facility:id,name']);
+
+        return Inertia::render('manufacturing/card', [
+            'order' => $order,
+            'qr' => Qr::dataUri(ScanCode::url(ScanCode::order($order->number)), 260),
+            'code' => ScanCode::order($order->number),
+            'company' => config('erp.company.name'),
         ]);
     }
 

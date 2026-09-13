@@ -6,6 +6,8 @@ namespace App\Domain\Quality\Services;
 
 use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Quality\Models\QcInspection;
+use App\Support\Scanning\Qr;
+use App\Support\Scanning\ScanCode;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Barryvdh\DomPDF\PDF as PdfDocument;
 use InvalidArgumentException;
@@ -43,6 +45,8 @@ class LotStickerService
             'item' => $lot->item,
             'inspection' => $inspection,
             'company' => config('erp.company.name'),
+            'qr' => Qr::dataUri(ScanCode::url(ScanCode::lot($lot->batch_number)), 150),
+            'scan_code' => ScanCode::lot($lot->batch_number),
             'width' => $size['width'],
             'height' => $size['height'],
         ])->setPaper([0, 0, $points((float) $size['width']), $points((float) $size['height'])], 'portrait');

@@ -256,6 +256,18 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Shop floor
+    |--------------------------------------------------------------------------
+    */
+
+    'shop_floor' => [
+        // When true, a batch cannot start until every raw material line has
+        // been verified by scanning a batch that passed the checks.
+        'require_scan_before_start' => (bool) env('ERP_REQUIRE_SCAN_BEFORE_START', false),
+    ],
+
     'stock_alerts' => [
         'moderate_multiplier' => env('ERP_STOCK_MODERATE_MULTIPLIER', '2'),
 

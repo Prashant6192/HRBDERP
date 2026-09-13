@@ -33,6 +33,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { index as auditIndex } from '@/routes/audit';
 import { index as clientsIndex } from '@/routes/clients';
+import { index as countsIndex } from '@/routes/counts';
 import { index as formulasIndex } from '@/routes/formulas';
 import { index as goodsReceiptsIndex } from '@/routes/goods-receipts';
 import { index as lotsIndex } from '@/routes/lots';
@@ -151,6 +152,12 @@ export const erpNavigation: ErpNavGroup[] = [
                 title: 'Stock Transfers',
                 href: transfersIndex().url,
                 icon: ArrowLeftRight,
+                permission: 'inventory.view',
+            },
+            {
+                title: 'Stock Counts',
+                href: countsIndex().url,
+                icon: ClipboardCheck,
                 permission: 'inventory.view',
             },
             {

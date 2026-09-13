@@ -538,6 +538,30 @@ escalated once per level rather than once per hour: `exception_key`
 `resolved_at` (set when the condition clears). Unique on
 `(exception_key, level)`.
 
+## Shop floor
+
+### `manufacturing_order_scans`
+
+Every scan at the kettle, passed or blocked: `manufacturing_order_id`, the
+raw `code`, the `item_id` and `lot_id` it resolved to (null when nothing
+matched), `verdict` (`ok` | `blocked`), `reasons` (jsonb list), `scanned_by`,
+`scanned_at`. A line counts as verified when it has an `ok` scan.
+
+### `stock_counts`, `stock_count_lines`
+
+A count: `number` (`SC-yymm-####`), `warehouse_id`, `status` (`counting` |
+`submitted` | `approved` | `cancelled`), `notes`, and who started,
+submitted, approved or cancelled it and when. Lines: `item_id`, `lot_id`,
+`system_quantity` (frozen when the count starts, `0` for a batch found on
+the shelf but not in the system), `counted_quantity`, `note`, `counted_by`,
+`counted_at`, and `inventory_transaction_id` once the difference is posted.
+Unique on `(stock_count_id, item_id, lot_id)`.
+
+### `floor_photos`
+
+A photo taken on the floor against a batch, an order or a count: `subject`
+morph, `path` on the local disk, `note`, `taken_by`, `taken_at`.
+
 ### Everything else is read, not stored
 
 The reorder advice, slow-moving and expiry-risk reports, the exception

@@ -565,7 +565,9 @@ morph, `path` on the local disk, `note`, `taken_by`, `taken_at`.
 ### Everything else is read, not stored
 
 The reorder advice, slow-moving and expiry-risk reports, the exception
-feed and the command centre are read at the moment they are asked for. The reorder advice, slow-moving and expiry-risk reports
+feed, the command centre, the department scorecards and the process
+performance table are read at the moment they are asked for; the ERP
+assistant reads through the same services and stores nothing. The reorder advice, slow-moving and expiry-risk reports
 are read from `stock_balances`, `inventory_lots`, the ledger,
 `manufacturing_order_lines`, `production_plan_lines`,
 `material_request_lines` and `goods_receipt_lines` at the moment they are

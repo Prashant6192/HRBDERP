@@ -17,11 +17,13 @@ use App\Http\Controllers\Formulation\FormulaController;
 use App\Http\Controllers\Formulation\FormulaImportController;
 use App\Http\Controllers\Formulation\FormulaSecurityController;
 use App\Http\Controllers\Formulation\FormulaVersionController;
+use App\Http\Controllers\Intelligence\AssistantController;
 use App\Http\Controllers\Intelligence\CapacityController;
 use App\Http\Controllers\Intelligence\CommandCentreController;
 use App\Http\Controllers\Intelligence\ExpiryRiskController;
 use App\Http\Controllers\Intelligence\ProductionAnalyticsController;
 use App\Http\Controllers\Intelligence\ReorderAdviceController;
+use App\Http\Controllers\Intelligence\ScorecardController;
 use App\Http\Controllers\Intelligence\SlowMovingStockController;
 use App\Http\Controllers\Intelligence\WhatIfController;
 use App\Http\Controllers\Inventory\LedgerController;
@@ -66,6 +68,10 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 
     Route::get('dashboard', DashboardController::class)->name('dashboard');
     Route::get('command-centre', CommandCentreController::class)->name('command-centre');
+    Route::get('scorecards', ScorecardController::class)->name('scorecards');
+    Route::get('assistant', [AssistantController::class, 'index'])->name('assistant.index');
+    Route::post('assistant/ask', [AssistantController::class, 'ask'])
+        ->middleware('throttle:'.(int) config('erp.ai.assistant.rate_per_minute', 20).',1')->name('assistant.ask');
 
     Route::get('approvals', [ApprovalController::class, 'index'])->name('approvals.index');
     Route::post('approvals/{approval}/approve', [ApprovalController::class, 'approve'])->name('approvals.approve');

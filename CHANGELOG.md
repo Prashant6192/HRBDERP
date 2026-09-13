@@ -10,6 +10,40 @@ between them.
 
 ## [Unreleased]
 
+### Added — Scorecards, OTIF, process performance and the ERP assistant
+
+- **Department scorecards** under **Overview → Scorecards**, for 7, 30, 90
+  or 365 days and per facility. Planning: plans raised, plans that became
+  batches, batches started on the planned date, plans past their date.
+  Purchase: requests raised, delivered by the need-by date (lead-time
+  adherence), request-to-delivery days, open past need-by. Stores: deliveries
+  booked, bill-to-booked hours, **inventory accuracy** from approved stock
+  counts, transfers received by the expected date. QC: decisions, turnaround
+  hours, rejection rate, samples waiting too long. Manufacturing: batches
+  completed, yield, start-to-finish hours, batches running too long.
+  Packaging: batches and units packed, packaging rejection (wastage against
+  packaging used). **Dispatch OTIF**: client jobs completed on time (by the
+  delivery date) and in full (units posted reached the order), with the
+  on-time and in-full parts and jobs overdue now. Each department carries a
+  score; the factory score is their average.
+- **Process performance** on the same screen: for each step of the flow
+  (plan raised → checked, request → received, delivery opened → booked,
+  sample → decision, approved → started, started → completed, dispatched →
+  received, count started → approved) how many went through in the period,
+  the average and longest time, how many are waiting now and how long the
+  oldest has waited. The process is measured, not the person.
+- **Ask the ERP** under **Overview → Ask the ERP**: questions in plain words
+  ("Do we have enough Surfactant A for next week?", "What should purchase
+  order today?", "Where did batch RM-0001 go?", "How did QC do last
+  month?") answered by Claude from the ERP's own data through ten read-only
+  tools: material search, stock outlook, reorder advice, exception feed,
+  command centre, order status, batch trace, scorecards, stock risks and
+  client profitability. Every tool runs under the asking person's own
+  permissions; the assistant never changes anything and says which figures
+  it read. Needs `ANTHROPIC_API_KEY`; `ERP_ASSISTANT_ENABLED=false` switches
+  it off; `ERP_ASSISTANT_RATE_PER_MINUTE` limits questions per person.
+- **Permission** `assistant.view`, held by the management and manager roles.
+
 ### Added — Shop floor: scan before issue, stock counts, the mobile floor mode
 
 The floor gets a phone-sized ERP and the ERP gets a check at the kettle.

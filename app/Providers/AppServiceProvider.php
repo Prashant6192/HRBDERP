@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Domain\Intelligence\Assistant\AssistantBackend;
+use App\Domain\Intelligence\Assistant\ClaudeBackend;
 use App\Domain\Inventory\Contracts\ChallanReader;
 use App\Domain\Inventory\Services\ClaudeChallanReader;
 use App\Domain\Procurement\Contracts\InvoiceReader;
@@ -26,6 +28,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(InvoiceReader::class, ClaudeInvoiceReader::class);
         $this->app->bind(ChallanReader::class, ClaudeChallanReader::class);
+        $this->app->bind(AssistantBackend::class, ClaudeBackend::class);
 
         //
     }

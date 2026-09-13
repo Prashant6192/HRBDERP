@@ -164,6 +164,13 @@ final class PermissionCatalogue
             'group' => 'Commercial',
             'abilities' => ['view', 'export'],
         ],
+        'assistant' => [
+            'label' => 'ERP Assistant',
+            'group' => 'Commercial',
+            // Ask the ERP in plain words; every answer is read under the
+            // asker's own permissions.
+            'abilities' => ['view'],
+        ],
 
         // ---- Workflow ------------------------------------------------------
         'approval' => [

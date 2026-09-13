@@ -94,8 +94,12 @@ ERP_QC_REQUIRE_PIN=true
 # screen says the reader is not set up, and only someone with
 # "Procurement → Receive manual" (the Factory Manager by default) can book a
 # receipt at all, by hand.
+# The same key powers "Ask the ERP" (Overview → Ask the ERP), which reads
+# the ERP under the asker's permissions and never writes.
 ANTHROPIC_API_KEY=
 ERP_AI_MODEL=claude-opus-5
+ERP_ASSISTANT_ENABLED=true
+ERP_ASSISTANT_RATE_PER_MINUTE=20   # questions per person per minute
 
 # Our own GSTIN / PAN as printed on suppliers' bills under "Buyer". The bill
 # reader never takes them for the vendor's.

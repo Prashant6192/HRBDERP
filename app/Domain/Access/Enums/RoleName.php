@@ -117,7 +117,7 @@ enum RoleName: string
                 'purchase.view', 'purchase.approve', 'purchase.export',
                 'qc.view', 'sales.view', 'sales.export',
                 'marketplace.view', 'costing.view', 'costing.export',
-                'report.view', 'report.export',
+                'report.view', 'assistant.view', 'report.export',
                 'approval.view', 'approval.act',
                 'document.*',
             ],
@@ -133,7 +133,7 @@ enum RoleName: string
                 'production.view', 'production.approve', 'production.export',
                 'purchase.view', 'purchase.approve', 'purchase.export',
                 'qc.view', 'sales.view', 'marketplace.view',
-                'costing.view', 'report.view', 'report.export',
+                'costing.view', 'report.view', 'assistant.view', 'report.export',
                 'approval.view', 'approval.act',
                 'document.view',
             ],
@@ -149,7 +149,7 @@ enum RoleName: string
                 // The plant head alone may key a goods receipt in by hand.
                 'purchase.view', 'purchase.create', 'purchase.edit', 'purchase.receive', 'purchase.receive_manual',
                 'qc.view', 'qc.create', 'qc.approve', 'qc.reject',
-                'costing.view', 'report.view', 'report.export',
+                'costing.view', 'report.view', 'assistant.view', 'report.export',
                 'approval.view', 'approval.act',
                 'document.*',
             ],
@@ -161,7 +161,7 @@ enum RoleName: string
                 'formula.view',
                 'planning.view', 'planning.create', 'planning.edit', 'planning.export',
                 'production.view', 'production.create', 'production.edit', 'production.consume', 'production.export',
-                'qc.view', 'report.view',
+                'qc.view', 'report.view', 'assistant.view',
                 'approval.view',
                 'document.view',
             ],
@@ -175,7 +175,7 @@ enum RoleName: string
                 'inventory.opening_stock', 'inventory.export',
                 'purchase.view', 'purchase.receive',
                 'planning.view', 'production.view', 'qc.view',
-                'report.view', 'report.export',
+                'report.view', 'assistant.view', 'report.export',
                 'approval.view',
                 'document.view',
             ],
@@ -200,7 +200,7 @@ enum RoleName: string
                 // by hand, which stays with the plant head.
                 'purchase.view', 'purchase.create', 'purchase.edit', 'purchase.approve', 'purchase.receive', 'purchase.export',
                 'costing.view',
-                'report.view', 'report.export',
+                'report.view', 'assistant.view', 'report.export',
                 'approval.view', 'approval.act',
             ],
 
@@ -212,7 +212,7 @@ enum RoleName: string
                 'production.view',
                 'purchase.view',
                 'qc.*',
-                'report.view', 'report.export',
+                'report.view', 'assistant.view', 'report.export',
                 'approval.view', 'approval.act',
                 'document.view', 'document.create', 'document.approve', 'document.withdraw',
             ],
@@ -226,7 +226,7 @@ enum RoleName: string
                 'sales.view', 'sales.export',
                 'marketplace.view',
                 'costing.*',
-                'report.view', 'report.export',
+                'report.view', 'assistant.view', 'report.export',
                 'approval.view',
             ],
 
@@ -234,7 +234,7 @@ enum RoleName: string
                 'product.view', 'product.edit', 'client.view',
                 'sales.view', 'sales.export',
                 'marketplace.view',
-                'report.view', 'report.export',
+                'report.view', 'assistant.view', 'report.export',
             ],
 
             self::EcommerceManager => [
@@ -242,7 +242,7 @@ enum RoleName: string
                 'inventory.view',
                 'sales.view', 'sales.create', 'sales.edit', 'sales.export',
                 'marketplace.*',
-                'report.view', 'report.export',
+                'report.view', 'assistant.view', 'report.export',
             ],
 
             self::SalesManager => [
@@ -250,14 +250,14 @@ enum RoleName: string
                 'inventory.view',
                 'sales.*',
                 'marketplace.view',
-                'report.view', 'report.export',
+                'report.view', 'assistant.view', 'report.export',
             ],
 
             self::BrandManager => [
                 'product.view', 'product.create', 'product.edit', 'product.export',
                 'packaging_material.view',
                 'sales.view', 'marketplace.view',
-                'report.view',
+                'report.view', 'assistant.view',
             ],
 
             self::Designer => [

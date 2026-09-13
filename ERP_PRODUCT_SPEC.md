@@ -283,7 +283,7 @@ stage; receiving and QC per day over 7 / 30 / 90 days; units packed per week;
 materials to watch; what is coming up. Every card is gated by the permission of
 the module behind it, and each person can hide the ones they do not need.
 
-### Factory intelligence — _first layer built_
+### Factory intelligence — _built_
 
 Every screen should answer three questions: what is happening now, what is
 likely to go wrong next, and what should we do. The first layer answers them
@@ -380,7 +380,25 @@ matched system.
 `/floor`, installable to the home screen: scan, issue, record the stage,
 count, photograph. No data is cached offline.
 
-**Still to come in this layer:** scorecards, OTIF and the assistant.
+**Department scorecards and OTIF.** Planning, purchase, stores, QC,
+manufacturing, packaging and dispatch each carry a scorecard read from the
+documents they keep: plan adherence, lead-time adherence, booking time,
+inventory accuracy from stock counts, QC turnaround and rejection, yield
+and delays, packaging rejection, and dispatch OTIF (client jobs completed
+on time and in full). Each department has a score; the factory score is
+their average.
+
+**Process performance, not surveillance.** For each step of the flow, how
+many went through, the average and longest time, what is waiting now and
+how long the oldest has waited. Volumes and times belong to the process
+and the department; the ERP does not rank people.
+
+**The ERP assistant.** A question in plain words is answered by Claude
+from the ERP's own data, through read-only tools that run under the
+asking person's own permissions: stock outlook, reorder advice, exception
+feed, command centre, order status, batch trace, scorecards, stock risks
+and client profitability. It never changes anything, and says which
+figures it read.
 
 ### Costing — _planned_
 

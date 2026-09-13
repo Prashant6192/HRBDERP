@@ -1,6 +1,6 @@
 # Users, roles and permissions
 
-Sixteen roles, 97 permissions. This document is generated from the code in
+Sixteen roles, 131 permissions. This document is generated from the code in
 `app/Domain/Access` — if it disagrees with the application, the code is right
 and this file needs regenerating.
 
@@ -67,12 +67,13 @@ roles to the defaults below.
 
 ### Commercial
 
-| Module      | Key           | Abilities                                    |
-| ----------- | ------------- | -------------------------------------------- |
-| Sales       | `sales`       | `view`, `create`, `edit`, `delete`, `export` |
-| Marketplace | `marketplace` | `view`, `import`, `reconcile`, `export`      |
-| Costing     | `costing`     | `view`, `edit`, `export`                     |
-| Reports     | `report`      | `view`, `export`                             |
+| Module        | Key           | Abilities                                    |
+| ------------- | ------------- | -------------------------------------------- |
+| Sales         | `sales`       | `view`, `create`, `edit`, `delete`, `export` |
+| Marketplace   | `marketplace` | `view`, `import`, `reconcile`, `export`      |
+| Costing       | `costing`     | `view`, `edit`, `export`                     |
+| Reports       | `report`      | `view`, `export`                             |
+| ERP Assistant | `assistant`   | `view`                                       |
 
 ### Workflow
 
@@ -193,6 +194,7 @@ Unrestricted access, including roles, permissions and settings. Reserved for the
 | Marketplace         | `view`, `import`, `reconcile`, `export`                                                                                          |
 | Costing             | `view`, `edit`, `export`                                                                                                         |
 | Reports             | `view`, `export`                                                                                                                 |
+| ERP Assistant       | `view`                                                                                                                           |
 | Approvals           | `view`, `act`                                                                                                                    |
 
 ### Owner
@@ -224,6 +226,7 @@ Full visibility of the business including formulations, costing and every report
 | Marketplace         | `view`, `import`, `reconcile`, `export`                                                                                          |
 | Costing             | `view`, `edit`, `export`                                                                                                         |
 | Reports             | `view`, `export`                                                                                                                 |
+| ERP Assistant       | `view`                                                                                                                           |
 | Approvals           | `view`, `act`                                                                                                                    |
 
 ### Director
@@ -253,6 +256,7 @@ Board-level oversight with approval authority across production, procurement and
 | Marketplace         | `view`                                |
 | Costing             | `view`, `export`                      |
 | Reports             | `view`, `export`                      |
+| ERP Assistant       | `view`                                |
 | Approvals           | `view`, `act`                         |
 
 ### Management
@@ -282,6 +286,7 @@ Cross-department visibility and approval authority, without administration right
 | Marketplace         | `view`                               |
 | Costing             | `view`                               |
 | Reports             | `view`, `export`                     |
+| ERP Assistant       | `view`                               |
 | Approvals           | `view`, `act`                        |
 
 ### Factory Manager
@@ -306,6 +311,7 @@ Runs the plant: production, inventory, quality and the formulations needed to ma
 | Quality Control     | `view`, `create`, `approve`, `reject`                                                                                            |
 | Costing             | `view`                                                                                                                           |
 | Reports             | `view`, `export`                                                                                                                 |
+| ERP Assistant       | `view`                                                                                                                           |
 | Approvals           | `view`, `act`                                                                                                                    |
 
 ### Production Manager
@@ -327,6 +333,7 @@ Creates and runs manufacturing orders and consumes materials against them.
 | Production          | `view`, `create`, `edit`, `consume`, `export` |
 | Quality Control     | `view`                                        |
 | Reports             | `view`                                        |
+| ERP Assistant       | `view`                                        |
 | Approvals           | `view`                                        |
 
 ### Warehouse Manager
@@ -348,6 +355,7 @@ Receives, adjusts and transfers stock, and maintains warehouse master data.
 | Procurement         | `view`, `receive`                                                                                                           |
 | Quality Control     | `view`                                                                                                                      |
 | Reports             | `view`, `export`                                                                                                            |
+| ERP Assistant       | `view`                                                                                                                      |
 | Approvals           | `view`                                                                                                                      |
 
 ### Purchase Manager
@@ -369,6 +377,7 @@ Raises and approves purchase orders and maintains vendors and prices.
 | Procurement         | `view`, `create`, `edit`, `approve`, `receive`, `export` |
 | Costing             | `view`                                                   |
 | Reports             | `view`, `export`                                         |
+| ERP Assistant       | `view`                                                   |
 | Approvals           | `view`, `act`                                            |
 
 ### QC Manager
@@ -391,6 +400,7 @@ Approves or rejects material and batch quality, and holds stock from release.
 | Procurement         | `view`                                          |
 | Quality Control     | `view`, `create`, `approve`, `reject`, `export` |
 | Reports             | `view`, `export`                                |
+| ERP Assistant       | `view`                                          |
 | Approvals           | `view`, `act`                                   |
 
 ### Accounts Manager
@@ -414,6 +424,7 @@ Costing, pricing and financial reporting.
 | Marketplace         | `view`                   |
 | Costing             | `view`, `edit`, `export` |
 | Reports             | `view`, `export`         |
+| ERP Assistant       | `view`                   |
 | Approvals           | `view`                   |
 
 ### Marketing Manager
@@ -427,6 +438,7 @@ Brand, product presentation and marketing reporting.
 | Sales            | `view`, `export` |
 | Marketplace      | `view`           |
 | Reports          | `view`, `export` |
+| ERP Assistant    | `use`            |
 
 ### E-commerce Manager
 
@@ -439,6 +451,7 @@ Marketplace listings, imports and reconciliation.
 | Sales          | `view`, `create`, `edit`, `export`      |
 | Marketplace    | `view`, `import`, `reconcile`, `export` |
 | Reports        | `view`, `export`                        |
+| ERP Assistant  | `use`                                   |
 
 ### Sales Manager
 
@@ -452,6 +465,7 @@ Sales orders, customers and sales reporting.
 | Sales            | `view`, `create`, `edit`, `delete`, `export` |
 | Marketplace      | `view`                                       |
 | Reports          | `view`, `export`                             |
+| ERP Assistant    | `use`                                        |
 
 ### Brand Manager
 
@@ -464,6 +478,7 @@ Product master and brand-level reporting.
 | Sales               | `view`                             |
 | Marketplace         | `view`                             |
 | Reports             | `view`                             |
+| ERP Assistant       | `view`                             |
 
 ### Designer
 
@@ -580,6 +595,14 @@ requester. The person who booked a delivery in cannot release it from QC.
 
 `inventory.reverse` (Warehouse Manager, Factory Manager, Owner) reverses a
 stock posting; nothing else can change one.
+
+`assistant.view` opens **Ask the ERP**. Every manager role and the
+management roles hold it; the shop-floor roles, Designer and Viewer do not.
+The assistant reads through the same services as the screens, under the
+asking person's own permissions: a tool the person may not see answers
+"you do not hold X" and nothing else. It never writes.
+
+`report.view` also opens the **Scorecards** screen.
 
 `inventory.count` (Warehouse Manager, Store Executive) starts a stock count
 and records what is on the shelf; `inventory.approve_count` (Warehouse

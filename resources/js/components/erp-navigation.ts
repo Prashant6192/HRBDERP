@@ -1,6 +1,7 @@
 import {
     ArrowLeftRight,
     BarChart3,
+    Bot,
     Beaker,
     Boxes,
     Building2,
@@ -58,7 +59,8 @@ import { index as vendorsIndex } from '@/routes/vendors';
 import { index as facilitiesIndex } from '@/routes/facilities';
 import { index as transfersIndex } from '@/routes/transfers';
 import { index as warehousesIndex } from '@/routes/warehouses';
-import { commandCentre, dashboard } from '@/routes';
+import { commandCentre, dashboard, scorecards } from '@/routes';
+import { index as assistantIndex } from '@/routes/assistant';
 import { index as approvalsIndex } from '@/routes/approvals';
 import { index as documentsIndex } from '@/routes/documents';
 
@@ -103,6 +105,18 @@ export const erpNavigation: ErpNavGroup[] = [
                 href: commandCentre().url,
                 icon: MonitorDot,
                 permission: 'report.view',
+            },
+            {
+                title: 'Scorecards',
+                href: scorecards().url,
+                icon: Gauge,
+                permission: 'report.view',
+            },
+            {
+                title: 'Ask the ERP',
+                href: assistantIndex().url,
+                icon: Bot,
+                permission: 'assistant.view',
             },
             {
                 title: 'Approvals',

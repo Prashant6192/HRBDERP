@@ -98,6 +98,18 @@ return [
     'ai' => [
         'api_key' => env('ANTHROPIC_API_KEY'),
         'model' => env('ERP_AI_MODEL', 'claude-opus-5'),
+
+        // The ERP assistant: read-only questions answered from the ERP's
+        // own data under the asking person's permissions.
+        'assistant' => [
+            'enabled' => (bool) env('ERP_ASSISTANT_ENABLED', true),
+            'max_tokens' => 4000,
+            'max_tool_rounds' => 6,
+            'history_turns' => 12,
+            'tool_result_chars' => 14000,
+            // Questions per person per minute.
+            'rate_per_minute' => (int) env('ERP_ASSISTANT_RATE_PER_MINUTE', 20),
+        ],
     ],
 
     /*

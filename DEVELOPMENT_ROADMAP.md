@@ -82,7 +82,7 @@ Where the build has got to, and what comes next.
 | Recall trace forwards and backwards from any lot                                                                          | Built |
 | Controlled documents with versions, approval and supersession                                                             | Built |
 | Shop-floor scanning with scan-before-issue, stock counts with inventory accuracy, mobile floor mode (PWA)                 | Built |
-| Department scorecards, OTIF, the assistant                                                                                | Next  |
+| Department scorecards with OTIF and inventory accuracy, process performance, the ERP assistant                            | Built |
 
 ---
 

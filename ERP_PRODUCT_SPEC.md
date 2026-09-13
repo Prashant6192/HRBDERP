@@ -161,10 +161,16 @@ the same drum at the same moment cannot both succeed.
 
 ### Receiving and quality control — _built_
 
-A delivery is booked in from the delivery note and posted. Every line becomes a
-numbered batch (`RM250909-001`). Material that needs QC lands in the quarantine
-store and opens an inspection; material that does not goes straight to its
-store. QC approves (the whole batch moves to the store), rejects (it stays
+A delivery is booked in from the supplier's bill (uploaded from the receipt
+screen or straight from the Raw Materials and Packaging Materials pages) and
+posted. Each bill line is matched to the material on file by code, HSN, name
+or INCI name; a line that matches nothing can be added as a new material on
+the spot. The destination must be the kind of store the material lives in.
+Every line becomes a numbered batch (`RM250909-001`). Material that needs QC
+lands in the quarantine store of the facility it arrived at and opens an
+inspection; material that does not goes straight to its store. A facility
+without a quarantine store cannot receive material that needs QC, and the
+receipt says so. QC approves (the whole batch moves to the store), rejects (it stays
 locked in quarantine) or holds. Every approved batch has a 100 × 70 mm
 sticker — QC APPROVED, batch number, received / manufactured / expiry, quantity
 — for a label printer. Finished batches from production go through the same

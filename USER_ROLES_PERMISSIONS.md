@@ -142,7 +142,10 @@ not. `purchase.receive` lets someone do that. Typing a receipt in without a
 bill, or changing the quantities, rates and batch details the reader found,
 needs `purchase.receive_manual`, which the Factory Manager holds by default
 (Super Admin bypasses every check). The Roles screen can grant it to others;
-the Purchase Manager deliberately does not have it.
+the Purchase Manager deliberately does not have it. Adding a material that
+the bill names but the masters do not know needs `raw_material.create` or
+`packaging_material.create`, so a storekeeper books what is on file and the
+plant head adds what is new.
 
 ### Contract clients
 

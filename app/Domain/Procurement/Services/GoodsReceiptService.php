@@ -17,10 +17,12 @@ use App\Domain\Planning\Services\MaterialRequestService;
 use App\Domain\Procurement\Enums\GoodsReceiptStatus;
 use App\Domain\Procurement\Models\GoodsReceipt;
 use App\Domain\Quality\Models\QcInspection;
+use App\Domain\Warehousing\Models\Warehouse;
 use App\Domain\Warehousing\Services\WarehouseResolver;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
+use RuntimeException;
 
 /**
  * Turns a delivery note into stock.
@@ -108,6 +110,7 @@ class GoodsReceiptService
             }
 
             $quarantine = null;
+            $receipt->loadMissing('warehouse.facility');
 
             foreach ($lines as $line) {
                 $item = $line->item;
@@ -134,7 +137,7 @@ class GoodsReceiptService
                 $target = $receipt->warehouse;
 
                 if ($needsQc) {
-                    $quarantine ??= $this->warehouses->quarantine();
+                    $quarantine ??= $this->quarantineFor($receipt);
                     $target = $quarantine;
                 }
 
@@ -186,6 +189,28 @@ class GoodsReceiptService
 
             return $receipt;
         });
+    }
+
+    /**
+     * Stock that needs QC waits in the quarantine of the facility the
+     * delivery arrived at. A facility without one cannot receive material
+     * that needs QC, and says so rather than failing.
+     */
+    private function quarantineFor(GoodsReceipt $receipt): Warehouse
+    {
+        $facility = $receipt->warehouse?->facility;
+
+        try {
+            return $this->warehouses->quarantine($facility);
+        } catch (RuntimeException $e) {
+            $where = $facility ? " at {$facility->name}" : '';
+
+            throw new InvalidArgumentException(
+                "Receipt {$receipt->number} has material that needs QC, but there is no quarantine store{$where}. "
+                .'Add a quarantine store to that facility under Facilities, or receive the delivery at a facility that has one.',
+                previous: $e,
+            );
+        }
     }
 
     /**

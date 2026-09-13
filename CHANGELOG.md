@@ -10,6 +10,30 @@ between them.
 
 ## [Unreleased]
 
+### Fixed — Posting a receipt no longer fails with a server error
+
+- Posting a delivery that needs QC at a facility with no quarantine store used
+  to fail with a server error. It now keeps the receipt as a draft and says
+  what is missing ("no quarantine store at City Depot: add one under
+  Facilities, or receive at a facility that has one"). Quarantine is now the
+  one at the facility the delivery arrived at, never another plant's.
+- A raw material can no longer be booked into a finished goods store, nor
+  packaging into a raw material store: the store list on the receipt follows
+  what is on the lines, and the server refuses a mismatch with a plain
+  message instead of failing.
+
+### Added — Upload the bill from the Raw Materials page; add what is not on file
+
+- **Upload bill** on the Raw Materials and Packaging Materials pages sends
+  the supplier's bill to the reader and opens the receipt filled in from it,
+  each line matched to the material on file by code, HSN, name or INCI name.
+- A bill line that matches nothing can be **added as a new material** without
+  leaving the receipt: name, HSN, unit and rate come from the bill, the code
+  is the next free one, QC is on by default, and the reorder level defaults
+  to this delivery's quantity. The new material goes on the receipt, through
+  QC, and into the store like any other; its page can be completed later.
+  Adding a master needs `raw_material.create` / `packaging_material.create`.
+
 ### Added — Scorecards, OTIF, process performance and the ERP assistant
 
 - **Department scorecards** under **Overview → Scorecards**, for 7, 30, 90

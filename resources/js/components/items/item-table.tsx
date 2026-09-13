@@ -6,6 +6,7 @@ import {
     type DataTableFilter,
 } from '@/components/data-table';
 import { PageHeader } from '@/components/page-header';
+import { BillUploadButton } from '@/components/procurement/bill-upload-button';
 import { ActiveBadge, StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
 import type { Item, Paginated, SelectOption, TableState } from '@/types';
@@ -29,12 +30,15 @@ export function ItemTable({
     table,
     categories,
     can,
+    bill,
 }: {
     config: ItemModuleConfig;
     items: Paginated<Item>;
     table: TableState;
     categories: SelectOption[];
     can: { create: boolean; export: boolean; import: boolean };
+    /** Materials arrive with a bill; it can be uploaded from here. */
+    bill?: { upload: boolean; reader: boolean };
 }) {
     const columns: DataTableColumn<Item>[] = [
         {
@@ -134,14 +138,19 @@ export function ItemTable({
                 title={config.title}
                 description={config.description}
                 actions={
-                    can.create && (
-                        <Button asChild>
-                            <Link href={config.createUrl}>
-                                <Plus className="size-4" />
-                                New {config.noun}
-                            </Link>
-                        </Button>
-                    )
+                    <div className="flex flex-wrap items-center gap-2">
+                        {bill?.upload && (
+                            <BillUploadButton readerAvailable={bill.reader} />
+                        )}
+                        {can.create && (
+                            <Button asChild>
+                                <Link href={config.createUrl}>
+                                    <Plus className="size-4" />
+                                    New {config.noun}
+                                </Link>
+                            </Button>
+                        )}
+                    </div>
                 }
             />
 

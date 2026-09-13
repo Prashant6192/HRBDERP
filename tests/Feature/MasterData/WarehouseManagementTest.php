@@ -231,6 +231,6 @@ class WarehouseManagementTest extends TestCase
             ]))
             ->assertOk();
 
-        $this->assertSame(2, Warehouse::count());
+        $this->assertSame(2, Warehouse::query()->where('is_system', false)->count(), 'The two stores are still there (the system in-transit position aside).');
     }
 }

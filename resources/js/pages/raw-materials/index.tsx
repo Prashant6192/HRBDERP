@@ -22,11 +22,13 @@ export default function RawMaterialIndex({
     table,
     categories,
     can,
+    bill,
 }: {
     items: Paginated<Item>;
     table: TableState;
     categories: SelectOption[];
     can: { create: boolean; export: boolean; import: boolean };
+    bill: { upload: boolean; reader: boolean };
 }) {
     return (
         <>
@@ -37,6 +39,7 @@ export default function RawMaterialIndex({
                 table={table}
                 categories={categories}
                 can={can}
+                bill={bill}
             />
         </>
     );

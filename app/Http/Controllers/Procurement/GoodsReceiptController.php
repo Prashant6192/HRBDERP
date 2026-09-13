@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Procurement;
 
 use App\Domain\Contract\Models\Client;
 use App\Domain\MasterData\Models\Item;
+use App\Domain\MasterData\Models\RawMaterial;
 use App\Domain\Measurement\Models\Uom;
 use App\Domain\Planning\Models\MaterialRequest;
 use App\Domain\Planning\Models\MaterialRequestLine;
@@ -28,6 +29,7 @@ use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 use InvalidArgumentException;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class GoodsReceiptController extends Controller
@@ -88,6 +90,8 @@ class GoodsReceiptController extends Controller
             'can' => [
                 // Keying lines by hand, or changing what the reader found.
                 'manual' => $request->user()->can('enterManually', GoodsReceipt::class),
+                // A bill line for something not on file can be added as a new material.
+                'add_material' => $request->user()->can('create', RawMaterial::class),
             ],
             'vendors' => Vendor::query()->purchasable()->orderBy('name')->get(['id', 'name'])
                 ->map(fn (Vendor $v) => ['value' => $v->id, 'label' => $v->name])->all(),
@@ -156,11 +160,15 @@ class GoodsReceiptController extends Controller
             }
         }
 
-        $receipt = $this->receipts->create(
-            attributes: $data,
-            lines: $data['lines'],
-            userId: $request->user()->id,
-        );
+        try {
+            $receipt = $this->receipts->create(
+                attributes: $data,
+                lines: $data['lines'],
+                userId: $request->user()->id,
+            );
+        } catch (InvalidArgumentException|RuntimeException $e) {
+            return back()->withInput()->withErrors(['lines' => $e->getMessage()]);
+        }
 
         if ($intake !== null) {
             $receipt->forceFill([
@@ -178,7 +186,14 @@ class GoodsReceiptController extends Controller
 
         if ($request->boolean('post_now')) {
             $this->authorize('post', $receipt);
-            $receipt = $this->receipts->post($receipt, $request->user()->id);
+
+            try {
+                $receipt = $this->receipts->post($receipt, $request->user()->id);
+            } catch (InvalidArgumentException|RuntimeException $e) {
+                // The draft is kept; what stopped the posting is said plainly.
+                return to_route('goods-receipts.show', $receipt)
+                    ->withToast('error', "{$receipt->number} was saved as a draft but not posted: ".$e->getMessage());
+            }
         }
 
         Inertia::flash('toast', [
@@ -269,8 +284,8 @@ class GoodsReceiptController extends Controller
 
         try {
             $this->receipts->post($goodsReceipt, $request->user()->id);
-        } catch (InvalidArgumentException $e) {
-            return back()->withErrors(['receipt' => $e->getMessage()]);
+        } catch (InvalidArgumentException|RuntimeException $e) {
+            return back()->withErrors(['receipt' => $e->getMessage()])->withToast('error', $e->getMessage());
         }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => "{$goodsReceipt->number} posted. Batch numbers generated."]);

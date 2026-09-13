@@ -4,6 +4,7 @@ import { FileUp, Lock, Plus, ScanText, Trash2 } from 'lucide-react';
 import { Field, FormSection } from '@/components/form-field';
 import InputError from '@/components/input-error';
 import { PageHeader } from '@/components/page-header';
+import { ItemQuickAdd } from '@/components/procurement/item-quick-add';
 import { VendorQuickAdd } from '@/components/procurement/vendor-quick-add';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
@@ -148,7 +149,7 @@ export default function CreateGoodsReceipt({
     presetWarehouse?: number | null;
     intake: Intake | null;
     reader: { available: boolean; model: string | null };
-    can: { manual: boolean };
+    can: { manual: boolean; add_material: boolean };
     clients: SelectOption[];
 }) {
     // Without the right to key a receipt by hand, the particulars are the
@@ -159,6 +160,8 @@ export default function CreateGoodsReceipt({
         string | undefined
     >;
     const [vendorOptions, setVendorOptions] = useState<SelectOption[]>(vendors);
+    // Materials added from the bill without leaving the page join the list.
+    const [itemOptions, setItemOptions] = useState<ItemOption[]>(items);
     const [uploading, setUploading] = useState(false);
     const fileInput = useRef<HTMLInputElement>(null);
 
@@ -167,7 +170,7 @@ export default function CreateGoodsReceipt({
     const unmatched = billLines.filter((l) => l.item_id === null).length;
 
     const lineFromBill = (l: IntakeLine): Line => {
-        const item = items.find((it) => it.value === l.item_id);
+        const item = itemOptions.find((it) => it.value === l.item_id);
 
         return {
             item_id: l.item_id ? String(l.item_id) : '',
@@ -213,6 +216,47 @@ export default function CreateGoodsReceipt({
     });
 
     const errors = form.errors as Record<string, string | undefined>;
+
+    // Raw materials live in a raw material store, packaging in a packaging
+    // store, finished goods in a finished goods or marketplace store: the
+    // store list follows what is on the lines.
+    const storeTypesFor = (type: string): string[] =>
+        type === 'packaging_material'
+            ? ['packaging', 'general']
+            : type === 'finished_good' || type === 'semi_finished'
+              ? ['finished_goods', 'marketplace', 'general']
+              : ['raw_material', 'general'];
+    const chosenTypes = Array.from(
+        new Set(
+            form.data.lines
+                .map(
+                    (l) =>
+                        itemOptions.find((it) => String(it.value) === l.item_id)
+                            ?.type,
+                )
+                .filter((t): t is string => Boolean(t)),
+        ),
+    );
+    const storeOptions =
+        chosenTypes.length === 0
+            ? warehouses
+            : warehouses.filter((w) =>
+                  chosenTypes.every((t) => storeTypesFor(t).includes(w.type)),
+              );
+    const storeKey = storeOptions.map((w) => w.value).join(',');
+
+    useEffect(() => {
+        if (
+            storeOptions.length > 0 &&
+            !storeOptions.some(
+                (w) => String(w.value) === form.data.warehouse_id,
+            )
+        ) {
+            form.setData('warehouse_id', String(storeOptions[0].value));
+        }
+        // Re-pick only when the eligible stores change.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [storeKey]);
 
     // Booking in against a PMR: take its store and the lines still to come.
     const applyMaterialRequest = (id: string) => {
@@ -262,7 +306,7 @@ export default function CreateGoodsReceipt({
     };
 
     const chooseItem = (index: number, itemId: string) => {
-        const item = items.find((i) => String(i.value) === itemId);
+        const item = itemOptions.find((i) => String(i.value) === itemId);
         const patch: Partial<Line> = { item_id: itemId };
 
         if (item) {
@@ -624,7 +668,7 @@ export default function CreateGoodsReceipt({
                                     <SelectValue placeholder="Select a store" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {warehouses.map((w) => (
+                                    {storeOptions.map((w) => (
                                         <SelectItem
                                             key={w.value}
                                             value={String(w.value)}
@@ -632,6 +676,14 @@ export default function CreateGoodsReceipt({
                                             {w.label}
                                         </SelectItem>
                                     ))}
+                                    {storeOptions.length === 0 && (
+                                        <div className="text-muted-foreground px-2 py-1.5 text-sm">
+                                            No store takes every item on this
+                                            receipt. Book raw materials,
+                                            packaging and finished goods on
+                                            separate receipts.
+                                        </div>
+                                    )}
                                 </SelectContent>
                             </Select>
                         </Field>
@@ -729,7 +781,7 @@ export default function CreateGoodsReceipt({
                         ) : (
                             <div className="divide-y">
                                 {form.data.lines.map((line, i) => {
-                                    const item = items.find(
+                                    const item = itemOptions.find(
                                         (it) =>
                                             String(it.value) === line.item_id,
                                     );
@@ -769,16 +821,20 @@ export default function CreateGoodsReceipt({
                                                         <SelectValue placeholder="Select an item" />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        {items.map((it) => (
-                                                            <SelectItem
-                                                                key={it.value}
-                                                                value={String(
-                                                                    it.value,
-                                                                )}
-                                                            >
-                                                                {it.label}
-                                                            </SelectItem>
-                                                        ))}
+                                                        {itemOptions.map(
+                                                            (it) => (
+                                                                <SelectItem
+                                                                    key={
+                                                                        it.value
+                                                                    }
+                                                                    value={String(
+                                                                        it.value,
+                                                                    )}
+                                                                >
+                                                                    {it.label}
+                                                                </SelectItem>
+                                                            ),
+                                                        )}
                                                     </SelectContent>
                                                 </Select>
                                                 {read && (
@@ -793,6 +849,67 @@ export default function CreateGoodsReceipt({
                                                             : ''}
                                                     </p>
                                                 )}
+                                                {read &&
+                                                    !line.item_id &&
+                                                    can.add_material && (
+                                                        <ItemQuickAdd
+                                                            suggested={{
+                                                                name: read.description,
+                                                                hsn: read.hsn,
+                                                                uom_id: read.uom_id,
+                                                                quantity:
+                                                                    read.quantity,
+                                                                rate: read.rate,
+                                                            }}
+                                                            uoms={uoms}
+                                                            onAdded={(
+                                                                added,
+                                                            ) => {
+                                                                setItemOptions(
+                                                                    (list) => [
+                                                                        ...list,
+                                                                        added,
+                                                                    ],
+                                                                );
+                                                                setLine(i, {
+                                                                    item_id:
+                                                                        String(
+                                                                            added.value,
+                                                                        ),
+                                                                    uom_id:
+                                                                        line.uom_id ||
+                                                                        String(
+                                                                            added.stock_uom_id,
+                                                                        ),
+                                                                    expiry_at:
+                                                                        line.expiry_at ||
+                                                                        (added.shelf_life_days &&
+                                                                        form
+                                                                            .data
+                                                                            .received_at
+                                                                            ? addDays(
+                                                                                  form
+                                                                                      .data
+                                                                                      .received_at,
+                                                                                  added.shelf_life_days,
+                                                                              )
+                                                                            : ''),
+                                                                });
+                                                            }}
+                                                            trigger={
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                >
+                                                                    <Plus className="size-4" />
+                                                                    Not on file?
+                                                                    Add it as a
+                                                                    new material
+                                                                </Button>
+                                                            }
+                                                        />
+                                                    )}
                                                 <InputError
                                                     message={
                                                         errors[

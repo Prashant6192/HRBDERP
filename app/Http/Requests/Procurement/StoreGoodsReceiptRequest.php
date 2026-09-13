@@ -4,8 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Procurement;
 
+use App\Domain\MasterData\Enums\ItemType;
+use App\Domain\MasterData\Models\Item;
+use App\Domain\Warehousing\Enums\WarehouseType;
+use App\Domain\Warehousing\Models\Warehouse;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreGoodsReceiptRequest extends FormRequest
 {
@@ -58,6 +63,52 @@ class StoreGoodsReceiptRequest extends FormRequest
             // Which line of the scanned bill this one was filled in from.
             'lines.*.intake_index' => ['nullable', 'integer', 'min:0'],
         ];
+    }
+
+    /**
+     * The destination store must be the kind of store the items live in:
+     * raw materials in a raw material store, packaging in a packaging
+     * store, finished goods in a finished goods or marketplace store.
+     *
+     * @return list<\Closure>
+     */
+    public function after(): array
+    {
+        return [
+            function (Validator $validator): void {
+                $warehouse = Warehouse::query()->find((int) $this->input('warehouse_id'));
+
+                if ($warehouse === null || $warehouse->type === WarehouseType::General) {
+                    return;
+                }
+
+                $ids = collect($this->input('lines', []))->pluck('item_id')->filter()->map(fn ($id) => (int) $id)->unique()->all();
+                $items = Item::query()->whereIn('id', $ids)->get(['id', 'code', 'name', 'type']);
+
+                foreach ($items as $item) {
+                    $allowed = self::storesFor($item->type);
+
+                    if (! in_array($warehouse->type, $allowed, true)) {
+                        $kinds = implode(' or ', array_map(fn (WarehouseType $t) => strtolower($t->label()), $allowed));
+                        $validator->errors()->add('warehouse_id', "{$item->code} {$item->name} is a {$item->type->label()}: choose a {$kinds} store, not {$warehouse->code} ({$warehouse->type->label()}).");
+
+                        return;
+                    }
+                }
+            },
+        ];
+    }
+
+    /**
+     * @return list<WarehouseType>
+     */
+    public static function storesFor(ItemType $type): array
+    {
+        return match ($type) {
+            ItemType::RawMaterial, ItemType::Consumable => [WarehouseType::RawMaterial, WarehouseType::General],
+            ItemType::PackagingMaterial => [WarehouseType::Packaging, WarehouseType::General],
+            ItemType::FinishedGood, ItemType::SemiFinished => [WarehouseType::FinishedGoods, WarehouseType::Marketplace, WarehouseType::General],
+        };
     }
 
     /**

@@ -10,7 +10,9 @@ use App\Domain\Inventory\Models\StockBalance;
 use App\Domain\MasterData\Enums\ItemType;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\MasterData\Models\ItemCategory;
+use App\Domain\MasterData\Services\ItemCodeGenerator;
 use App\Domain\Measurement\Models\Uom;
+use App\Domain\Procurement\Contracts\InvoiceReader;
 use App\Domain\Procurement\Models\GoodsReceipt;
 use App\Domain\Quality\Models\QcInspection;
 use App\Http\Controllers\Controller;
@@ -18,8 +20,10 @@ use App\Http\Requests\MasterData\StoreItemRequest;
 use App\Http\Requests\MasterData\UpdateItemRequest;
 use App\Support\Tables\TableQuery;
 use Brick\Math\BigDecimal;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -90,6 +94,58 @@ abstract class ItemController extends Controller
                 'export' => $request->user()->can($this->itemType()->permissionModule().'.export'),
                 'import' => $request->user()->can($this->itemType()->permissionModule().'.import'),
             ],
+            // Materials arrive with a supplier's bill: it can be uploaded from
+            // here, read, matched to these masters, and booked in.
+            'bill' => [
+                'upload' => in_array($this->itemType(), [ItemType::RawMaterial, ItemType::PackagingMaterial], true)
+                    && $request->user()->can('create', GoodsReceipt::class),
+                'reader' => app(InvoiceReader::class)->available(),
+            ],
+        ]);
+    }
+
+    /**
+     * A material added without leaving the goods receipt: what the bill
+     * says now, the rest on the material's own page later. The code is
+     * the next free one unless a code is given.
+     */
+    public function quick(Request $request, ItemCodeGenerator $codes): JsonResponse
+    {
+        $this->authorize('create', $this->modelClass());
+
+        $data = $request->validate([
+            'code' => ['nullable', 'string', 'max:64', Rule::unique('items', 'code')->whereNull('deleted_at')],
+            'name' => ['required', 'string', 'max:255'],
+            'inci_name' => ['nullable', 'string', 'max:255'],
+            'hsn_code' => ['nullable', 'string', 'max:16'],
+            'stock_uom_id' => ['required', 'integer', Rule::exists('uoms', 'id')],
+            'requires_qc' => ['boolean'],
+            'shelf_life_days' => ['nullable', 'integer', 'min:1', 'max:36500'],
+            'reorder_level' => ['required', 'numeric', 'gt:0'],
+            'minimum_stock' => ['required', 'numeric', 'gte:0', 'lte:reorder_level'],
+            'standard_cost' => ['nullable', 'numeric', 'min:0'],
+        ]);
+
+        $item = $this->modelClass()::create([
+            ...$data,
+            'code' => trim((string) ($data['code'] ?? '')) !== '' ? strtoupper(trim($data['code'])) : $codes->next($this->itemType()),
+            'requires_qc' => $data['requires_qc'] ?? true,
+            'is_batch_tracked' => true,
+            'is_active' => true,
+            'created_by' => $request->user()->id,
+            'updated_by' => $request->user()->id,
+        ]);
+
+        $item->load('stockUom:id,code');
+
+        return response()->json([
+            'value' => $item->id,
+            'label' => "{$item->code} — {$item->name}",
+            'type' => $item->type->value,
+            'stock_uom_id' => $item->stock_uom_id,
+            'stock_uom' => $item->stockUom?->code,
+            'requires_qc' => $item->requires_qc,
+            'shelf_life_days' => $item->shelf_life_days,
         ]);
     }
 

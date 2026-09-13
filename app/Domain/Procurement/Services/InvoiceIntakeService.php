@@ -164,7 +164,7 @@ class InvoiceIntakeService
      */
     public function matchLines(InvoiceExtraction $extraction): array
     {
-        $items = Item::query()->active()->with('stockUom:id,code')->get(['id', 'code', 'name', 'type', 'hsn_code', 'stock_uom_id']);
+        $items = Item::query()->active()->with('stockUom:id,code')->get(['id', 'code', 'name', 'inci_name', 'type', 'hsn_code', 'stock_uom_id']);
         $uoms = Uom::query()->active()->get(['id', 'code', 'name'])->keyBy(fn (Uom $u) => strtoupper($u->code));
         $matched = [];
 
@@ -233,7 +233,8 @@ class InvoiceIntakeService
         $bestScore = 0;
 
         foreach ($candidates as $item) {
-            $itemWords = $this->words($item->name);
+            // The bill may call it by its INCI name rather than ours.
+            $itemWords = array_values(array_unique([...$this->words($item->name), ...$this->words((string) ($item->inci_name ?? ''))]));
             $score = count(array_intersect($words, $itemWords));
 
             if ($score > $bestScore) {

@@ -145,6 +145,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     // ---- Master data ------------------------------------------------------
     Route::resource('warehouses', WarehouseController::class);
 
+    Route::post('raw-materials/quick', [RawMaterialController::class, 'quick'])->name('raw-materials.quick');
+    Route::post('packaging-materials/quick', [PackagingMaterialController::class, 'quick'])->name('packaging-materials.quick');
     Route::resource('raw-materials', RawMaterialController::class)
         ->parameters(['raw-materials' => 'raw_material']);
 

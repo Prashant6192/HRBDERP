@@ -14,6 +14,11 @@ return [
         'name' => env('ERP_COMPANY_NAME', 'HRBD'),
         'currency' => env('ERP_CURRENCY', 'INR'),
         'currency_symbol' => env('ERP_CURRENCY_SYMBOL', '₹'),
+        // Our own GSTIN and PAN. A supplier's bill prints ours as the
+        // buyer's; the bill reader is told never to mistake them for the
+        // vendor's.
+        'gstin' => env('ERP_COMPANY_GSTIN'),
+        'pan' => env('ERP_COMPANY_PAN'),
     ],
 
     /*

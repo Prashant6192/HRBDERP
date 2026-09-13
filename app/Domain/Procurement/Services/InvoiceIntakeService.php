@@ -53,6 +53,8 @@ class InvoiceIntakeService
             throw $e;
         }
 
+        $this->sanitise($extraction);
+
         $payload = [
             'token' => $token,
             'path' => $path,
@@ -86,6 +88,34 @@ class InvoiceIntakeService
     public function forget(string $token): void
     {
         Cache::forget($this->key($token));
+    }
+
+    /**
+     * What the reader returned is checked against what we know before it
+     * is trusted: our own GSTIN printed under "Buyer" is never the
+     * vendor's, and a proforma is not a delivery.
+     */
+    public function sanitise(InvoiceExtraction $extraction): void
+    {
+        $ours = strtoupper(trim((string) config('erp.company.gstin')));
+
+        if ($extraction->vendorGstin !== null && ($extraction->vendorGstin === $ours || $extraction->vendorGstin === $extraction->buyerGstin)) {
+            $extraction->warnings[] = "The GSTIN read as the vendor's ({$extraction->vendorGstin}) is the buyer's — ours. The vendor was matched by name instead; check it.";
+            $extraction->vendorGstin = null;
+        }
+
+        if ($extraction->isProvisional()) {
+            $label = $extraction->documentType === 'quotation' ? 'a quotation' : 'a proforma invoice';
+            $extraction->warnings[] = "This is {$label}, not a tax invoice: it says what will be supplied. Book the receipt from the tax invoice or delivery challan that comes with the goods, or check the quantities against what actually arrived.";
+        }
+
+        foreach ($extraction->lines as $line) {
+            if ($line['quantity'] === null && $line['amount'] !== null && $line['rate'] === null) {
+                $extraction->warnings[] = '"'.$line['description'].'" carries an amount but no quantity; it is shown but will not become stock.';
+            }
+        }
+
+        $extraction->warnings = array_values(array_unique($extraction->warnings));
     }
 
     /**
@@ -224,7 +254,7 @@ class InvoiceIntakeService
             return null;
         }
 
-        $code = strtoupper(trim($unit));
+        $code = strtoupper(trim($unit, " \t\n\r\0\x0B."));
         $aliases = ['KGS' => 'KG', 'KILOGRAM' => 'KG', 'KILOGRAMS' => 'KG', 'LTR' => 'L', 'LTRS' => 'L', 'LITRE' => 'L', 'LITRES' => 'L', 'LITER' => 'L', 'NOS' => 'PCS', 'NO' => 'PCS', 'PC' => 'PCS', 'PIECES' => 'PCS', 'PIECE' => 'PCS', 'UNITS' => 'PCS', 'UNIT' => 'PCS', 'GM' => 'G', 'GMS' => 'G', 'GRAM' => 'G', 'GRAMS' => 'G', 'MLTR' => 'ML'];
         $code = $aliases[$code] ?? $code;
 

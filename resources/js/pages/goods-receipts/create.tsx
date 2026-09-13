@@ -74,6 +74,7 @@ type Intake = {
         currency: string;
         warnings: string[];
         model: string | null;
+        document_type: string | null;
     };
     vendor: {
         id: number | null;
@@ -393,11 +394,33 @@ export default function CreateGoodsReceipt({
                                 </div>
                                 <div>
                                     <dt className="text-muted-foreground text-xs">
-                                        Invoice no.
+                                        {intake.extraction.document_type ===
+                                        'proforma'
+                                            ? 'Proforma no.'
+                                            : intake.extraction
+                                                    .document_type ===
+                                                'delivery_challan'
+                                              ? 'Challan no.'
+                                              : 'Invoice no.'}
                                     </dt>
                                     <dd className="font-medium">
                                         {intake.extraction.invoice_number ??
                                             '—'}
+                                        {(intake.extraction.document_type ===
+                                            'proforma' ||
+                                            intake.extraction.document_type ===
+                                                'quotation') && (
+                                            <StatusBadge
+                                                variant="warning"
+                                                className="ml-2"
+                                            >
+                                                {intake.extraction
+                                                    .document_type ===
+                                                'proforma'
+                                                    ? 'Proforma'
+                                                    : 'Quotation'}
+                                            </StatusBadge>
+                                        )}
                                     </dd>
                                 </div>
                                 <div>

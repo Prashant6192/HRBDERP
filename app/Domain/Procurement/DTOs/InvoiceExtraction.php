@@ -33,7 +33,21 @@ final class InvoiceExtraction
         public array $lines,
         public array $warnings = [],
         public ?string $model = null,
+        /** tax_invoice, proforma, delivery_challan, quotation, other — or null when unsure. */
+        public ?string $documentType = null,
+        /** The GSTIN printed under "Buyer" / "Consignee" / "Bill to": ours, normally. */
+        public ?string $buyerGstin = null,
     ) {}
+
+    public const array DOCUMENT_TYPES = ['tax_invoice', 'proforma', 'delivery_challan', 'quotation', 'other'];
+
+    /**
+     * A proforma or a quotation says what will be supplied, not what was.
+     */
+    public function isProvisional(): bool
+    {
+        return in_array($this->documentType, ['proforma', 'quotation'], strict: true);
+    }
 
     /**
      * @param  array<string, mixed>  $data
@@ -75,6 +89,8 @@ final class InvoiceExtraction
             lines: $lines,
             warnings: array_values(array_filter(array_map(fn ($w) => self::text($w), (array) ($data['warnings'] ?? [])))),
             model: $model,
+            documentType: in_array($data['document_type'] ?? null, self::DOCUMENT_TYPES, strict: true) ? $data['document_type'] : null,
+            buyerGstin: self::gstin($data['buyer_gstin'] ?? null),
         );
     }
 
@@ -98,6 +114,8 @@ final class InvoiceExtraction
             'lines' => $this->lines,
             'warnings' => $this->warnings,
             'model' => $this->model,
+            'document_type' => $this->documentType,
+            'buyer_gstin' => $this->buyerGstin,
         ];
     }
 

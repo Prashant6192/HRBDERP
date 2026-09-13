@@ -119,6 +119,15 @@ client with it everywhere.
   other lines without a quantity are shown but never become stock.
 - Needs `ANTHROPIC_API_KEY` (and optionally `ERP_AI_MODEL`, default
   `claude-opus-5`) in the environment. Without it the screen says so.
+- **Checked against two real bills** (a Caldic proforma and a Tally
+  e-invoice from Fragrance Specialities): the reader is told where the
+  seller and the buyer sit on Indian bill layouts, to read the buyer's GSTIN
+  separately, how Tally prints batch numbers and dates such as `28-Feb-26`,
+  and that a pack size is not the quantity. Our own GSTIN
+  (`ERP_COMPANY_GSTIN`) is never accepted as a vendor's; a proforma or
+  quotation is flagged as provisional on the receipt screen. The command
+  `php artisan erp:read-bill <file>` tries the reader on any bill from the
+  shell and shows what it found and how it matched, without booking anything.
 
 ### Added — QC assignments and labels (issue #2)
 

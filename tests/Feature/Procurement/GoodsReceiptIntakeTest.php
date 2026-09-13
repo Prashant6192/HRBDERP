@@ -258,7 +258,7 @@ class GoodsReceiptIntakeTest extends TestCase
                 ->where('document.invoice_number', 'GS/2026-27/0451')
                 ->where('document.model', 'fake-reader')
                 ->where('document.url', route('goods-receipts.document', $receipt))
-                ->has('document.warnings', 1)
+                ->has('document.warnings', 2) // the reader's own, plus ours about the freight line
             );
     }
 

@@ -96,6 +96,18 @@ ERP_QC_REQUIRE_PIN=true
 # receipt at all, by hand.
 ANTHROPIC_API_KEY=
 ERP_AI_MODEL=claude-opus-5
+
+# Our own GSTIN / PAN as printed on suppliers' bills under "Buyer". The bill
+# reader never takes them for the vendor's.
+ERP_COMPANY_GSTIN=
+ERP_COMPANY_PAN=
+```
+
+To check a real supplier's bill against the reader without booking anything:
+
+```bash
+php artisan erp:read-bill /path/to/bill.pdf        # what it found and how it matched
+php artisan erp:read-bill /path/to/bill.pdf --json # the raw extraction
 ```
 
 `APP_KEY` encrypts sessions and cookies. **Back it up somewhere other than the

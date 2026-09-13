@@ -39,6 +39,8 @@ class StoreGoodsReceiptRequest extends FormRequest
             ],
             'received_at' => ['required', 'date', 'before_or_equal:today'],
             'invoice_ref' => ['nullable', 'string', 'max:64'],
+            // The uploaded bill this receipt was read from, if any.
+            'intake_token' => ['nullable', 'string', 'uuid'],
             'notes' => ['nullable', 'string', 'max:2000'],
             'post_now' => ['sometimes', 'boolean'],
 
@@ -51,6 +53,8 @@ class StoreGoodsReceiptRequest extends FormRequest
             'lines.*.manufactured_at' => ['nullable', 'date', 'before_or_equal:received_at'],
             'lines.*.expiry_at' => ['nullable', 'date', 'after:received_at'],
             'lines.*.notes' => ['nullable', 'string', 'max:500'],
+            // Which line of the scanned bill this one was filled in from.
+            'lines.*.intake_index' => ['nullable', 'integer', 'min:0'],
         ];
     }
 

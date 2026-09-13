@@ -214,9 +214,19 @@ held; what the kettle took stays taken.
 
 ### Procurement — _partly built_
 
-Goods receipts, vendors and material requests are built. Purchase orders with
-approval, and supplier price history with its dashboards (last, average,
-previous, change, cheapest supplier, trend), are next.
+Goods receipts, vendors and material requests are built. A goods receipt is
+booked off the supplier's bill: the storekeeper uploads the invoice or
+delivery challan as a PDF or a photo, Claude reads the vendor, invoice number
+and date, totals, and every line with its quantity, unit, rate, batch number
+and dates, the ERP matches the vendor by GSTIN or name and each line to the
+item master by code, HSN and name, and the form opens filled in. The person
+confirms the item and unit where the reader could not, adds a vendor the ERP
+does not know from a pop-up on the same screen, and posts. Only the plant
+head or an administrator (`purchase.receive_manual`) may key a receipt in by
+hand or change what the reader found; everyone else's receipt must come off a
+bill, which stays attached to it. Purchase orders with approval, and supplier
+price history with its dashboards (last, average, previous, change, cheapest
+supplier, trend), are next.
 
 ### Dashboard — _built_
 

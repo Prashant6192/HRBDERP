@@ -142,7 +142,8 @@ enum RoleName: string
                 'formula.view', 'formula.create', 'formula.edit', 'formula.import', 'formula.export',
                 'planning.*',
                 'production.*',
-                'purchase.view', 'purchase.create',
+                // The plant head alone may key a goods receipt in by hand.
+                'purchase.view', 'purchase.create', 'purchase.edit', 'purchase.receive', 'purchase.receive_manual',
                 'qc.view', 'qc.create', 'qc.approve', 'qc.reject',
                 'costing.view', 'report.view', 'report.export',
                 'approval.view', 'approval.act',
@@ -187,7 +188,9 @@ enum RoleName: string
                 'product.view', 'facility.view', 'warehouse.view', 'uom.view',
                 'inventory.view',
                 'planning.view', 'planning.export',
-                'purchase.*',
+                // Everything in procurement except keying a goods receipt in
+                // by hand, which stays with the plant head.
+                'purchase.view', 'purchase.create', 'purchase.edit', 'purchase.approve', 'purchase.receive', 'purchase.export',
                 'costing.view',
                 'report.view', 'report.export',
                 'approval.view', 'approval.act',
@@ -270,7 +273,9 @@ enum RoleName: string
             // by their facility and store assignments.
             self::StoreExecutive => [
                 'facility.view', 'warehouse.view',
-                'raw_material.view', 'packaging_material.view', 'product.view', 'vendor.view', 'uom.view',
+                'raw_material.view', 'packaging_material.view', 'product.view', 'uom.view',
+                // A vendor not yet on file is added from the bill on the receipt screen.
+                'vendor.view', 'vendor.create',
                 'inventory.view', 'inventory.receive', 'inventory.transfer', 'inventory.receive_transfer',
                 'purchase.view', 'purchase.create', 'purchase.receive',
                 'qc.view',

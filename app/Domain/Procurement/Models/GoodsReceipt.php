@@ -31,12 +31,15 @@ class GoodsReceipt extends Model
     protected $fillable = [
         'number', 'vendor_id', 'material_request_id', 'warehouse_id', 'received_at', 'invoice_ref',
         'status', 'notes', 'received_by', 'created_by', 'posted_at',
+        'entry_mode', 'invoice_path', 'invoice_name', 'invoice_mime', 'extraction', 'extraction_model', 'extracted_at',
     ];
 
     protected function casts(): array
     {
         return [
             'status' => GoodsReceiptStatus::class,
+            'extraction' => 'array',
+            'extracted_at' => 'datetime',
             'received_at' => 'date',
             'posted_at' => 'datetime',
         ];

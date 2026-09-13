@@ -126,7 +126,9 @@ final class PermissionCatalogue
         'purchase' => [
             'label' => 'Procurement',
             'group' => 'Operations',
-            'abilities' => ['view', 'create', 'edit', 'approve', 'receive', 'export'],
+            // receive_manual: key a goods receipt in by hand, or change what
+            // the bill reader found. The plant head, not the gate.
+            'abilities' => ['view', 'create', 'edit', 'approve', 'receive', 'receive_manual', 'export'],
         ],
         'qc' => [
             'label' => 'Quality Control',

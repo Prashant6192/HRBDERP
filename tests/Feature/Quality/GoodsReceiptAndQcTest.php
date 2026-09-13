@@ -13,6 +13,7 @@ use App\Domain\Inventory\Services\StockBalanceService;
 use App\Domain\MasterData\Models\PackagingMaterial;
 use App\Domain\MasterData\Models\RawMaterial;
 use App\Domain\Measurement\Models\Uom;
+use App\Domain\Procurement\Contracts\InvoiceReader;
 use App\Domain\Procurement\Enums\GoodsReceiptStatus;
 use App\Domain\Procurement\Models\GoodsReceipt;
 use App\Domain\Procurement\Models\Vendor;
@@ -24,9 +25,12 @@ use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\UomSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
+use Tests\Support\FakeInvoiceReader;
 use Tests\TestCase;
 
 /**
@@ -336,23 +340,59 @@ class GoodsReceiptAndQcTest extends TestCase
     // ---- Screens and permissions ---------------------------------------------
 
     #[Test]
-    public function a_warehouse_manager_can_book_in_a_delivery_and_post_it_from_the_screen(): void
+    public function a_warehouse_manager_books_in_a_delivery_from_the_scanned_bill_and_posts_it(): void
     {
+        // The bill is read by the reader; the warehouse manager confirms it.
+        $this->app->instance(InvoiceReader::class, new FakeInvoiceReader([
+            'vendor_gstin' => $this->vendor->gstin,
+            'invoice_number' => 'INV-1',
+            'invoice_date' => now()->toDateString(),
+            'lines' => [[
+                'description' => 'RM-SLES surfactant', 'quantity' => '40', 'unit' => 'KG',
+                'rate' => '118.50', 'batch' => 'SUP-001', 'expiry_at' => now()->addYear()->toDateString(),
+            ]],
+        ]));
+        Storage::fake('local');
+
+        $bill = UploadedFile::fake()->createWithContent('inv-1.pdf', "%PDF-1.4\n");
+        $bill->mimeTypeToReport = 'application/pdf';
+
+        $upload = $this->actingAs($this->warehouseManager)->post(route('goods-receipts.intake'), ['invoice' => $bill]);
+        parse_str((string) parse_url((string) $upload->headers->get('Location'), PHP_URL_QUERY), $query);
+
         $this->actingAs($this->warehouseManager)
             ->post(route('goods-receipts.store'), [
                 'vendor_id' => $this->vendor->id,
                 'warehouse_id' => $this->rmStore->id,
                 'received_at' => now()->toDateString(),
                 'invoice_ref' => 'INV-1',
+                'intake_token' => $query['intake'],
                 'post_now' => true,
-                'lines' => [$this->materialLine('40')],
+                'lines' => [[...$this->materialLine('40'), 'intake_index' => 0]],
             ])
             ->assertRedirect();
 
         $receipt = GoodsReceipt::sole();
 
         $this->assertSame(GoodsReceiptStatus::Received, $receipt->status);
+        $this->assertSame('scan', $receipt->entry_mode);
         $this->assertSame('40.000000', (string) $this->balances->onHand($this->material, $this->quarantine));
+    }
+
+    #[Test]
+    public function a_warehouse_manager_cannot_key_a_receipt_in_without_the_bill(): void
+    {
+        $this->actingAs($this->warehouseManager)
+            ->post(route('goods-receipts.store'), [
+                'vendor_id' => $this->vendor->id,
+                'warehouse_id' => $this->rmStore->id,
+                'received_at' => now()->toDateString(),
+                'post_now' => true,
+                'lines' => [$this->materialLine('40')],
+            ])
+            ->assertSessionHasErrors('intake_token');
+
+        $this->assertSame(0, GoodsReceipt::count());
     }
 
     #[Test]

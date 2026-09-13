@@ -2,8 +2,9 @@
 
 An enterprise resource planning system for a cosmetics and personal-care
 manufacturer, in one Laravel application. Today it runs the factory from
-delivery to finished batch: goods receipts with a QC checkpoint and printed
-batch stickers, an immutable inventory ledger with three-level stock alerts,
+delivery to finished batch: goods receipts booked off the supplier's bill
+(uploaded and read by Claude), a QC checkpoint and printed batch stickers, an
+immutable inventory ledger with three-level stock alerts,
 PIN-protected versioned formulations with Excel import, production planning
 that checks the stores and raises material requests, manufacturing orders
 that reserve, consume and post finished batches, and a dashboard that shows

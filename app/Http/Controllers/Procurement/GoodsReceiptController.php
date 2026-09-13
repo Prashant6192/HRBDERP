@@ -8,20 +8,26 @@ use App\Domain\MasterData\Models\Item;
 use App\Domain\Measurement\Models\Uom;
 use App\Domain\Planning\Models\MaterialRequest;
 use App\Domain\Planning\Models\MaterialRequestLine;
+use App\Domain\Procurement\Contracts\InvoiceReader;
 use App\Domain\Procurement\Enums\GoodsReceiptStatus;
+use App\Domain\Procurement\Exceptions\InvoiceIntakeException;
 use App\Domain\Procurement\Models\GoodsReceipt;
 use App\Domain\Procurement\Models\Vendor;
 use App\Domain\Procurement\Services\GoodsReceiptService;
+use App\Domain\Procurement\Services\InvoiceIntakeService;
 use App\Domain\Warehousing\Models\Warehouse;
 use App\Domain\Warehousing\Services\FacilityAccess;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Procurement\IntakeInvoiceRequest;
 use App\Http\Requests\Procurement\StoreGoodsReceiptRequest;
 use App\Support\Tables\TableQuery;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 use InvalidArgumentException;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class GoodsReceiptController extends Controller
 {
@@ -33,6 +39,8 @@ class GoodsReceiptController extends Controller
     public function __construct(
         private readonly GoodsReceiptService $receipts,
         private readonly FacilityAccess $access,
+        private readonly InvoiceIntakeService $intake,
+        private readonly InvoiceReader $reader,
     ) {}
 
     public function index(Request $request): Response
@@ -63,11 +71,23 @@ class GoodsReceiptController extends Controller
         ]);
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
         $this->authorize('create', GoodsReceipt::class);
 
+        $intake = $this->intake->find($request->query('intake'));
+
         return Inertia::render('goods-receipts/create', [
+            // The bill just uploaded, read and matched — or nothing.
+            'intake' => $intake,
+            'reader' => [
+                'available' => $this->reader->available(),
+                'model' => config('erp.ai.model'),
+            ],
+            'can' => [
+                // Keying lines by hand, or changing what the reader found.
+                'manual' => $request->user()->can('enterManually', GoodsReceipt::class),
+            ],
             'vendors' => Vendor::query()->purchasable()->orderBy('name')->get(['id', 'name'])
                 ->map(fn (Vendor $v) => ['value' => $v->id, 'label' => $v->name])->all(),
             'warehouses' => $this->warehouseOptions(),
@@ -116,11 +136,41 @@ class GoodsReceiptController extends Controller
         $data = $request->validated();
         $this->access->assertCanWorkIn($request->user(), Warehouse::query()->findOrFail($data['warehouse_id']));
 
+        $intake = $this->intake->find($data['intake_token'] ?? null);
+
+        // Without the right to key a receipt by hand, the receipt must come
+        // off a scanned bill and its particulars are the bill's.
+        if (! $request->user()->can('enterManually', GoodsReceipt::class)) {
+            if ($intake === null) {
+                return back()->withInput()->withErrors(['intake_token' => 'Upload the supplier\'s bill; receipts are booked from the scan. Only the plant head or an administrator may key one in by hand.']);
+            }
+
+            $data['lines'] = $this->linesFromIntake($intake, $data['lines']);
+
+            if ($data['lines'] === []) {
+                return back()->withInput()->withErrors(['lines' => 'Choose the item for at least one line of the bill.']);
+            }
+        }
+
         $receipt = $this->receipts->create(
             attributes: $data,
             lines: $data['lines'],
             userId: $request->user()->id,
         );
+
+        if ($intake !== null) {
+            $receipt->forceFill([
+                'entry_mode' => 'scan',
+                'invoice_path' => $intake['path'],
+                'invoice_name' => $intake['name'],
+                'invoice_mime' => $intake['mime'],
+                'extraction' => $intake['extraction'],
+                'extraction_model' => $intake['extraction']['model'] ?? null,
+                'extracted_at' => now(),
+            ])->save();
+
+            $this->intake->forget($intake['token']);
+        }
 
         if ($request->boolean('post_now')) {
             $this->authorize('post', $receipt);
@@ -137,6 +187,45 @@ class GoodsReceiptController extends Controller
         return to_route('goods-receipts.show', $receipt);
     }
 
+    /**
+     * Upload the supplier's bill: it is kept, read, matched to the vendor
+     * and the items, and the receipt form opens filled in from it.
+     */
+    public function intake(IntakeInvoiceRequest $request): RedirectResponse
+    {
+        $this->authorize('create', GoodsReceipt::class);
+
+        try {
+            $payload = $this->intake->intake($request->file('invoice'), $request->user()->id);
+        } catch (InvoiceIntakeException $e) {
+            return back()->withErrors(['invoice' => $e->getMessage()]);
+        }
+
+        $lines = count($payload['lines']);
+        $matched = count(array_filter($payload['lines'], fn ($l) => $l['item_id'] !== null));
+
+        return redirect()->route('goods-receipts.create', ['intake' => $payload['token']])
+            ->withToast($lines === 0 ? 'warning' : 'success', $lines === 0
+                ? 'The bill was read but no goods lines were found. Check the document.'
+                : "Bill read: {$lines} line".($lines === 1 ? '' : 's').", {$matched} matched to items".($payload['vendor']['id'] ? ", vendor {$payload['vendor']['name']}" : ', vendor not on file').'.');
+    }
+
+    /**
+     * The stored bill, shown inline.
+     */
+    public function document(GoodsReceipt $goodsReceipt): HttpResponse
+    {
+        $this->authorize('view', $goodsReceipt);
+
+        if ($goodsReceipt->invoice_path === null || ! Storage::disk(InvoiceIntakeService::DISK)->exists($goodsReceipt->invoice_path)) {
+            abort(404, 'No bill is attached to this receipt.');
+        }
+
+        return Storage::disk(InvoiceIntakeService::DISK)->response($goodsReceipt->invoice_path, $goodsReceipt->invoice_name, [
+            'Content-Type' => $goodsReceipt->invoice_mime ?? 'application/octet-stream',
+        ]);
+    }
+
     public function show(Request $request, GoodsReceipt $goodsReceipt): Response
     {
         $this->authorize('view', $goodsReceipt);
@@ -150,6 +239,17 @@ class GoodsReceiptController extends Controller
 
         return Inertia::render('goods-receipts/show', [
             'receipt' => $goodsReceipt,
+            'document' => $goodsReceipt->invoice_path === null ? null : [
+                'name' => $goodsReceipt->invoice_name,
+                'mime' => $goodsReceipt->invoice_mime,
+                'url' => route('goods-receipts.document', $goodsReceipt),
+                'model' => $goodsReceipt->extraction_model,
+                'extracted_at' => $goodsReceipt->extracted_at?->toIso8601String(),
+                'invoice_number' => $goodsReceipt->extraction['invoice_number'] ?? null,
+                'invoice_date' => $goodsReceipt->extraction['invoice_date'] ?? null,
+                'total' => $goodsReceipt->extraction['total'] ?? null,
+                'warnings' => $goodsReceipt->extraction['warnings'] ?? [],
+            ],
             'can' => [
                 'post' => $goodsReceipt->status->isEditable() && $request->user()->can('post', $goodsReceipt),
                 'cancel' => $goodsReceipt->status->isEditable() && $request->user()->can('cancel', $goodsReceipt),
@@ -187,6 +287,48 @@ class GoodsReceiptController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => "{$goodsReceipt->number} cancelled."]);
 
         return to_route('goods-receipts.index');
+    }
+
+    /**
+     * For someone who may not key particulars: the bill's lines, with only
+     * the item mapping and the unit taken from what they chose on screen.
+     *
+     * @param  array<string, mixed>  $intake
+     * @param  list<array<string, mixed>>  $posted
+     * @return list<array<string, mixed>>
+     */
+    private function linesFromIntake(array $intake, array $posted): array
+    {
+        $lines = [];
+        $chosenByBillLine = [];
+
+        // The screen says which bill line each of its lines came from; a
+        // freight or rounding-off line has no quantity and is never shown.
+        foreach ($posted as $position => $line) {
+            $chosenByBillLine[(int) ($line['intake_index'] ?? $position)] = $line;
+        }
+
+        foreach ($intake['lines'] as $i => $read) {
+            $chosen = $chosenByBillLine[$i] ?? [];
+            $itemId = $chosen['item_id'] ?? $read['item_id'];
+
+            if ($itemId === null || $itemId === '') {
+                continue;
+            }
+
+            $lines[] = [
+                'item_id' => (int) $itemId,
+                'quantity' => $read['quantity'] ?? $chosen['quantity'] ?? '0',
+                'uom_id' => (int) ($chosen['uom_id'] ?? $read['uom_id'] ?? 0),
+                'unit_price' => $read['rate'],
+                'supplier_batch_ref' => $read['batch'],
+                'manufactured_at' => $read['manufactured_at'],
+                'expiry_at' => $read['expiry_at'] ?? ($chosen['expiry_at'] ?? null),
+                'notes' => $read['description'],
+            ];
+        }
+
+        return $lines;
     }
 
     /**

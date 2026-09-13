@@ -325,6 +325,14 @@ A delivery: number `GRN-yymm-00001`, vendor, destination warehouse, optional
 the stock unit, price, supplier batch, dates, and — once posted — the batch
 number, lot and inspection that were created. `CHECK` keeps quantities positive.
 
+`entry_mode` says whether the receipt was keyed by hand (`manual`) or booked
+off a scanned bill (`scan`). A scanned receipt keeps the bill itself
+(`invoice_path`, `invoice_name`, `invoice_mime`; the file lives on the private
+`local` disk under `goods-receipts/intake/`), everything read from it
+(`extraction`, `jsonb`: vendor, invoice number and date, totals, lines and the
+reader's warnings), `extraction_model` and `extracted_at`. What was read is
+kept as read, even where the person corrected it on the lines.
+
 ### `qc_inspections`
 
 One per batch that needs a decision: number `QC-yymm-00001`, lot, item, the

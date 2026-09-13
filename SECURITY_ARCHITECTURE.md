@@ -250,6 +250,21 @@ Buckets must be **private**. Files are served through authorised download
 routes that check a policy and then stream the object, or through short-lived
 signed URLs. A file must never be reachable by guessing its URL.
 
+### Supplier bills
+
+A bill uploaded on the goods receipt screen is stored on the private `local`
+disk under `goods-receipts/intake/` and served only through
+`goods-receipts.document`, which checks the receipt's view policy and streams
+the file. Its contents are sent to Anthropic's API to be read; nothing else
+goes with them — no stock, price or formula data — and the reply is treated as
+untrusted until a person has looked at it on the screen. A bill the reader
+could not read is deleted at once; a bill nobody books a receipt from is not
+attached to anything and may be pruned.
+
+Keying a receipt in by hand, or changing quantities, rates and batch details
+the reader found, needs `purchase.receive_manual`, held by the Factory Manager
+and Super Admin by default. Everyone else books receipts from the scan alone.
+
 ---
 
 ## 6. Production checklist

@@ -1,5 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { CheckCircle2, ExternalLink, FileText, XCircle } from 'lucide-react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DetailItem } from '@/components/form-field';
 import { PageHeader } from '@/components/page-header';
@@ -26,11 +26,25 @@ const STATUS_VARIANT = {
     cancelled: 'destructive',
 } as const;
 
+type Document = {
+    name: string | null;
+    mime: string | null;
+    url: string;
+    model: string | null;
+    extracted_at: string | null;
+    invoice_number: string | null;
+    invoice_date: string | null;
+    total: string | null;
+    warnings: string[];
+};
+
 export default function ShowGoodsReceipt({
     receipt,
+    document,
     can,
 }: {
     receipt: GoodsReceipt;
+    document: Document | null;
     can: { post: boolean; cancel: boolean; viewQc: boolean };
 }) {
     return (
@@ -115,6 +129,58 @@ export default function ShowGoodsReceipt({
                         )}
                     </section>
                 </div>
+
+                {document && (
+                    <section className="bg-card rounded-xl border p-6">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div>
+                                <h2 className="flex items-center gap-2 font-semibold">
+                                    <FileText className="size-4" />
+                                    Supplier&rsquo;s bill
+                                </h2>
+                                <p className="text-muted-foreground text-sm">
+                                    This receipt was booked from the scanned
+                                    bill
+                                    {document.model
+                                        ? `, read by ${document.model}`
+                                        : ''}
+                                    {document.extracted_at
+                                        ? ` on ${new Date(document.extracted_at).toLocaleString()}`
+                                        : ''}
+                                    .
+                                </p>
+                            </div>
+                            <Button asChild variant="outline">
+                                <a
+                                    href={document.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                >
+                                    <ExternalLink className="size-4" />
+                                    Open {document.name ?? 'the bill'}
+                                </a>
+                            </Button>
+                        </div>
+                        <dl className="mt-5 grid gap-5 sm:grid-cols-3">
+                            <DetailItem label="Invoice no.">
+                                {document.invoice_number ?? '—'}
+                            </DetailItem>
+                            <DetailItem label="Invoice date">
+                                {date(document.invoice_date)}
+                            </DetailItem>
+                            <DetailItem label="Bill total">
+                                {document.total ?? '—'}
+                            </DetailItem>
+                        </dl>
+                        {document.warnings.length > 0 && (
+                            <ul className="mt-4 space-y-1 text-sm text-amber-700 dark:text-amber-300">
+                                {document.warnings.map((warning, i) => (
+                                    <li key={i}>{warning}</li>
+                                ))}
+                            </ul>
+                        )}
+                    </section>
+                )}
 
                 <section className="bg-card rounded-xl border">
                     <div className="border-b px-5 py-4">

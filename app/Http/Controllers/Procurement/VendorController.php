@@ -9,8 +9,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Procurement\StoreVendorRequest;
 use App\Http\Requests\Procurement\UpdateVendorRequest;
 use App\Support\Tables\TableQuery;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -75,6 +77,53 @@ class VendorController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => "Vendor {$vendor->code} created."]);
 
         return to_route('vendors.index');
+    }
+
+    /**
+     * A vendor added without leaving the goods receipt screen: name and
+     * GSTIN now, the rest later on the vendor's own page.
+     */
+    public function quick(Request $request): JsonResponse
+    {
+        $this->authorize('create', Vendor::class);
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'gstin' => ['nullable', 'string', 'size:15', Rule::unique('vendors', 'gstin')->whereNull('deleted_at')],
+            'phone' => ['nullable', 'string', 'max:32'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'address_line_1' => ['nullable', 'string', 'max:255'],
+            'city' => ['nullable', 'string', 'max:128'],
+            'state' => ['nullable', 'string', 'max:128'],
+            'supply_type' => ['nullable', Rule::in(['raw_material', 'packaging', 'services', 'mixed'])],
+        ]);
+
+        $code = $this->nextCode();
+
+        $vendor = Vendor::create([
+            ...$data,
+            'code' => $code,
+            'gstin' => isset($data['gstin']) ? strtoupper($data['gstin']) : null,
+            'supply_type' => $data['supply_type'] ?? 'mixed',
+            'country' => 'India',
+            'is_approved' => true,
+            'is_active' => true,
+            'created_by' => $request->user()->id,
+            'updated_by' => $request->user()->id,
+        ]);
+
+        return response()->json(['value' => $vendor->id, 'label' => $vendor->name, 'code' => $vendor->code, 'gstin' => $vendor->gstin]);
+    }
+
+    private function nextCode(): string
+    {
+        $n = (int) Vendor::withTrashed()->count();
+
+        do {
+            $code = sprintf('VEN-%04d', ++$n);
+        } while (Vendor::withTrashed()->where('code', $code)->exists());
+
+        return $code;
     }
 
     public function show(Request $request, Vendor $vendor): Response

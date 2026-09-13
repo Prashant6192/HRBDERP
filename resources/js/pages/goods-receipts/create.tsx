@@ -1,9 +1,10 @@
-import { Head, useForm } from '@inertiajs/react';
-import { useEffect } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { useEffect, useRef, useState } from 'react';
+import { FileUp, Lock, Plus, ScanText, Trash2 } from 'lucide-react';
 import { Field, FormSection } from '@/components/form-field';
 import InputError from '@/components/input-error';
 import { PageHeader } from '@/components/page-header';
+import { VendorQuickAdd } from '@/components/procurement/vendor-quick-add';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +16,12 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { dashboard } from '@/routes';
-import { create, index, store } from '@/routes/goods-receipts';
+import {
+    create,
+    index,
+    intake as intakeRoute,
+    store,
+} from '@/routes/goods-receipts';
 import type { SelectOption } from '@/types';
 
 type ItemOption = SelectOption & {
@@ -40,6 +46,51 @@ type MaterialRequestOption = SelectOption & {
 
 const NONE = '__none__';
 
+type IntakeLine = {
+    index: number;
+    description: string;
+    hsn: string | null;
+    quantity: string | null;
+    unit: string | null;
+    rate: string | null;
+    amount: string | null;
+    batch: string | null;
+    manufactured_at: string | null;
+    expiry_at: string | null;
+    item_id: number | null;
+    item_label: string | null;
+    uom_id: number | null;
+};
+
+/** The supplier's bill just uploaded: what was read and how it matched. */
+type Intake = {
+    token: string;
+    name: string;
+    mime: string;
+    extraction: {
+        invoice_number: string | null;
+        invoice_date: string | null;
+        total: string | null;
+        currency: string;
+        warnings: string[];
+        model: string | null;
+    };
+    vendor: {
+        id: number | null;
+        name: string | null;
+        gstin: string | null;
+        matched_by: string | null;
+        suggested: {
+            name: string | null;
+            gstin: string | null;
+            address: string | null;
+            phone: string | null;
+            email: string | null;
+        };
+    };
+    lines: IntakeLine[];
+};
+
 type Line = {
     item_id: string;
     quantity: string;
@@ -49,6 +100,7 @@ type Line = {
     manufactured_at: string;
     expiry_at: string;
     notes: string;
+    intake_index: number | null;
 };
 
 const emptyLine = (): Line => ({
@@ -60,6 +112,7 @@ const emptyLine = (): Line => ({
     manufactured_at: '',
     expiry_at: '',
     notes: '',
+    intake_index: null,
 });
 
 function addDays(iso: string, days: number): string {
@@ -78,6 +131,9 @@ export default function CreateGoodsReceipt({
     selectedMaterialRequest,
     presetItem,
     presetWarehouse,
+    intake,
+    reader,
+    can,
 }: {
     vendors: SelectOption[];
     warehouses: (SelectOption & { type: string })[];
@@ -88,9 +144,51 @@ export default function CreateGoodsReceipt({
     selectedMaterialRequest: number | null;
     presetItem?: number | null;
     presetWarehouse?: number | null;
+    intake: Intake | null;
+    reader: { available: boolean; model: string | null };
+    can: { manual: boolean };
 }) {
+    // Without the right to key a receipt by hand, the particulars are the
+    // bill's: only the item mapping and the unit are chosen on screen.
+    const locked = !can.manual;
+    const pageErrors = usePage().props.errors as Record<
+        string,
+        string | undefined
+    >;
+    const [vendorOptions, setVendorOptions] = useState<SelectOption[]>(vendors);
+    const [uploading, setUploading] = useState(false);
+    const fileInput = useRef<HTMLInputElement>(null);
+
+    // The bill's goods lines; a freight or rounding-off line has no quantity.
+    const billLines = (intake?.lines ?? []).filter((l) => l.quantity !== null);
+    const unmatched = billLines.filter((l) => l.item_id === null).length;
+
+    const lineFromBill = (l: IntakeLine): Line => {
+        const item = items.find((it) => it.value === l.item_id);
+
+        return {
+            item_id: l.item_id ? String(l.item_id) : '',
+            quantity: l.quantity ?? '',
+            uom_id: l.uom_id
+                ? String(l.uom_id)
+                : item
+                  ? String(item.stock_uom_id)
+                  : '',
+            unit_price: l.rate ?? '',
+            supplier_batch_ref: l.batch ?? '',
+            manufactured_at: l.manufactured_at ?? '',
+            expiry_at:
+                l.expiry_at ??
+                (item?.shelf_life_days
+                    ? addDays(today, item.shelf_life_days)
+                    : ''),
+            notes: l.description,
+            intake_index: l.index,
+        };
+    };
+
     const form = useForm({
-        vendor_id: '',
+        vendor_id: intake?.vendor.id ? String(intake.vendor.id) : '',
         material_request_id: selectedMaterialRequest
             ? String(selectedMaterialRequest)
             : '',
@@ -101,10 +199,12 @@ export default function CreateGoodsReceipt({
                 : (warehouses[0]?.value ?? ''),
         ),
         received_at: today,
-        invoice_ref: '',
+        invoice_ref: intake?.extraction.invoice_number ?? '',
         notes: '',
         post_now: true,
-        lines: [emptyLine()],
+        intake_token: intake?.token ?? '',
+        lines:
+            billLines.length > 0 ? billLines.map(lineFromBill) : [emptyLine()],
     });
 
     const errors = form.errors as Record<string, string | undefined>;
@@ -139,7 +239,7 @@ export default function CreateGoodsReceipt({
     useEffect(() => {
         if (selectedMaterialRequest) {
             applyMaterialRequest(String(selectedMaterialRequest));
-        } else if (presetItem) {
+        } else if (presetItem && !intake) {
             // Opened from the item's own page: start with that item on line one.
             chooseItem(0, String(presetItem));
         }
@@ -181,14 +281,169 @@ export default function CreateGoodsReceipt({
         form.post(store().url, { preserveScroll: true });
     };
 
+    const upload = (file: File | undefined) => {
+        if (!file) {
+            return;
+        }
+
+        setUploading(true);
+        router.post(
+            intakeRoute().url,
+            { invoice: file },
+            { forceFormData: true, onFinish: () => setUploading(false) },
+        );
+    };
+
+    // The bill line a form line was filled in from, if any.
+    const readFor = (line: Line): IntakeLine | undefined =>
+        line.intake_index === null
+            ? undefined
+            : intake?.lines.find((l) => l.index === line.intake_index);
+
+    const vendorHint = !intake
+        ? undefined
+        : intake.vendor.id
+          ? `Matched from the bill by ${intake.vendor.matched_by === 'gstin' ? 'GSTIN' : 'name'}.`
+          : intake.vendor.suggested.name
+            ? `The bill is from ${intake.vendor.suggested.name}${intake.vendor.suggested.gstin ? ` (${intake.vendor.suggested.gstin})` : ''}, who is not on file yet. Add them here.`
+            : 'The vendor could not be read off the bill.';
+
     return (
         <>
             <Head title="New goods receipt" />
             <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
                 <PageHeader
                     title="New goods receipt"
-                    description="Enter the delivery as it appears on the note. Batch numbers are generated when you post it."
+                    description="Upload the supplier's bill and check what was read off it. Batch numbers are generated when you post the receipt."
                 />
+
+                <section className="bg-card rounded-xl border p-6">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                            <h2 className="flex items-center gap-2 font-semibold">
+                                <ScanText className="size-4" />
+                                Supplier&rsquo;s bill
+                            </h2>
+                            <p className="text-muted-foreground text-sm">
+                                Upload the invoice or delivery challan as a PDF
+                                or a photo. The vendor, quantities, rates and
+                                batch details are read off it and filled in
+                                below.
+                            </p>
+                        </div>
+                        <div>
+                            <input
+                                ref={fileInput}
+                                type="file"
+                                accept="application/pdf,image/jpeg,image/png,image/webp"
+                                className="hidden"
+                                onChange={(e) => {
+                                    upload(e.target.files?.[0]);
+                                    e.target.value = '';
+                                }}
+                            />
+                            <Button
+                                type="button"
+                                variant={intake ? 'outline' : 'default'}
+                                disabled={!reader.available || uploading}
+                                onClick={() => fileInput.current?.click()}
+                            >
+                                <FileUp className="size-4" />
+                                {uploading
+                                    ? 'Reading the bill…'
+                                    : intake
+                                      ? 'Scan a different bill'
+                                      : 'Upload bill'}
+                            </Button>
+                        </div>
+                    </div>
+
+                    {!reader.available && (
+                        <p className="mt-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
+                            The bill reader is not set up on this server (no
+                            Claude API key).{' '}
+                            {can.manual
+                                ? 'Enter the receipt by hand below.'
+                                : 'Ask the plant head or an administrator to book this receipt.'}
+                        </p>
+                    )}
+                    <InputError message={pageErrors.invoice} className="mt-3" />
+                    <InputError
+                        message={errors.intake_token}
+                        className="mt-3"
+                    />
+
+                    {intake && (
+                        <>
+                            <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-4">
+                                <div className="min-w-0">
+                                    <dt className="text-muted-foreground text-xs">
+                                        File
+                                    </dt>
+                                    <dd
+                                        className="truncate font-medium"
+                                        title={intake.name}
+                                    >
+                                        {intake.name}
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt className="text-muted-foreground text-xs">
+                                        Invoice no.
+                                    </dt>
+                                    <dd className="font-medium">
+                                        {intake.extraction.invoice_number ??
+                                            '—'}
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt className="text-muted-foreground text-xs">
+                                        Invoice date
+                                    </dt>
+                                    <dd className="font-medium">
+                                        {intake.extraction.invoice_date ?? '—'}
+                                    </dd>
+                                </div>
+                                <div>
+                                    <dt className="text-muted-foreground text-xs">
+                                        Bill total
+                                    </dt>
+                                    <dd className="font-medium tabular-nums">
+                                        {intake.extraction.total
+                                            ? `${intake.extraction.currency} ${intake.extraction.total}`
+                                            : '—'}
+                                    </dd>
+                                </div>
+                            </dl>
+                            <ul className="mt-3 space-y-1 text-sm">
+                                <li className="text-muted-foreground">
+                                    Read by{' '}
+                                    {intake.extraction.model ??
+                                        reader.model ??
+                                        'the bill reader'}
+                                    : {billLines.length} goods line
+                                    {billLines.length === 1 ? '' : 's'},{' '}
+                                    {billLines.length - unmatched} matched to
+                                    items
+                                    {unmatched > 0
+                                        ? ` — choose the item on the ${unmatched} still open`
+                                        : ''}
+                                    .
+                                </li>
+                                {intake.extraction.warnings.map(
+                                    (warning, i) => (
+                                        <li
+                                            key={i}
+                                            className="text-amber-700 dark:text-amber-300"
+                                        >
+                                            {warning}
+                                        </li>
+                                    ),
+                                )}
+                            </ul>
+                        </>
+                    )}
+                </section>
 
                 <form
                     onSubmit={(e) => {
@@ -243,30 +498,46 @@ export default function CreateGoodsReceipt({
                             label="Vendor"
                             htmlFor="vendor_id"
                             error={errors.vendor_id}
+                            hint={vendorHint}
                         >
-                            <Select
-                                value={form.data.vendor_id}
-                                onValueChange={(v) =>
-                                    form.setData('vendor_id', v)
-                                }
-                            >
-                                <SelectTrigger
-                                    id="vendor_id"
-                                    className="w-full"
+                            <div className="flex gap-2">
+                                <Select
+                                    value={form.data.vendor_id}
+                                    onValueChange={(v) =>
+                                        form.setData('vendor_id', v)
+                                    }
                                 >
-                                    <SelectValue placeholder="Select a vendor" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {vendors.map((v) => (
-                                        <SelectItem
-                                            key={v.value}
-                                            value={String(v.value)}
-                                        >
-                                            {v.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                                    <SelectTrigger
+                                        id="vendor_id"
+                                        className="min-w-0 flex-1"
+                                    >
+                                        <SelectValue placeholder="Select a vendor" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {vendorOptions.map((v) => (
+                                            <SelectItem
+                                                key={v.value}
+                                                value={String(v.value)}
+                                            >
+                                                {v.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <VendorQuickAdd
+                                    suggested={intake?.vendor.suggested}
+                                    onAdded={(vendor) => {
+                                        setVendorOptions((current) => [
+                                            ...current,
+                                            vendor,
+                                        ]);
+                                        form.setData(
+                                            'vendor_id',
+                                            String(vendor.value),
+                                        );
+                                    }}
+                                />
+                            </div>
                         </Field>
 
                         <Field
@@ -353,24 +624,27 @@ export default function CreateGoodsReceipt({
                             <div>
                                 <h2 className="font-semibold">Lines</h2>
                                 <p className="text-muted-foreground text-sm">
-                                    Batch details entered here print on the QC
-                                    sticker.
+                                    {locked
+                                        ? 'Quantities, rates and batch details come off the bill. Choose the item and unit where the reader could not.'
+                                        : 'Batch details entered here print on the QC sticker.'}
                                 </p>
                             </div>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                    form.setData('lines', [
-                                        ...form.data.lines,
-                                        emptyLine(),
-                                    ])
-                                }
-                            >
-                                <Plus className="size-4" />
-                                Add line
-                            </Button>
+                            {!locked && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                        form.setData('lines', [
+                                            ...form.data.lines,
+                                            emptyLine(),
+                                        ])
+                                    }
+                                >
+                                    <Plus className="size-4" />
+                                    Add line
+                                </Button>
+                            )}
                         </div>
 
                         <InputError
@@ -378,236 +652,286 @@ export default function CreateGoodsReceipt({
                             className="px-5 pt-3"
                         />
 
-                        <div className="divide-y">
-                            {form.data.lines.map((line, i) => {
-                                const item = items.find(
-                                    (it) => String(it.value) === line.item_id,
-                                );
+                        {locked && !intake ? (
+                            <div className="text-muted-foreground flex items-start gap-3 p-5 text-sm">
+                                <Lock className="mt-0.5 size-4 shrink-0" />
+                                <p>
+                                    Upload the supplier&rsquo;s bill above; the
+                                    lines are filled in from it. Only the plant
+                                    head or an administrator may key a receipt
+                                    in by hand.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="divide-y">
+                                {form.data.lines.map((line, i) => {
+                                    const item = items.find(
+                                        (it) =>
+                                            String(it.value) === line.item_id,
+                                    );
+                                    const read = readFor(line);
 
-                                return (
-                                    <div
-                                        key={i}
-                                        className="grid gap-4 p-5 lg:grid-cols-12"
-                                    >
-                                        <div className="space-y-2 lg:col-span-4">
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-sm font-medium">
-                                                    Item {i + 1}
-                                                </span>
-                                                {item && (
-                                                    <StatusBadge
-                                                        variant={
-                                                            item.requires_qc
-                                                                ? 'warning'
-                                                                : 'muted'
-                                                        }
-                                                    >
-                                                        {item.requires_qc
-                                                            ? 'QC required'
-                                                            : 'No QC'}
-                                                    </StatusBadge>
-                                                )}
-                                            </div>
-                                            <Select
-                                                value={line.item_id}
-                                                onValueChange={(v) =>
-                                                    chooseItem(i, v)
-                                                }
-                                            >
-                                                <SelectTrigger className="w-full">
-                                                    <SelectValue placeholder="Select an item" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {items.map((it) => (
-                                                        <SelectItem
-                                                            key={it.value}
-                                                            value={String(
-                                                                it.value,
-                                                            )}
+                                    return (
+                                        <div
+                                            key={i}
+                                            className="grid gap-4 p-5 lg:grid-cols-12"
+                                        >
+                                            <div className="space-y-2 lg:col-span-4">
+                                                <div className="flex items-center justify-between">
+                                                    <span className="text-sm font-medium">
+                                                        Item {i + 1}
+                                                    </span>
+                                                    {item && (
+                                                        <StatusBadge
+                                                            variant={
+                                                                item.requires_qc
+                                                                    ? 'warning'
+                                                                    : 'muted'
+                                                            }
                                                         >
-                                                            {it.label}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <InputError
-                                                message={
-                                                    errors[`lines.${i}.item_id`]
-                                                }
-                                            />
-                                        </div>
-
-                                        <div className="space-y-2 lg:col-span-2">
-                                            <span className="text-sm font-medium">
-                                                Quantity
-                                            </span>
-                                            <div className="flex gap-2">
-                                                <Input
-                                                    inputMode="decimal"
-                                                    value={line.quantity}
-                                                    onChange={(e) =>
-                                                        setLine(i, {
-                                                            quantity:
-                                                                e.target.value,
-                                                        })
-                                                    }
-                                                    placeholder="0.000"
-                                                />
+                                                            {item.requires_qc
+                                                                ? 'QC required'
+                                                                : 'No QC'}
+                                                        </StatusBadge>
+                                                    )}
+                                                </div>
                                                 <Select
-                                                    value={line.uom_id}
+                                                    value={line.item_id}
                                                     onValueChange={(v) =>
-                                                        setLine(i, {
-                                                            uom_id: v,
-                                                        })
+                                                        chooseItem(i, v)
                                                     }
                                                 >
-                                                    <SelectTrigger className="w-24">
-                                                        <SelectValue placeholder="Unit" />
+                                                    <SelectTrigger className="w-full">
+                                                        <SelectValue placeholder="Select an item" />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        {uoms.map((u) => (
+                                                        {items.map((it) => (
                                                             <SelectItem
-                                                                key={u.value}
+                                                                key={it.value}
                                                                 value={String(
-                                                                    u.value,
+                                                                    it.value,
                                                                 )}
                                                             >
-                                                                {u.label}
+                                                                {it.label}
                                                             </SelectItem>
                                                         ))}
                                                     </SelectContent>
                                                 </Select>
+                                                {read && (
+                                                    <p className="text-muted-foreground text-xs">
+                                                        On the bill:{' '}
+                                                        {read.description}
+                                                        {read.hsn
+                                                            ? ` · HSN ${read.hsn}`
+                                                            : ''}
+                                                        {read.unit
+                                                            ? ` · ${read.unit}`
+                                                            : ''}
+                                                    </p>
+                                                )}
+                                                <InputError
+                                                    message={
+                                                        errors[
+                                                            `lines.${i}.item_id`
+                                                        ]
+                                                    }
+                                                />
                                             </div>
-                                            <InputError
-                                                message={
-                                                    errors[
-                                                        `lines.${i}.quantity`
-                                                    ] ??
-                                                    errors[`lines.${i}.uom_id`]
-                                                }
-                                            />
-                                        </div>
 
-                                        <div className="space-y-2 lg:col-span-2">
-                                            <span className="text-sm font-medium">
-                                                Price / unit (₹)
-                                            </span>
-                                            <Input
-                                                inputMode="decimal"
-                                                value={line.unit_price}
-                                                onChange={(e) =>
-                                                    setLine(i, {
-                                                        unit_price:
-                                                            e.target.value,
-                                                    })
-                                                }
-                                            />
-                                            <InputError
-                                                message={
-                                                    errors[
-                                                        `lines.${i}.unit_price`
-                                                    ]
-                                                }
-                                            />
-                                        </div>
+                                            <div className="space-y-2 lg:col-span-2">
+                                                <span className="text-sm font-medium">
+                                                    Quantity
+                                                </span>
+                                                <div className="flex gap-2">
+                                                    <Input
+                                                        inputMode="decimal"
+                                                        disabled={locked}
+                                                        value={line.quantity}
+                                                        onChange={(e) =>
+                                                            setLine(i, {
+                                                                quantity:
+                                                                    e.target
+                                                                        .value,
+                                                            })
+                                                        }
+                                                        placeholder="0.000"
+                                                    />
+                                                    <Select
+                                                        value={line.uom_id}
+                                                        onValueChange={(v) =>
+                                                            setLine(i, {
+                                                                uom_id: v,
+                                                            })
+                                                        }
+                                                    >
+                                                        <SelectTrigger className="w-24">
+                                                            <SelectValue placeholder="Unit" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {uoms.map((u) => (
+                                                                <SelectItem
+                                                                    key={
+                                                                        u.value
+                                                                    }
+                                                                    value={String(
+                                                                        u.value,
+                                                                    )}
+                                                                >
+                                                                    {u.label}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <InputError
+                                                    message={
+                                                        errors[
+                                                            `lines.${i}.quantity`
+                                                        ] ??
+                                                        errors[
+                                                            `lines.${i}.uom_id`
+                                                        ]
+                                                    }
+                                                />
+                                            </div>
 
-                                        <div className="space-y-2 lg:col-span-2">
-                                            <span className="text-sm font-medium">
-                                                Supplier batch
-                                            </span>
-                                            <Input
-                                                value={line.supplier_batch_ref}
-                                                onChange={(e) =>
-                                                    setLine(i, {
-                                                        supplier_batch_ref:
-                                                            e.target.value,
-                                                    })
-                                                }
-                                            />
-                                        </div>
+                                            <div className="space-y-2 lg:col-span-2">
+                                                <span className="text-sm font-medium">
+                                                    Price / unit (₹)
+                                                </span>
+                                                <Input
+                                                    inputMode="decimal"
+                                                    disabled={locked}
+                                                    value={line.unit_price}
+                                                    onChange={(e) =>
+                                                        setLine(i, {
+                                                            unit_price:
+                                                                e.target.value,
+                                                        })
+                                                    }
+                                                />
+                                                <InputError
+                                                    message={
+                                                        errors[
+                                                            `lines.${i}.unit_price`
+                                                        ]
+                                                    }
+                                                />
+                                            </div>
 
-                                        <div className="space-y-2 lg:col-span-1">
-                                            <span className="text-sm font-medium">
-                                                Mfg.
-                                            </span>
-                                            <Input
-                                                type="date"
-                                                value={line.manufactured_at}
-                                                onChange={(e) =>
-                                                    setLine(i, {
-                                                        manufactured_at:
-                                                            e.target.value,
-                                                    })
-                                                }
-                                            />
-                                            <InputError
-                                                message={
-                                                    errors[
-                                                        `lines.${i}.manufactured_at`
-                                                    ]
-                                                }
-                                            />
-                                        </div>
+                                            <div className="space-y-2 lg:col-span-2">
+                                                <span className="text-sm font-medium">
+                                                    Supplier batch
+                                                </span>
+                                                <Input
+                                                    disabled={locked}
+                                                    value={
+                                                        line.supplier_batch_ref
+                                                    }
+                                                    onChange={(e) =>
+                                                        setLine(i, {
+                                                            supplier_batch_ref:
+                                                                e.target.value,
+                                                        })
+                                                    }
+                                                />
+                                            </div>
 
-                                        <div className="space-y-2 lg:col-span-1">
-                                            <span className="text-sm font-medium">
-                                                Expiry
-                                            </span>
-                                            <Input
-                                                type="date"
-                                                value={line.expiry_at}
-                                                onChange={(e) =>
-                                                    setLine(i, {
-                                                        expiry_at:
-                                                            e.target.value,
-                                                    })
-                                                }
-                                            />
-                                            <InputError
-                                                message={
-                                                    errors[
-                                                        `lines.${i}.expiry_at`
-                                                    ]
-                                                }
-                                            />
-                                        </div>
+                                            <div className="space-y-2 lg:col-span-1">
+                                                <span className="text-sm font-medium">
+                                                    Mfg.
+                                                </span>
+                                                <Input
+                                                    type="date"
+                                                    disabled={locked}
+                                                    value={line.manufactured_at}
+                                                    onChange={(e) =>
+                                                        setLine(i, {
+                                                            manufactured_at:
+                                                                e.target.value,
+                                                        })
+                                                    }
+                                                />
+                                                <InputError
+                                                    message={
+                                                        errors[
+                                                            `lines.${i}.manufactured_at`
+                                                        ]
+                                                    }
+                                                />
+                                            </div>
 
-                                        <div className="flex items-end justify-end lg:col-span-12">
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="sm"
-                                                className="text-muted-foreground"
-                                                disabled={
-                                                    form.data.lines.length === 1
-                                                }
-                                                onClick={() =>
-                                                    form.setData(
-                                                        'lines',
-                                                        form.data.lines.filter(
-                                                            (_, j) => j !== i,
-                                                        ),
-                                                    )
-                                                }
-                                            >
-                                                <Trash2 className="size-4" />
-                                                Remove line
-                                            </Button>
+                                            <div className="space-y-2 lg:col-span-1">
+                                                <span className="text-sm font-medium">
+                                                    Expiry
+                                                </span>
+                                                <Input
+                                                    type="date"
+                                                    disabled={
+                                                        locked &&
+                                                        !!read?.expiry_at
+                                                    }
+                                                    value={line.expiry_at}
+                                                    onChange={(e) =>
+                                                        setLine(i, {
+                                                            expiry_at:
+                                                                e.target.value,
+                                                        })
+                                                    }
+                                                />
+                                                <InputError
+                                                    message={
+                                                        errors[
+                                                            `lines.${i}.expiry_at`
+                                                        ]
+                                                    }
+                                                />
+                                            </div>
+
+                                            {!locked && (
+                                                <div className="flex items-end justify-end lg:col-span-12">
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="text-muted-foreground"
+                                                        disabled={
+                                                            form.data.lines
+                                                                .length === 1
+                                                        }
+                                                        onClick={() =>
+                                                            form.setData(
+                                                                'lines',
+                                                                form.data.lines.filter(
+                                                                    (_, j) =>
+                                                                        j !== i,
+                                                                ),
+                                                            )
+                                                        }
+                                                    >
+                                                        <Trash2 className="size-4" />
+                                                        Remove line
+                                                    </Button>
+                                                </div>
+                                            )}
                                         </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </section>
 
                     <div className="flex flex-wrap items-center gap-3">
-                        <Button type="submit" disabled={form.processing}>
+                        <Button
+                            type="submit"
+                            disabled={form.processing || (locked && !intake)}
+                        >
                             Post receipt
                         </Button>
                         <Button
                             type="button"
                             variant="outline"
-                            disabled={form.processing}
+                            disabled={form.processing || (locked && !intake)}
                             onClick={() => submit(false)}
                         >
                             Save as draft

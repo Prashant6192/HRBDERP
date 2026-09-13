@@ -76,6 +76,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | AI assistance
+    |--------------------------------------------------------------------------
+    |
+    | Reading supplier bills into goods receipts. Needs an Anthropic API key;
+    | without one the receipt screens fall back to manual entry. The model is
+    | swappable; claude-opus-5 reads Indian GST invoices reliably, and
+    | claude-fable-5-1 is the most capable option at a higher price.
+    |
+    */
+
+    'ai' => [
+        'api_key' => env('ANTHROPIC_API_KEY'),
+        'model' => env('ERP_AI_MODEL', 'claude-opus-5'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Quality control
     |--------------------------------------------------------------------------
     |

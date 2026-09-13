@@ -67,7 +67,8 @@ class DashboardTest extends TestCase
                 ->has('upcoming')
                 ->where('recentActivity', null)
                 ->where('quickActions.plan', true)
-                ->where('quickActions.receive', false)
+                // The plant head may book a delivery, by hand if need be.
+                ->where('quickActions.receive', true)
             );
     }
 

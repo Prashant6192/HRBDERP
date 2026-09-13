@@ -32,6 +32,15 @@ class GoodsReceiptPolicy extends ModulePolicy
         return $user->can('purchase.receive');
     }
 
+    /**
+     * Keying a receipt by hand, or changing what the bill reader found: the
+     * plant head (and whoever an administrator grants it to), not the gate.
+     */
+    public function enterManually(User $user): bool
+    {
+        return $user->can('purchase.receive_manual');
+    }
+
     public function post(User $user, Model $model): bool
     {
         return $user->can('purchase.receive');

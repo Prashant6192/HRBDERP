@@ -61,7 +61,7 @@ roles to the defaults below.
 | Formulations        | `formula`    | `view`, `create`, `edit`, `delete`, `approve`, `archive`, `import`, `export`                                                     |
 | Planning & Purchase | `planning`   | `view`, `create`, `edit`, `approve`, `cancel`, `export`                                                                          |
 | Production          | `production` | `view`, `create`, `edit`, `approve`, `consume`, `cancel`, `export`                                                               |
-| Procurement         | `purchase`   | `view`, `create`, `edit`, `approve`, `receive`, `export`                                                                         |
+| Procurement         | `purchase`   | `view`, `create`, `edit`, `approve`, `receive`, `receive_manual`, `export`                                                       |
 | Quality Control     | `qc`         | `view`, `create`, `approve`, `reject`, `export`                                                                                  |
 
 ### Commercial
@@ -78,8 +78,6 @@ roles to the defaults below.
 | Module    | Key        | Abilities     |
 | --------- | ---------- | ------------- |
 | Approvals | `approval` | `view`, `act` |
-
----
 
 ## How roles work
 
@@ -134,6 +132,16 @@ The factory manager reads those masters and does not maintain them.
 
 ---
 
+### Who may key a goods receipt in by hand
+
+A goods receipt is booked off the supplier's bill: the person uploads it, the
+reader fills the form in, and they confirm the item and unit where it could
+not. `purchase.receive` lets someone do that. Typing a receipt in without a
+bill, or changing the quantities, rates and batch details the reader found,
+needs `purchase.receive_manual`, which the Factory Manager holds by default
+(Super Admin bypasses every check). The Roles screen can grant it to others;
+the Purchase Manager deliberately does not have it.
+
 ## The roles
 
 Four shop-floor roles — QC Executive, Store Executive, Packaging Executive
@@ -168,7 +176,7 @@ Unrestricted access, including roles, permissions and settings. Reserved for the
 | Formulations        | `view`, `create`, `edit`, `delete`, `approve`, `archive`, `import`, `export`                                                     |
 | Planning & Purchase | `view`, `create`, `edit`, `approve`, `cancel`, `export`                                                                          |
 | Production          | `view`, `create`, `edit`, `approve`, `consume`, `cancel`, `export`                                                               |
-| Procurement         | `view`, `create`, `edit`, `approve`, `receive`, `export`                                                                         |
+| Procurement         | `view`, `create`, `edit`, `approve`, `receive`, `receive_manual`, `export`                                                       |
 | Quality Control     | `view`, `create`, `approve`, `reject`, `export`                                                                                  |
 | Sales               | `view`, `create`, `edit`, `delete`, `export`                                                                                     |
 | Marketplace         | `view`, `import`, `reconcile`, `export`                                                                                          |
@@ -198,7 +206,7 @@ Full visibility of the business including formulations, costing and every report
 | Formulations        | `view`, `create`, `edit`, `delete`, `approve`, `archive`, `import`, `export`                                                     |
 | Planning & Purchase | `view`, `create`, `edit`, `approve`, `cancel`, `export`                                                                          |
 | Production          | `view`, `create`, `edit`, `approve`, `consume`, `cancel`, `export`                                                               |
-| Procurement         | `view`, `create`, `edit`, `approve`, `receive`, `export`                                                                         |
+| Procurement         | `view`, `create`, `edit`, `approve`, `receive`, `receive_manual`, `export`                                                       |
 | Quality Control     | `view`, `create`, `approve`, `reject`, `export`                                                                                  |
 | Sales               | `view`, `create`, `edit`, `delete`, `export`                                                                                     |
 | Marketplace         | `view`, `import`, `reconcile`, `export`                                                                                          |
@@ -279,7 +287,7 @@ Runs the plant: production, inventory, quality and the formulations needed to ma
 | Formulations        | `view`, `create`, `edit`, `import`, `export`                                                                                     |
 | Planning & Purchase | `view`, `create`, `edit`, `approve`, `cancel`, `export`                                                                          |
 | Production          | `view`, `create`, `edit`, `approve`, `consume`, `cancel`, `export`                                                               |
-| Procurement         | `view`, `create`                                                                                                                 |
+| Procurement         | `view`, `create`, `edit`, `receive`, `receive_manual`                                                                            |
 | Quality Control     | `view`, `create`, `approve`, `reject`                                                                                            |
 | Costing             | `view`                                                                                                                           |
 | Reports             | `view`, `export`                                                                                                                 |
@@ -483,7 +491,7 @@ Receives deliveries, books stock in and prints batch stickers for the stores the
 | Product Master      | `view`                                            |
 | Raw Materials       | `view`                                            |
 | Packaging Materials | `view`                                            |
-| Vendors             | `view`                                            |
+| Vendors             | `view`, `create`                                  |
 | Units of Measure    | `view`                                            |
 | Inventory           | `view`, `receive`, `transfer`, `receive_transfer` |
 | Procurement         | `view`, `create`, `receive`                       |
@@ -509,8 +517,6 @@ Runs the kettle: sees approved orders, starts them and records consumption. No a
 | Raw Materials    | `view`            |
 | Units of Measure | `view`            |
 | Production       | `view`, `consume` |
-
----
 
 ## Changing a role
 

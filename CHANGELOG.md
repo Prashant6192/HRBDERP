@@ -10,6 +10,31 @@ between them.
 
 ## [Unreleased]
 
+### Added — Goods receipts off the supplier's bill (issue #3)
+
+- **Upload the bill, get the receipt.** The goods receipt screen takes the
+  supplier's invoice or delivery challan as a PDF or a photo. Claude reads
+  the vendor, invoice number and date, totals, and every line with its
+  quantity, unit, rate, batch number and manufacturing / expiry dates. The
+  ERP matches the vendor by GSTIN (then by name) and each line to the item
+  master by code, HSN and name, and the form opens filled in with the bill's
+  wording shown under each line. The bill stays attached to the receipt and
+  opens from its page.
+- **Only the plant head keys a receipt in by hand.** A new ability,
+  _Procurement → Receive manual_, is held by the Factory Manager (and Super
+  Admin) by default; the Roles screen can grant it to others. Everyone else
+  books receipts from the scan: quantities, rates and batch details are the
+  bill's and cannot be typed over; they choose the item and unit where the
+  reader could not. Without a bill their receipt is refused.
+- **Add a vendor from the receipt screen.** A vendor the bill names but the
+  ERP does not know is added in a pop-up on the same page — name and GSTIN
+  from the bill, the rest later on the vendor's page — and selected at once.
+  A duplicate GSTIN is refused. Store Executives may add vendors for this.
+- Bill dates are read day-first, as Indian bills print them. Freight and
+  other lines without a quantity are shown but never become stock.
+- Needs `ANTHROPIC_API_KEY` (and optionally `ERP_AI_MODEL`, default
+  `claude-opus-5`) in the environment. Without it the screen says so.
+
 ### Added — QC assignments and labels (issue #2)
 
 - **Receive stock from the item's own page.** Raw materials, packaging and

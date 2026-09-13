@@ -88,6 +88,14 @@ MAIL_FROM_ADDRESS="erp@yourcompany.com"
 
 ERP_FORMULA_ACCESS_TTL_MINUTES=20
 ERP_FORMULA_REQUIRE_PIN=true
+ERP_QC_REQUIRE_PIN=true
+
+# Reads the supplier's bill on the goods receipt screen. Without the key the
+# screen says the reader is not set up, and only someone with
+# "Procurement → Receive manual" (the Factory Manager by default) can book a
+# receipt at all, by hand.
+ANTHROPIC_API_KEY=
+ERP_AI_MODEL=claude-opus-5
 ```
 
 `APP_KEY` encrypts sessions and cookies. **Back it up somewhere other than the

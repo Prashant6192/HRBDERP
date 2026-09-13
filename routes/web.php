@@ -94,9 +94,12 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::resource('products', ProductController::class)
         ->parameters(['products' => 'product']);
 
+    Route::post('vendors/quick', [VendorController::class, 'quick'])->name('vendors.quick');
     Route::resource('vendors', VendorController::class);
 
     // ---- Store: receiving, quality, stock ---------------------------------
+    Route::post('goods-receipts/intake', [GoodsReceiptController::class, 'intake'])->name('goods-receipts.intake');
+    Route::get('goods-receipts/{goodsReceipt}/document', [GoodsReceiptController::class, 'document'])->name('goods-receipts.document');
     Route::resource('goods-receipts', GoodsReceiptController::class)
         ->only(['index', 'create', 'store', 'show'])
         ->parameters(['goods-receipts' => 'goodsReceipt']);

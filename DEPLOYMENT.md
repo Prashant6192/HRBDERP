@@ -214,6 +214,22 @@ One cron entry runs everything Laravel schedules:
 * * * * * cd /var/www/hrbderp && php artisan schedule:run >> /dev/null 2>&1
 ```
 
+What is scheduled today:
+
+| Job            | When   | What it does                                                                                             |
+| -------------- | ------ | -------------------------------------------------------------------------------------------------------- |
+| `erp:escalate` | hourly | Raises exceptions that have stood too long to the roles responsible, once per level; closes cleared ones |
+
+Without the cron entry nobody is escalated to; the command centre and the
+exception feed still work, since they read the floor when opened.
+
+Exception thresholds and the escalation ladder live in `config/erp.php`
+(`exceptions`, `escalation`); the thresholds can be set from the
+environment (`ERP_QC_PENDING_HOURS`, `ERP_BATCH_RUNNING_HOURS`,
+`ERP_PMR_UNFILLED_HOURS`, `ERP_MATERIAL_VARIANCE_PERCENT`,
+`ERP_WASTAGE_PERCENT`, `ERP_PRICE_INCREASE_PERCENT`, `ERP_REJECTION_PERCENT`,
+`ERP_YIELD_FLOOR_PERCENT`, `ERP_TRANSIT_DAYS`).
+
 ---
 
 ## HTTPS

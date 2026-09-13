@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Domain\Audit\Models\AuditLog;
+use App\Domain\Intelligence\DTOs\FactoryException;
+use App\Domain\Intelligence\Services\ExceptionService;
 use App\Domain\Reporting\Services\DashboardService;
 use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Services\FacilityAccess;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -25,6 +28,7 @@ class DashboardController extends Controller
     public function __construct(
         private readonly DashboardService $dashboard,
         private readonly FacilityAccess $access,
+        private readonly ExceptionService $exceptionEngine,
     ) {}
 
     public function __invoke(Request $request): Response
@@ -67,6 +71,8 @@ class DashboardController extends Controller
             'thirdParty' => fn () => $user->can('production.view') && $manufacturing ? $this->dashboard->thirdParty($facility) : null,
 
             'recentActivity' => fn () => $user->can('audit.view') ? $this->recentActivity() : null,
+            // Exception-based management: only what crossed a threshold.
+            'exceptions' => fn () => $user->can('report.view') ? $this->exceptions($facility) : null,
             'quickActions' => [
                 'plan' => $user->can('planning.create'),
                 'receive' => $user->can('purchase.receive'),
@@ -74,6 +80,26 @@ class DashboardController extends Controller
                 'formulas' => $user->can('formula.view'),
             ],
         ]);
+    }
+
+    /**
+     * The exceptions management should see: the top few, most severe and
+     * longest-standing first, cached briefly because every rule reads the
+     * whole floor.
+     *
+     * @return array{total: int, high: int, rows: list<array<string, mixed>>}
+     */
+    private function exceptions(?Facility $facility): array
+    {
+        return Cache::remember('dashboard.exceptions.'.($facility?->id ?? 'all'), now()->addMinutes(5), function () use ($facility): array {
+            $all = $this->exceptionEngine->detect($facility);
+
+            return [
+                'total' => $all->count(),
+                'high' => $all->where('severity', FactoryException::HIGH)->count(),
+                'rows' => $all->take(6)->map(fn (FactoryException $e) => $e->toArray())->values()->all(),
+            ];
+        });
     }
 
     /**

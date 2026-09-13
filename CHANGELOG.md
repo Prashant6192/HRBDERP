@@ -53,6 +53,36 @@ be read.
   under `intelligence` (consumption window, planning horizon, default lead
   time, buckets, risk window).
 
+### Added — Command centre, exceptions, notifications, escalation
+
+- **Factory command centre** (Overview → Command Centre, for anyone who may
+  see reports): one screen answering what is running (with hours on the
+  floor), what is delayed, what is waiting for QC (with hours waiting),
+  what is short (by material, with the plans and requests behind it), what
+  is dispatching today (client batches due and finished goods awaiting
+  dispatch), what requires a signature (transfers to approve, QC on hold,
+  plans ready to release, approvals), and what could stop production
+  tomorrow (materials that cannot be covered in time, batches reserved
+  against stock still in quarantine). Refreshes itself every minute.
+- **Exception-based management.** Twelve rules read the floor and report
+  only what crossed a threshold: slow QC, delayed batch, plan not started,
+  material request unfilled, could stop production, transfer late, stock
+  discrepancy, unexpected price increase, unusually high rejection,
+  production below target, high material variance, abnormal wastage.
+  Thresholds are in `config/erp.php` under `exceptions`. The dashboard shows
+  the top few for those who may see reports; the command centre shows all.
+- **Notifications.** A bell in the header with the unread count and the
+  latest few; a notifications page; opening one marks it read. Stored in
+  the database, so other channels can be added later without touching the
+  logic that raised them.
+- **Automatic escalation.** If an exception stands too long, the roles
+  responsible are told; longer still, their seniors: QC pending 6 hours →
+  QC Manager, 12 hours → Factory Manager; material request unfilled 24
+  hours → Purchase Manager, 72 hours → Factory Manager and Director; and so
+  on for every rule, in `config/erp.php` under `escalation`. Each level
+  fires once per exception and closes when the condition clears.
+  `php artisan erp:escalate` runs hourly on the scheduler.
+
 ### Changed — Dashboard clock
 
 The greeting shows the date and a clock ticking every second in the

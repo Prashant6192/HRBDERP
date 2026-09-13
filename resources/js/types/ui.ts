@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { FormulaAccess } from './erp';
 import type { Auth } from '@/types/auth';
+import type { ErpNotification } from '@/types/erp';
 import type { BreadcrumbItem } from '@/types/navigation';
 
 /**
@@ -10,6 +11,10 @@ export type SharedData = {
     name: string;
     auth: Auth;
     erp: { company: string; timezone: string; currency_symbol: string };
+    notifications: {
+        unread: number;
+        latest: ErpNotification[];
+    } | null;
     sidebarOpen: boolean;
     formulaAccess: FormulaAccess | null;
     [key: string]: unknown;

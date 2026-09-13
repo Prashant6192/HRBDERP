@@ -6,6 +6,7 @@ namespace App\Http\Middleware;
 
 use App\Domain\Access\PermissionCatalogue;
 use App\Domain\Formulation\Services\FormulaSecurityService;
+use App\Http\Controllers\NotificationController;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -62,6 +63,12 @@ class HandleInertiaRequests extends Middleware
                 'isSuperAdmin' => $user instanceof User && $user->isSuperAdmin(),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
+
+            // The bell: how many unread, and the latest few for the dropdown.
+            'notifications' => fn () => $user instanceof User ? [
+                'unread' => $user->unreadNotifications()->count(),
+                'latest' => $user->notifications()->latest()->limit(6)->get()->map(fn ($n) => NotificationController::present($n))->all(),
+            ] : null,
 
             // Whether the second factor in front of recipes is currently
             // cleared. Only computed for users who could see formulas at all.

@@ -1161,3 +1161,16 @@ export type ActivityEntry = {
     subject: string | null;
     created_at: string | null;
 };
+
+// ---- Notifications ---------------------------------------------------------
+
+export type ErpNotification = {
+    id: string;
+    title: string;
+    body: string;
+    href: string | null;
+    severity: 'high' | 'medium' | 'low';
+    category: string;
+    read_at: string | null;
+    created_at: string;
+};

@@ -13,6 +13,7 @@ import {
     FlaskConical,
     Handshake,
     LayoutGrid,
+    MonitorDot,
     Package,
     PackageCheck,
     PackageX,
@@ -44,7 +45,7 @@ import { index as vendorsIndex } from '@/routes/vendors';
 import { index as facilitiesIndex } from '@/routes/facilities';
 import { index as transfersIndex } from '@/routes/transfers';
 import { index as warehousesIndex } from '@/routes/warehouses';
-import { dashboard } from '@/routes';
+import { commandCentre, dashboard } from '@/routes';
 
 export type ErpNavItem = {
     title: string;
@@ -81,6 +82,12 @@ export const erpNavigation: ErpNavGroup[] = [
                 title: 'Dashboard',
                 href: dashboard().url,
                 icon: LayoutGrid,
+            },
+            {
+                title: 'Command Centre',
+                href: commandCentre().url,
+                icon: MonitorDot,
+                permission: 'report.view',
             },
         ],
     },

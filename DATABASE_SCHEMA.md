@@ -480,7 +480,25 @@ the order polymorphically.
 
 ## Intelligence
 
-Nothing is stored. The reorder advice, slow-moving and expiry-risk reports
+### `notifications`
+
+Laravel's database notifications: a UUID, the notifying class, the person
+(`notifiable` morph), the payload (`title`, `body`, `href`, `severity`,
+`category`, `key`) and `read_at`.
+
+### `escalations`
+
+What the escalation ladder has already raised, so a standing exception is
+escalated once per level rather than once per hour: `exception_key`
+(`<rule>:<subject>`, stable while the condition lasts), `rule`, `level`,
+`title`, `href`, `roles` told, `recipients` count, `escalated_at`,
+`resolved_at` (set when the condition clears). Unique on
+`(exception_key, level)`.
+
+### Everything else is read, not stored
+
+The reorder advice, slow-moving and expiry-risk reports, the exception
+feed and the command centre are read at the moment they are asked for. The reorder advice, slow-moving and expiry-risk reports
 are read from `stock_balances`, `inventory_lots`, the ledger,
 `manufacturing_order_lines`, `production_plan_lines`,
 `material_request_lines` and `goods_receipt_lines` at the moment they are

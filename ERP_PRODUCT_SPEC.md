@@ -308,10 +308,26 @@ capital.
 before it expires, first-expiry-first-out at the material's rate; the
 quantity and value at risk.
 
-**Still to come in this layer:** the command centre and exception feed,
-batch stages, consumption and yield analytics, cost variance, client
-profitability, what-if simulation, capacity, risk-based approvals, recall
-tracing, shop-floor scanning and the assistant.
+**Factory command centre.** One screen for management: what is running,
+what is delayed, what is waiting for QC, what is short, what is dispatching
+today, what requires approval, and what could stop production tomorrow.
+Refreshes every minute.
+
+**Exception-based management.** Management is not asked to inspect
+everything. Twelve rules read the floor and report only what crossed a
+threshold: abnormal wastage, delayed batch, high material variance,
+unexpected price increase, slow QC, stock discrepancy, unusually high
+rejection, production below target, plan not started, material request
+unfilled, transfer late, could stop production.
+
+**Automatic escalation.** An exception that stands too long is raised to
+the roles responsible, then to their seniors, once per level, and closed
+when it clears. Notifications land under the bell.
+
+**Still to come in this layer:** batch stages, consumption and yield
+analytics, cost variance, client profitability, what-if simulation,
+capacity, risk-based approvals, recall tracing, shop-floor scanning and the
+assistant.
 
 ### Costing — _planned_
 
@@ -336,15 +352,18 @@ vendor prices and marketplace sales, validated before anything is committed,
 and exports for the stock ledger, inventory, purchases, production, sales and
 costing, are next. Large files will run on the queue.
 
-### Notifications — _planned_
+### Notifications — _built, in-app_
 
-In-app first, through Laravel's notification system so email, WhatsApp, SMS and
-Slack can be added later as channels without touching the business logic.
+Through Laravel's notification system on the database channel: a bell with
+the unread count, a notifications page, read on opening. Email, WhatsApp,
+SMS and Slack can be added as channels without touching the business logic
+that raises them.
 
-### Scheduled work — _planned_
+### Scheduled work — _first job built_
 
-Daily low-stock scan, expiry alerts, overdue material requests, reconciliation,
-inventory snapshots and scheduled reports.
+The escalation pass runs hourly. Daily low-stock and expiry digests,
+reconciliation, inventory snapshots and scheduled reports are next; the
+scheduler entry is already in place.
 
 ---
 

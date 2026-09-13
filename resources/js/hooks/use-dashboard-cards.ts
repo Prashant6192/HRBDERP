@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 export const DASHBOARD_CARDS = [
     { key: 'kpis', label: 'Key figures' },
+    { key: 'exceptions', label: 'Exceptions' },
     { key: 'stores', label: 'Stores at a glance' },
     { key: 'production', label: 'In production' },
     { key: 'receiving', label: 'Receiving & QC' },

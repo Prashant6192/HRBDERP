@@ -13,6 +13,7 @@ use App\Http\Controllers\Formulation\FormulaController;
 use App\Http\Controllers\Formulation\FormulaImportController;
 use App\Http\Controllers\Formulation\FormulaSecurityController;
 use App\Http\Controllers\Formulation\FormulaVersionController;
+use App\Http\Controllers\Intelligence\CommandCentreController;
 use App\Http\Controllers\Intelligence\ExpiryRiskController;
 use App\Http\Controllers\Intelligence\ReorderAdviceController;
 use App\Http\Controllers\Intelligence\SlowMovingStockController;
@@ -25,6 +26,7 @@ use App\Http\Controllers\MasterData\PackagingMaterialController;
 use App\Http\Controllers\MasterData\ProductController;
 use App\Http\Controllers\MasterData\ProductPackagingController;
 use App\Http\Controllers\MasterData\RawMaterialController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Planning\MaterialRequestController;
 use App\Http\Controllers\Planning\ProductionPlanController;
 use App\Http\Controllers\Procurement\GoodsReceiptController;
@@ -54,6 +56,11 @@ Route::inertia('/', 'welcome')->name('home');
 Route::middleware(['auth', 'verified'])->group(function (): void {
 
     Route::get('dashboard', DashboardController::class)->name('dashboard');
+    Route::get('command-centre', CommandCentreController::class)->name('command-centre');
+
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+    Route::post('notifications/{notification}/read', [NotificationController::class, 'read'])->name('notifications.read');
 
     // ---- Facilities & stores ----------------------------------------------
     Route::resource('facilities', FacilityController::class)->except(['destroy']);

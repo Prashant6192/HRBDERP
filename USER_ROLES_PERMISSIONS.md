@@ -556,3 +556,15 @@ return to a known state.
 
 Roles you create yourself are never touched by the command — it only resets the
 sixteen built-in ones.
+
+## Who sees the command centre and who is escalated to
+
+The **Command Centre** and the dashboard's exception card open for anyone
+holding `report.view` (Owner, Director, Management, Factory Manager, the
+department managers and the Viewer). Escalation notifies by role, per the
+ladder in `config/erp.php`: QC Manager then Factory Manager for slow QC;
+Purchase Manager then Factory Manager and Director for unfilled material
+requests; Production Manager then Factory Manager for delayed batches and
+production below target; Warehouse Manager for late transfers and
+discrepancies; Purchase Manager and Director for price increases. A person
+holding no role in the ladder is never notified.

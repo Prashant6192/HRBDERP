@@ -169,6 +169,93 @@ return [
         'price_history_days' => 365,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Exceptions
+    |--------------------------------------------------------------------------
+    |
+    | Management should not have to inspect everything. These thresholds say
+    | what counts as abnormal; anything under them stays quiet.
+    |
+    */
+
+    'exceptions' => [
+        // A QC decision pending longer than this is slow (hours).
+        'qc_pending_hours' => (int) env('ERP_QC_PENDING_HOURS', 6),
+        // A running batch older than this without completion is delayed (hours).
+        'batch_running_hours' => (int) env('ERP_BATCH_RUNNING_HOURS', 48),
+        // A material request unfilled this long past its need-by date, or since
+        // it was raised when it has none (hours).
+        'pmr_unfilled_hours' => (int) env('ERP_PMR_UNFILLED_HOURS', 24),
+        // Consumption above the standard by more than this is a variance (%).
+        'material_variance_percent' => (float) env('ERP_MATERIAL_VARIANCE_PERCENT', 5),
+        // Wastage above this share of what was consumed is abnormal (%).
+        'wastage_percent' => (float) env('ERP_WASTAGE_PERCENT', 3),
+        // A price above the previous average by more than this is unexpected (%).
+        'price_increase_percent' => (float) env('ERP_PRICE_INCREASE_PERCENT', 10),
+        // QC rejections above this share of decisions are unusual (%).
+        'rejection_percent' => (float) env('ERP_REJECTION_PERCENT', 10),
+        // A yield under this is production below target (%).
+        'yield_floor_percent' => (float) env('ERP_YIELD_FLOOR_PERCENT', 95),
+        // A transfer in transit longer than this is late (days).
+        'transit_days' => (int) env('ERP_TRANSIT_DAYS', 3),
+        // How far back batches, receipts and QC decisions are looked at (days).
+        'lookback_days' => 30,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Automatic escalation
+    |--------------------------------------------------------------------------
+    |
+    | When an exception has stood for the given hours, the roles named are
+    | told, once per level. Rule keys are the exception rules above.
+    |
+    */
+
+    'escalation' => [
+        'slow_qc' => [
+            ['after_hours' => 6, 'roles' => ['QC Manager']],
+            ['after_hours' => 12, 'roles' => ['Factory Manager']],
+        ],
+        'pmr_overdue' => [
+            ['after_hours' => 24, 'roles' => ['Purchase Manager']],
+            ['after_hours' => 72, 'roles' => ['Factory Manager', 'Director']],
+        ],
+        'delayed_batch' => [
+            ['after_hours' => 0, 'roles' => ['Production Manager']],
+            ['after_hours' => 24, 'roles' => ['Factory Manager']],
+        ],
+        'overdue_plan' => [
+            ['after_hours' => 24, 'roles' => ['Production Manager', 'Factory Manager']],
+        ],
+        'stockout_imminent' => [
+            ['after_hours' => 0, 'roles' => ['Purchase Manager']],
+            ['after_hours' => 24, 'roles' => ['Factory Manager']],
+        ],
+        'late_transfer' => [
+            ['after_hours' => 0, 'roles' => ['Warehouse Manager']],
+        ],
+        'stock_discrepancy' => [
+            ['after_hours' => 0, 'roles' => ['Warehouse Manager', 'Factory Manager']],
+        ],
+        'price_increase' => [
+            ['after_hours' => 0, 'roles' => ['Purchase Manager', 'Director']],
+        ],
+        'high_rejection' => [
+            ['after_hours' => 0, 'roles' => ['QC Manager', 'Factory Manager']],
+        ],
+        'production_below_target' => [
+            ['after_hours' => 0, 'roles' => ['Production Manager', 'Factory Manager']],
+        ],
+        'material_variance' => [
+            ['after_hours' => 0, 'roles' => ['Production Manager']],
+        ],
+        'abnormal_wastage' => [
+            ['after_hours' => 0, 'roles' => ['Factory Manager']],
+        ],
+    ],
+
     'stock_alerts' => [
         'moderate_multiplier' => env('ERP_STOCK_MODERATE_MULTIPLIER', '2'),
 

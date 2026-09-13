@@ -8,6 +8,7 @@ import {
 import { CustomiseMenu } from '@/components/dashboard/customise-menu';
 import { Hero } from '@/components/dashboard/hero';
 import { KpiTile } from '@/components/dashboard/kpi-tile';
+import { ExceptionList } from '@/components/dashboard/exception-list';
 import {
     ActivityList,
     AttentionList,
@@ -29,6 +30,7 @@ import {
 } from '@/hooks/use-dashboard-cards';
 import { cn } from '@/lib/utils';
 import { dashboard } from '@/routes';
+import { commandCentre } from '@/routes';
 import { index as auditIndex } from '@/routes/audit';
 import { index as lotsIndex } from '@/routes/lots';
 import { index as clientsIndex } from '@/routes/clients';
@@ -39,6 +41,7 @@ import {
 } from '@/routes/manufacturing';
 import { show as showPlan } from '@/routes/plans';
 import { index as stockIndex } from '@/routes/stock';
+import type { DashboardException } from '@/components/dashboard/exception-list';
 import type {
     ActivityEntry,
     AttentionRow,
@@ -106,6 +109,7 @@ export default function Dashboard({
     upcoming,
     thirdParty,
     recentActivity,
+    exceptions,
     quickActions,
 }: {
     greeting: {
@@ -131,6 +135,11 @@ export default function Dashboard({
     upcoming: UpcomingRow[] | null;
     thirdParty: ThirdPartySummary | null;
     recentActivity: ActivityEntry[] | null;
+    exceptions: {
+        total: number;
+        high: number;
+        rows: DashboardException[];
+    } | null;
     quickActions: {
         plan: boolean;
         receive: boolean;
@@ -151,6 +160,7 @@ export default function Dashboard({
         if (expiring) keys.push('expiring');
         if (upcoming) keys.push('upcoming');
         if (recentActivity) keys.push('activity');
+        if (exceptions) keys.push('exceptions');
         return keys;
     }, [
         kpis,
@@ -162,6 +172,7 @@ export default function Dashboard({
         expiring,
         upcoming,
         recentActivity,
+        exceptions,
     ]);
 
     const show = (key: DashboardCardKey) =>
@@ -260,6 +271,26 @@ export default function Dashboard({
                             <KpiTile key={tile.key} tile={tile} />
                         ))}
                     </div>
+                )}
+
+                {show('exceptions') && exceptions && (
+                    <Card
+                        title="Exceptions"
+                        description={
+                            exceptions.total === 0
+                                ? 'Nothing abnormal: wastage, variance, prices, QC, yields and delays are within limits.'
+                                : `${exceptions.total} need attention, ${exceptions.high} of them serious. Only what crossed a threshold is shown.`
+                        }
+                        action={
+                            <Button variant="ghost" size="sm" asChild>
+                                <Link href={commandCentre()}>
+                                    Command centre
+                                </Link>
+                            </Button>
+                        }
+                    >
+                        <ExceptionList rows={exceptions.rows} />
+                    </Card>
                 )}
 
                 {show('stores') && stores && (

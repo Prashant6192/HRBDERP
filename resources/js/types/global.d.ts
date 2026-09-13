@@ -1,4 +1,5 @@
 import type { Auth } from '@/types/auth';
+import type { ErpNotification } from '@/types/erp';
 
 declare module 'react' {
     interface InputHTMLAttributes<T> {
@@ -12,6 +13,10 @@ declare module '@inertiajs/core' {
             name: string;
             auth: Auth;
             erp: { company: string; timezone: string; currency_symbol: string };
+            notifications: {
+                unread: number;
+                latest: ErpNotification[];
+            } | null;
             sidebarOpen: boolean;
             [key: string]: unknown;
         };

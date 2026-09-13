@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Quality;
 
+use App\Domain\Identity\Exceptions\PinException;
+use App\Domain\Identity\Services\PersonalPinService;
 use App\Domain\Inventory\Enums\LotQcStatus;
 use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Models\StockBalance;
 use App\Domain\Quality\Models\QcInspection;
 use App\Domain\Quality\Services\LotStickerService;
 use App\Domain\Quality\Services\QcInspectionService;
+use App\Domain\Quality\Services\QcSlipService;
 use App\Domain\Warehousing\Models\Warehouse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Quality\DecideQcInspectionRequest;
@@ -32,6 +35,8 @@ class QcInspectionController extends Controller
     public function __construct(
         private readonly QcInspectionService $inspections,
         private readonly LotStickerService $stickers,
+        private readonly QcSlipService $slips,
+        private readonly PersonalPinService $pins,
     ) {}
 
     public function index(Request $request): Response
@@ -100,7 +105,12 @@ class QcInspectionController extends Controller
                 'reject' => $qcInspection->isOpen() && $request->user()->can('reject', $qcInspection),
                 'hold' => $qcInspection->status === LotQcStatus::Pending && $request->user()->can('hold', $qcInspection),
                 'sticker' => $qcInspection->status === LotQcStatus::Approved && $request->user()->can('printSticker', $qcInspection->lot),
+                'slip' => ! $qcInspection->isOpen() && $request->user()->can('view', $qcInspection),
                 'view_receipt' => $request->user()->can('purchase.view'),
+            ],
+            'pin' => [
+                'required' => $this->pins->required('qc'),
+                'set' => $request->user()->hasFormulaPin(),
             ],
         ]);
     }
@@ -108,6 +118,10 @@ class QcInspectionController extends Controller
     public function approve(DecideQcInspectionRequest $request, QcInspection $qcInspection): RedirectResponse
     {
         $this->authorize('approve', $qcInspection);
+
+        if ($error = $this->signWithPin($request)) {
+            return $error;
+        }
 
         $destination = $request->filled('destination_warehouse_id')
             ? Warehouse::findOrFail($request->integer('destination_warehouse_id'))
@@ -133,6 +147,10 @@ class QcInspectionController extends Controller
     public function reject(DecideQcInspectionRequest $request, QcInspection $qcInspection): RedirectResponse
     {
         $this->authorize('reject', $qcInspection);
+
+        if ($error = $this->signWithPin($request)) {
+            return $error;
+        }
 
         try {
             $this->inspections->reject(
@@ -163,6 +181,41 @@ class QcInspectionController extends Controller
         Inertia::flash('toast', ['type' => 'info', 'message' => "{$qcInspection->number} placed on hold."]);
 
         return to_route('qc.show', $qcInspection);
+    }
+
+    /**
+     * The QC slip for a decided inspection: PASSED or REJECTED, by whom,
+     * with what was measured. Printed at the checkpoint.
+     */
+    public function slip(QcInspection $qcInspection): HttpResponse
+    {
+        $this->authorize('view', $qcInspection);
+
+        try {
+            $pdf = $this->slips->render($qcInspection);
+        } catch (InvalidArgumentException $e) {
+            abort(422, $e->getMessage());
+        }
+
+        return $pdf->stream($this->slips->filename($qcInspection));
+    }
+
+    /**
+     * A decision is signed with the person's PIN, not merely clicked.
+     */
+    private function signWithPin(Request $request): ?RedirectResponse
+    {
+        if (! $this->pins->required('qc')) {
+            return null;
+        }
+
+        try {
+            $this->pins->verify($request->user(), $request->input('pin'), 'qc');
+        } catch (PinException $e) {
+            return back()->withErrors(['pin' => $e->getMessage()]);
+        }
+
+        return null;
     }
 
     /**

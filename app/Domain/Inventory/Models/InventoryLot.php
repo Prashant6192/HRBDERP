@@ -55,6 +55,7 @@ class InventoryLot extends Model
             'received_at' => 'date',
             'expiry_at' => 'date',
             'qc_decided_at' => 'datetime',
+            'carton_plan' => 'array',
         ];
     }
 

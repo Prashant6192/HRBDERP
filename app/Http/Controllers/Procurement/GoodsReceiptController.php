@@ -103,6 +103,9 @@ class GoodsReceiptController extends Controller
                     ])->all(),
                 ])->all(),
             'selectedMaterialRequest' => request()->integer('material_request') ?: null,
+            // Opened from an item's page: the first line is that item.
+            'presetItem' => request()->integer('item') ?: null,
+            'presetWarehouse' => request()->integer('warehouse') ?: null,
         ]);
     }
 

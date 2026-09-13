@@ -22,6 +22,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('throttle:6,1')
         ->name('user-password.update');
 
+    Route::put('settings/pin', [SecurityController::class, 'updatePin'])
+        ->middleware('throttle:6,1')
+        ->name('personal-pin.update');
+
     Route::inertia('settings/appearance', 'settings/appearance')->name('appearance.edit');
 });
 

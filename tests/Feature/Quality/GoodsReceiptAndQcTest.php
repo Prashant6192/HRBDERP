@@ -24,6 +24,7 @@ use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\UomSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -78,6 +79,7 @@ class GoodsReceiptAndQcTest extends TestCase
 
         $this->qcManager = User::factory()->create();
         $this->qcManager->assignRole(RoleName::QcManager->value);
+        $this->qcManager->setFormulaPin('2468');
     }
 
     private function kg(): Uom
@@ -409,10 +411,89 @@ class GoodsReceiptAndQcTest extends TestCase
         $inspection = $this->postedInspection();
 
         $this->actingAs($this->qcManager)
-            ->post(route('qc.approve', $inspection), ['remarks' => 'All parameters within spec'])
+            ->post(route('qc.approve', $inspection), ['remarks' => 'All parameters within spec', 'pin' => '2468'])
             ->assertRedirect(route('qc.show', $inspection));
 
         $this->assertSame('25.000000', (string) $this->balances->onHand($this->material, $this->rmStore));
+
+        // The QC slip and the store's batch sticker both print now.
+        $this->actingAs($this->qcManager)->get(route('qc.slip', $inspection))->assertOk()->assertHeader('content-type', 'application/pdf');
+        $this->actingAs($this->warehouseManager)->get(route('lots.sticker', $inspection->lot_id))->assertOk();
+    }
+
+    #[Test]
+    public function a_qc_decision_is_signed_with_the_personal_pin(): void
+    {
+        $inspection = $this->postedInspection();
+
+        // No PIN at all: refused, nothing moves.
+        $this->actingAs($this->qcManager)
+            ->post(route('qc.approve', $inspection), ['remarks' => 'ok'])
+            ->assertSessionHasErrors('pin');
+
+        // The wrong PIN: refused, and the slip cannot print yet.
+        $this->actingAs($this->qcManager)
+            ->post(route('qc.approve', $inspection), ['remarks' => 'ok', 'pin' => '0000'])
+            ->assertSessionHasErrors('pin');
+        $this->assertSame(LotQcStatus::Pending, $inspection->fresh()->status);
+        $this->actingAs($this->qcManager)->get(route('qc.slip', $inspection))->assertStatus(422);
+
+        // Someone who never set a PIN is told to set one.
+        $noPin = User::factory()->create();
+        $noPin->assignRole(RoleName::QcExecutive->value);
+        $this->actingAs($noPin)
+            ->post(route('qc.approve', $inspection), ['remarks' => 'ok', 'pin' => '1234'])
+            ->assertSessionHasErrors('pin');
+        $this->assertStringContainsString('not set a personal PIN', session('errors')->first('pin'));
+
+        // Five wrong guesses lock the PIN out.
+        for ($i = 0; $i < 4; $i++) {
+            $this->actingAs($this->qcManager)->post(route('qc.reject', $inspection), ['remarks' => 'contaminated', 'pin' => '9999']);
+        }
+        $this->actingAs($this->qcManager)
+            ->post(route('qc.reject', $inspection), ['remarks' => 'contaminated', 'pin' => '2468'])
+            ->assertSessionHasErrors('pin');
+        $this->assertStringContainsString('Too many wrong PINs', session('errors')->first('pin'));
+        $this->assertSame(LotQcStatus::Pending, $inspection->fresh()->status);
+    }
+
+    #[Test]
+    public function the_pin_can_be_set_under_security_settings_and_then_signs_decisions(): void
+    {
+        $executive = User::factory()->create(['password' => 'secret-pass-123']);
+        $executive->assignRole(RoleName::QcExecutive->value);
+
+        $this->actingAs($executive)
+            ->put(route('personal-pin.update'), ['password' => 'secret-pass-123', 'pin' => '4321', 'pin_confirmation' => '4321'])
+            ->assertRedirect();
+        $this->assertTrue($executive->fresh()->hasFormulaPin());
+
+        $inspection = $this->postedInspection();
+        $this->actingAs($executive)
+            ->post(route('qc.approve', $inspection), ['remarks' => 'ok', 'pin' => '4321'])
+            ->assertRedirect(route('qc.show', $inspection));
+        $this->assertSame(LotQcStatus::Approved, $inspection->fresh()->status);
+    }
+
+    #[Test]
+    public function the_item_page_shows_what_waits_at_qc_and_opens_a_receipt_for_it(): void
+    {
+        $inspection = $this->postedInspection();
+
+        $this->actingAs($this->warehouseManager)
+            ->get(route('raw-materials.show', $this->material))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('can.receive', true)
+                ->where('stock.in_quarantine', '25.000000')
+                ->where('stock.available', '0')
+                ->has('stock.awaiting_qc', 1)
+                ->where('stock.awaiting_qc.0.number', $inspection->number));
+
+        $this->actingAs($this->warehouseManager)
+            ->get(route('goods-receipts.create', ['item' => $this->material->id]))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('presetItem', $this->material->id));
     }
 
     #[Test]

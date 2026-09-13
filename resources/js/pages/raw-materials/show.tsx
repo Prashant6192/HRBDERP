@@ -1,5 +1,6 @@
 import { Head } from '@inertiajs/react';
-import { ItemDetails } from '@/components/items/item-details';
+import { ItemDetails, type ItemStock } from '@/components/items/item-details';
+import { create as createReceipt } from '@/routes/goods-receipts';
 import { dashboard } from '@/routes';
 import { destroy, edit, index, show } from '@/routes/raw-materials';
 import type { Item } from '@/types';
@@ -7,9 +8,17 @@ import type { Item } from '@/types';
 export default function ShowRawMaterial({
     item,
     can,
+    stock,
 }: {
     item: Item;
-    can: { update: boolean; delete: boolean };
+    can: {
+        update: boolean;
+        delete: boolean;
+        receive: boolean;
+        view_stock: boolean;
+        view_qc: boolean;
+    };
+    stock: ItemStock | null;
 }) {
     return (
         <>
@@ -19,6 +28,8 @@ export default function ShowRawMaterial({
                 can={can}
                 editUrl={edit(item.id).url}
                 deleteUrl={destroy(item.id).url}
+                receiveUrl={createReceipt({ query: { item: item.id } }).url}
+                stock={stock}
             />
         </>
     );

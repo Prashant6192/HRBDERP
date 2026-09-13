@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\MasterData;
 
+use App\Domain\Inventory\Models\StockBalance;
 use App\Domain\MasterData\Enums\ItemType;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\MasterData\Models\ItemCategory;
 use App\Domain\Measurement\Models\Uom;
+use App\Domain\Procurement\Models\GoodsReceipt;
+use App\Domain\Quality\Models\QcInspection;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\MasterData\StoreItemRequest;
 use App\Http\Requests\MasterData\UpdateItemRequest;
 use App\Support\Tables\TableQuery;
+use Brick\Math\BigDecimal;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -132,7 +136,11 @@ abstract class ItemController extends Controller
             'can' => [
                 'update' => $request->user()->can('update', $item),
                 'delete' => $request->user()->can('delete', $item),
+                'receive' => $request->user()->can('create', GoodsReceipt::class),
+                'view_stock' => $request->user()->can('inventory.view'),
+                'view_qc' => $request->user()->can('qc.view'),
             ],
+            'stock' => $this->stockSummary($item),
             ...$this->extraShowProps($item),
         ]);
     }
@@ -236,5 +244,48 @@ abstract class ItemController extends Controller
                 'requires_item_factor' => $uom->requires_item_factor,
             ])
             ->all();
+    }
+
+    /**
+     * Where the item's stock stands right now: released and free in the
+     * stores, held in quarantine, and the inspections still to decide — so
+     * the person on the item screen can see what is waiting at QC and send
+     * a fresh delivery there.
+     *
+     * @return array{on_hand: string, available: string, in_quarantine: string, awaiting_qc: list<array{id: int, number: string, batch: string|null, quantity: string, status: string}>}
+     */
+    private function stockSummary(Item $item): array
+    {
+        $balances = StockBalance::query()
+            ->with('warehouse:id,is_quarantine')
+            ->where('item_id', $item->id)
+            ->where('on_hand', '>', 0)
+            ->get();
+
+        $held = $balances->filter(fn (StockBalance $b) => (bool) $b->warehouse?->is_quarantine)
+            ->reduce(fn ($c, StockBalance $b) => $c->plus($b->onHand()), BigDecimal::zero());
+        $free = $balances->reject(fn (StockBalance $b) => (bool) $b->warehouse?->is_quarantine)
+            ->reduce(fn ($c, StockBalance $b) => $c->plus($b->available()), BigDecimal::zero());
+        $onHand = $balances->reduce(fn ($c, StockBalance $b) => $c->plus($b->onHand()), BigDecimal::zero());
+
+        return [
+            'on_hand' => (string) $onHand,
+            'available' => (string) $free,
+            'in_quarantine' => (string) $held,
+            'awaiting_qc' => QcInspection::query()
+                ->open()
+                ->where('item_id', $item->id)
+                ->with('lot:id,batch_number')
+                ->orderBy('id')
+                ->limit(10)
+                ->get()
+                ->map(fn (QcInspection $i) => [
+                    'id' => $i->id,
+                    'number' => $i->number,
+                    'batch' => $i->lot?->batch_number,
+                    'quantity' => $i->quantity,
+                    'status' => $i->status->value,
+                ])->all(),
+        ];
     }
 }

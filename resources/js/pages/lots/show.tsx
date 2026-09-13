@@ -1,5 +1,5 @@
-import { Head } from '@inertiajs/react';
-import { Printer } from 'lucide-react';
+import { Head, Link } from '@inertiajs/react';
+import { Boxes, Printer } from 'lucide-react';
 import { DetailItem } from '@/components/form-field';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
@@ -14,17 +14,20 @@ import {
 } from '@/components/ui/table';
 import { date, QC_LABEL, QC_VARIANT, qty } from '@/lib/stock';
 import { dashboard } from '@/routes';
-import { index, show, sticker } from '@/routes/lots';
+import { cartons, index, show, sticker } from '@/routes/lots';
+
 import type { InventoryLot, StockMovement } from '@/types';
 
 export default function ShowLot({
     lot,
     movements,
     can,
+    cartonPlan,
 }: {
     lot: InventoryLot;
     movements: StockMovement[];
-    can: { sticker: boolean };
+    can: { sticker: boolean; cartons: boolean };
+    cartonPlan: { boxes: number; units_per_box: number } | null;
 }) {
     const scale = lot.item?.stock_uom?.display_scale ?? 3;
     const unit = lot.item?.stock_uom?.code ?? '';
@@ -37,18 +40,30 @@ export default function ShowLot({
                     title={lot.batch_number}
                     description={`${lot.item?.code} — ${lot.item?.name}`}
                     actions={
-                        can.sticker && (
-                            <Button asChild>
-                                <a
-                                    href={sticker(lot.id).url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                >
-                                    <Printer className="size-4" />
-                                    Print sticker
-                                </a>
-                            </Button>
-                        )
+                        <>
+                            {can.cartons && (
+                                <Button variant="outline" asChild>
+                                    <Link href={cartons(lot.id)}>
+                                        <Boxes className="size-4" />
+                                        {cartonPlan
+                                            ? `Carton labels (${cartonPlan.boxes})`
+                                            : 'Carton labels'}
+                                    </Link>
+                                </Button>
+                            )}
+                            {can.sticker && (
+                                <Button asChild>
+                                    <a
+                                        href={sticker(lot.id).url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                    >
+                                        <Printer className="size-4" />
+                                        Print batch sticker
+                                    </a>
+                                </Button>
+                            )}
+                        </>
                     }
                 />
 

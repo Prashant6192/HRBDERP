@@ -1,11 +1,25 @@
 import { Link } from '@inertiajs/react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { ClipboardCheck, PackagePlus, Pencil, Trash2 } from 'lucide-react';
 import { DeleteDialog } from '@/components/confirm-dialog';
 import { DetailItem } from '@/components/form-field';
 import { PageHeader } from '@/components/page-header';
 import { ActiveBadge, StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
+import { show as showInspection } from '@/routes/qc';
 import type { Item } from '@/types';
+
+export type ItemStock = {
+    on_hand: string;
+    available: string;
+    in_quarantine: string;
+    awaiting_qc: {
+        id: number;
+        number: string;
+        batch: string | null;
+        quantity: string;
+        status: string;
+    }[];
+};
 
 function money(value: string | null): string {
     if (value === null) {
@@ -31,11 +45,22 @@ export function ItemDetails({
     can,
     editUrl,
     deleteUrl,
+    receiveUrl,
+    stock,
 }: {
     item: Item;
-    can: { update: boolean; delete: boolean };
+    can: {
+        update: boolean;
+        delete: boolean;
+        receive?: boolean;
+        view_stock?: boolean;
+        view_qc?: boolean;
+    };
     editUrl: string;
     deleteUrl: string;
+    /** Where "Receive stock" goes: the goods receipt form with this item preset. */
+    receiveUrl?: string;
+    stock?: ItemStock | null;
 }) {
     const isProduct = item.type === 'finished_good';
     const stockUnit = item.stock_uom?.code;
@@ -47,6 +72,14 @@ export function ItemDetails({
                 description={item.code}
                 actions={
                     <>
+                        {can.receive && receiveUrl && (
+                            <Button asChild>
+                                <Link href={receiveUrl}>
+                                    <PackagePlus className="size-4" />
+                                    Receive stock
+                                </Link>
+                            </Button>
+                        )}
                         {can.update && (
                             <Button variant="outline" asChild>
                                 <Link href={editUrl}>
@@ -151,6 +184,69 @@ export function ItemDetails({
                             )}
                         </div>
                     </section>
+
+                    {can.view_stock && stock && (
+                        <section className="bg-card rounded-xl border p-6">
+                            <h2 className="mb-4 font-semibold">Stock now</h2>
+                            <dl className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
+                                <DetailItem label="Free in stores">
+                                    {quantity(stock.available, stockUnit)}
+                                </DetailItem>
+                                <DetailItem label="Held in quarantine">
+                                    {quantity(stock.in_quarantine, stockUnit)}
+                                </DetailItem>
+                                <DetailItem label="On hand in total">
+                                    {quantity(stock.on_hand, stockUnit)}
+                                </DetailItem>
+                            </dl>
+                            {stock.awaiting_qc.length > 0 && (
+                                <div className="mt-4 border-t pt-4">
+                                    <p className="text-muted-foreground mb-2 text-xs tracking-wide uppercase">
+                                        Awaiting QC
+                                    </p>
+                                    <ul className="space-y-1 text-sm">
+                                        {stock.awaiting_qc.map((i) => (
+                                            <li
+                                                key={i.id}
+                                                className="flex items-center justify-between gap-2"
+                                            >
+                                                {can.view_qc ? (
+                                                    <Link
+                                                        href={showInspection(
+                                                            i.id,
+                                                        )}
+                                                        className="inline-flex items-center gap-1 font-medium underline-offset-4 hover:underline"
+                                                    >
+                                                        <ClipboardCheck className="size-3" />
+                                                        {i.number}
+                                                    </Link>
+                                                ) : (
+                                                    <span className="font-medium">
+                                                        {i.number}
+                                                    </span>
+                                                )}
+                                                <span className="text-muted-foreground font-mono text-xs">
+                                                    {i.batch ?? '—'} ·{' '}
+                                                    {quantity(
+                                                        i.quantity,
+                                                        stockUnit,
+                                                    )}
+                                                </span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                            {stock.awaiting_qc.length === 0 &&
+                                Number(stock.in_quarantine) === 0 &&
+                                can.receive && (
+                                    <p className="text-muted-foreground mt-3 text-xs">
+                                        A new delivery goes to quarantine first;
+                                        QC releases it into the store.
+                                    </p>
+                                )}
+                        </section>
+                    )}
 
                     <section className="bg-card rounded-xl border p-6">
                         <h2 className="mb-4 font-semibold">Stock control</h2>

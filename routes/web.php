@@ -108,11 +108,15 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('qc/{qcInspection}/approve', [QcInspectionController::class, 'approve'])->name('qc.approve');
     Route::post('qc/{qcInspection}/reject', [QcInspectionController::class, 'reject'])->name('qc.reject');
     Route::post('qc/{qcInspection}/hold', [QcInspectionController::class, 'hold'])->name('qc.hold');
+    Route::get('qc/{qcInspection}/slip', [QcInspectionController::class, 'slip'])->name('qc.slip');
 
     Route::get('stock', [StockController::class, 'index'])->name('stock.index');
     Route::get('lots', [LotController::class, 'index'])->name('lots.index');
     Route::get('lots/{lot}', [LotController::class, 'show'])->name('lots.show');
     Route::get('lots/{lot}/sticker', [QcInspectionController::class, 'sticker'])->name('lots.sticker');
+    Route::get('lots/{lot}/cartons', [LotController::class, 'cartons'])->name('lots.cartons');
+    Route::post('lots/{lot}/cartons', [LotController::class, 'storeCartons'])->name('lots.cartons.store');
+    Route::get('lots/{lot}/cartons/print', [LotController::class, 'printCartons'])->name('lots.cartons.print');
 
     // ---- Planning & Purchase ----------------------------------------------
     Route::get('plans', [ProductionPlanController::class, 'index'])->name('plans.index');

@@ -10,6 +10,46 @@ between them.
 
 ## [Unreleased]
 
+### Added — QC assignments and labels (issue #2)
+
+- **Receive stock from the item's own page.** Raw materials, packaging and
+  products show what is free in the stores, what is held in quarantine and
+  every inspection still waiting at the QC Checkpoint, with a _Receive stock_
+  button that opens a goods receipt with the item already on line one. A
+  delivery lands in quarantine; QC releases it into the store.
+- **QC slip at the checkpoint.** A decided inspection prints an 80 mm
+  _QC PASSED_ / _QC REJECTED_ slip with the QC reference, batch, quantity,
+  what was measured, who decided and where the stock goes.
+- **Batch sticker for the store, 80 mm wide** (was 100 × 70 mm), printed by
+  the store once the batch is put away. Both sizes live in
+  `config/erp.php` under `labels`.
+- **Carton labels for finished goods.** The finished goods store records
+  how a batch is boxed — number of boxes, units per box, gross weight, first
+  box number — and prints one A5 label per carton: product, net quantity,
+  batch number, manufacturing date, expiry, gross weight, MRP and
+  "Box 3 of 12". The plan is saved on the batch so a reprint is identical.
+- **QC decisions are signed with a personal PIN.** Approve and reject ask
+  for the person's PIN (the same PIN that unlocks formulations), set under
+  Settings → Security. Wrong guesses are counted and lock the PIN for a
+  while; someone without a PIN is told where to set one. Switch off with
+  `ERP_QC_REQUIRE_PIN=false`.
+- Authorisation on a QC decision is answered before validation, so someone
+  without the right sees a refusal rather than a request for a PIN.
+
+### Added — Shop-floor roles (issue #4)
+
+- **QC Executive, Store Executive, Packaging Executive and Production
+  Operator**: each holds one job's permissions, so the navigation shows only
+  that job's screens and every other route refuses them. A QC Executive
+  reaches the QC Checkpoint alone; a Packaging Executive sees orders ready
+  to pack and records packaging use; a Store Executive receives and moves
+  stock at the stores they are assigned to; a Production Operator starts
+  approved orders and records consumption. Managers and Super Admin keep
+  full control.
+- A role new to the code is created with its full defaults by
+  `erp:sync-permissions` on the next deploy, without touching roles an
+  administrator has tuned.
+
 ### Added — Facilities, stores and employee assignments (Phase H)
 
 - **Facilities above stores.** Company → Facility → Store → Location → Stock.

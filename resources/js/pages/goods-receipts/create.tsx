@@ -76,6 +76,8 @@ export default function CreateGoodsReceipt({
     today,
     materialRequests,
     selectedMaterialRequest,
+    presetItem,
+    presetWarehouse,
 }: {
     vendors: SelectOption[];
     warehouses: (SelectOption & { type: string })[];
@@ -84,13 +86,20 @@ export default function CreateGoodsReceipt({
     today: string;
     materialRequests: MaterialRequestOption[];
     selectedMaterialRequest: number | null;
+    presetItem?: number | null;
+    presetWarehouse?: number | null;
 }) {
     const form = useForm({
         vendor_id: '',
         material_request_id: selectedMaterialRequest
             ? String(selectedMaterialRequest)
             : '',
-        warehouse_id: String(warehouses[0]?.value ?? ''),
+        warehouse_id: String(
+            presetWarehouse &&
+                warehouses.some((w) => w.value === presetWarehouse)
+                ? presetWarehouse
+                : (warehouses[0]?.value ?? ''),
+        ),
         received_at: today,
         invoice_ref: '',
         notes: '',
@@ -130,8 +139,11 @@ export default function CreateGoodsReceipt({
     useEffect(() => {
         if (selectedMaterialRequest) {
             applyMaterialRequest(String(selectedMaterialRequest));
+        } else if (presetItem) {
+            // Opened from the item's own page: start with that item on line one.
+            chooseItem(0, String(presetItem));
         }
-        // Only on first render: the request comes from the URL.
+        // Only on first render: the request and item come from the URL.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 

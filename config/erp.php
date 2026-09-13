@@ -76,6 +76,34 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Quality control
+    |--------------------------------------------------------------------------
+    |
+    | A QC decision releases stock to the floor or condemns it, so the person
+    | signing it re-enters their personal PIN — the same PIN that unlocks
+    | formulations, set under Settings → Security.
+    |
+    */
+
+    'qc' => [
+        'require_pin' => (bool) env('ERP_QC_REQUIRE_PIN', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Labels
+    |--------------------------------------------------------------------------
+    */
+
+    'labels' => [
+        // The small batch sticker the store puts on a drum or a carton, in mm.
+        'batch_sticker' => ['width' => 80, 'height' => 50],
+        // The QC slip printed at the checkpoint, in mm.
+        'qc_slip' => ['width' => 80, 'height' => 60],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Stock alerts
     |--------------------------------------------------------------------------
     |

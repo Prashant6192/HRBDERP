@@ -6,6 +6,7 @@ import InputError from '@/components/input-error';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
     Select,
@@ -18,7 +19,8 @@ import { date, QC_LABEL, QC_VARIANT, qty } from '@/lib/stock';
 import { dashboard } from '@/routes';
 import { show as showReceipt } from '@/routes/goods-receipts';
 import { show as showLot, sticker } from '@/routes/lots';
-import { approve, hold, index, reject, show } from '@/routes/qc';
+import { approve, hold, index, reject, show, slip } from '@/routes/qc';
+import { edit as securitySettings } from '@/routes/security';
 import type { QcInspection, SelectOption } from '@/types';
 
 type Decision = 'approve' | 'reject' | 'hold';
@@ -28,6 +30,7 @@ export default function ShowQcInspection({
     stockLocations,
     destinations,
     can,
+    pin,
 }: {
     inspection: QcInspection;
     stockLocations: {
@@ -41,13 +44,16 @@ export default function ShowQcInspection({
         reject: boolean;
         hold: boolean;
         sticker: boolean;
+        slip: boolean;
         view_receipt: boolean;
     };
+    pin: { required: boolean; set: boolean };
 }) {
     const [decision, setDecision] = useState<Decision | null>(null);
 
     const form = useForm({
         remarks: '',
+        pin: '',
         destination_warehouse_id: String(
             inspection.destination_warehouse?.id ?? '',
         ),
@@ -74,18 +80,32 @@ export default function ShowQcInspection({
                     title={`${inspection.number} · ${lot?.batch_number ?? ''}`}
                     description={`${inspection.item?.code} — ${inspection.item?.name}`}
                     actions={
-                        can.sticker && (
-                            <Button asChild>
-                                <a
-                                    href={sticker(inspection.lot_id).url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                >
-                                    <Printer className="size-4" />
-                                    Print sticker
-                                </a>
-                            </Button>
-                        )
+                        <>
+                            {can.slip && (
+                                <Button variant="outline" asChild>
+                                    <a
+                                        href={slip(inspection.id).url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                    >
+                                        <Printer className="size-4" />
+                                        Print QC slip
+                                    </a>
+                                </Button>
+                            )}
+                            {can.sticker && (
+                                <Button asChild>
+                                    <a
+                                        href={sticker(inspection.lot_id).url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                    >
+                                        <Printer className="size-4" />
+                                        Print batch sticker
+                                    </a>
+                                </Button>
+                            )}
+                        </>
                     }
                 />
 
@@ -250,6 +270,38 @@ export default function ShowQcInspection({
                                 </div>
                             )}
                         </div>
+
+                        {pin.required && (
+                            <div className="mt-5 max-w-xs space-y-2">
+                                <Label htmlFor="pin">Sign with your PIN</Label>
+                                {pin.set ? (
+                                    <Input
+                                        id="pin"
+                                        type="password"
+                                        inputMode="numeric"
+                                        autoComplete="off"
+                                        maxLength={8}
+                                        value={form.data.pin}
+                                        onChange={(e) =>
+                                            form.setData('pin', e.target.value)
+                                        }
+                                        className="tracking-widest"
+                                    />
+                                ) : (
+                                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                                        You have no personal PIN yet.{' '}
+                                        <Link
+                                            href={securitySettings()}
+                                            className="font-medium underline-offset-4 hover:underline"
+                                        >
+                                            Set one under Settings → Security
+                                        </Link>{' '}
+                                        to sign decisions.
+                                    </p>
+                                )}
+                                <InputError message={form.errors.pin} />
+                            </div>
+                        )}
 
                         <InputError
                             message={

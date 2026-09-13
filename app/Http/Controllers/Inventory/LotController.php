@@ -7,15 +7,22 @@ namespace App\Http\Controllers\Inventory;
 use App\Domain\Inventory\Enums\LotQcStatus;
 use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Models\InventoryTransactionLine;
+use App\Domain\Inventory\Services\CartonLabelService;
 use App\Domain\MasterData\Enums\ItemType;
 use App\Http\Controllers\Controller;
 use App\Support\Tables\TableQuery;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
+use InvalidArgumentException;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class LotController extends Controller
 {
+    public function __construct(private readonly CartonLabelService $cartons) {}
+
     /**
      * @var list<string>
      */
@@ -76,7 +83,70 @@ class LotController extends Controller
         return Inertia::render('lots/show', [
             'lot' => $lot,
             'movements' => $movements,
-            'can' => ['sticker' => $lot->qc_status->isReleasable() && $request->user()->can('printSticker', $lot)],
+            'can' => [
+                'sticker' => $lot->qc_status->isReleasable() && $request->user()->can('printSticker', $lot),
+                'cartons' => $lot->qc_status->isReleasable() && $lot->item?->type === ItemType::FinishedGood && $request->user()->can('printSticker', $lot),
+            ],
+            'cartonPlan' => $lot->carton_plan,
         ]);
+    }
+
+    /**
+     * How a finished batch is boxed: the finished goods store records it
+     * once, then prints one A5 label per carton.
+     */
+    public function cartons(Request $request, InventoryLot $lot): Response
+    {
+        Gate::authorize('printSticker', $lot);
+
+        $lot->load(['item:id,code,name,type,net_content,net_content_uom_id,mrp', 'item.netContentUom:id,code']);
+
+        return Inertia::render('lots/cartons', [
+            'lot' => $lot,
+            'plan' => $lot->carton_plan,
+            'printable' => $lot->qc_status->isReleasable(),
+        ]);
+    }
+
+    public function storeCartons(Request $request, InventoryLot $lot): RedirectResponse
+    {
+        Gate::authorize('printSticker', $lot);
+
+        $data = $request->validate([
+            'boxes' => ['required', 'integer', 'min:1', 'max:5000'],
+            'units_per_box' => ['required', 'integer', 'min:1', 'max:100000'],
+            'gross_weight_kg' => ['nullable', 'numeric', 'min:0'],
+            'start_box' => ['nullable', 'integer', 'min:1'],
+            'net_quantity' => ['nullable', 'string', 'max:64'],
+            'remarks' => ['nullable', 'string', 'max:160'],
+        ]);
+
+        try {
+            $this->cartons->plan($lot, [
+                'boxes' => (int) $data['boxes'],
+                'units_per_box' => (int) $data['units_per_box'],
+                'gross_weight_kg' => $data['gross_weight_kg'] ?? null,
+                'start_box' => (int) ($data['start_box'] ?? 1),
+                'net_quantity' => $data['net_quantity'] ?? null,
+                'remarks' => $data['remarks'] ?? null,
+            ], $request->user()->id);
+        } catch (InvalidArgumentException $e) {
+            return back()->withErrors(['boxes' => $e->getMessage()]);
+        }
+
+        return back()->withToast('success', "Carton plan saved for {$lot->batch_number}: {$data['boxes']} box".((int) $data['boxes'] === 1 ? '' : 'es').' ready to print.');
+    }
+
+    public function printCartons(InventoryLot $lot): HttpResponse
+    {
+        Gate::authorize('printSticker', $lot);
+
+        try {
+            $pdf = $this->cartons->render($lot);
+        } catch (InvalidArgumentException $e) {
+            abort(422, $e->getMessage());
+        }
+
+        return $pdf->stream($this->cartons->filename($lot));
     }
 }

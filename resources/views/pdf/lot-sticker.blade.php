@@ -3,21 +3,21 @@
 <head>
     <meta charset="utf-8">
     <style>
-        /* 100 x 70 mm. Helvetica is a PDF core font: no embedding, tiny file. */
+        /* 80 x 50 mm by default (config erp.labels.batch_sticker). Helvetica is a PDF core font: no embedding, tiny file. */
         @page { margin: 0; }
         body { margin: 0; font-family: Helvetica, Arial, sans-serif; color: #000; }
-        .sticker { width: 100mm; height: 70mm; box-sizing: border-box; padding: 4mm 5mm; border: 0.6mm solid #000; }
+        .sticker { width: {{ $width }}mm; height: {{ $height }}mm; box-sizing: border-box; padding: 2.5mm 3.5mm; border: 0.5mm solid #000; }
         .top { width: 100%; }
-        .company { font-size: 8pt; letter-spacing: 0.5pt; text-transform: uppercase; color: #333; }
-        .approved { font-size: 13pt; font-weight: bold; text-align: right; border: 0.5mm solid #000; padding: 1mm 2.5mm; display: inline-block; }
-        .item { margin-top: 2.5mm; font-size: 9.5pt; line-height: 1.2; height: 9mm; overflow: hidden; }
+        .company { font-size: 6.5pt; letter-spacing: 0.5pt; text-transform: uppercase; color: #333; }
+        .approved { font-size: 9.5pt; font-weight: bold; text-align: right; border: 0.4mm solid #000; padding: 0.6mm 1.8mm; display: inline-block; }
+        .item { margin-top: 1.5mm; font-size: 8pt; line-height: 1.2; height: 7mm; overflow: hidden; }
         .item .code { font-weight: bold; }
-        .batch { margin-top: 1.5mm; font-size: 20pt; font-weight: bold; letter-spacing: 1pt; }
-        table.facts { width: 100%; margin-top: 2mm; border-collapse: collapse; font-size: 8.5pt; }
-        table.facts td { padding: 0.6mm 0; vertical-align: top; }
-        table.facts td.k { width: 22mm; color: #444; }
+        .batch { margin-top: 0.8mm; font-size: 15pt; font-weight: bold; letter-spacing: 0.8pt; }
+        table.facts { width: 100%; margin-top: 1.2mm; border-collapse: collapse; font-size: 7pt; }
+        table.facts td { padding: 0.35mm 0; vertical-align: top; }
+        table.facts td.k { width: 16mm; color: #444; }
         table.facts td.v { font-weight: bold; }
-        .foot { margin-top: 1.5mm; font-size: 7pt; color: #444; }
+        .foot { margin-top: 1mm; font-size: 6pt; color: #444; }
     </style>
 </head>
 <body>

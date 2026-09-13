@@ -52,10 +52,10 @@ Where the build has got to, and what comes next.
 | Additive permission sync: new abilities reach the right roles without undoing Roles-screen edits  | Built |
 | Facilities above stores: editable types, capabilities, store categories; in-place data migration  | Built |
 | Facility onboarding wizard, facility page with tabs, per-store screen, stores added to live sites | Built |
-| Employee assignments to facility or store; permission AND assignment on every stock action       | Built |
+| Employee assignments to facility or store; permission AND assignment on every stock action        | Built |
 | Opening stock as immutable ledger postings; per-facility switch                                   | Built |
 | Inter-facility transfers: hold → dispatch → in transit → receive, discrepancies, optional QC      | Built |
-| Requirement check per manufacturing facility with "available elsewhere → transfer" suggestions   | Built |
+| Requirement check per manufacturing facility with "available elsewhere → transfer" suggestions    | Built |
 | Facility filter on dashboard and stock; store-specific thresholds                                 | Built |
 | 300+ tests against PostgreSQL                                                                     | Built |
 

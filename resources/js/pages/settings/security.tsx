@@ -11,10 +11,14 @@ import type { Props as ManagePasskeysProps } from '@/components/manage-passkeys'
 import ManagePasskeys from '@/components/manage-passkeys';
 import type { Props as ManageTwoFactorProps } from '@/components/manage-two-factor';
 import ManageTwoFactor from '@/components/manage-two-factor';
+import { PersonalPin } from '@/components/personal-pin';
 
 // oxfmt-ignore
 type Props = {
     passwordRules: string;
+    hasPin: boolean;
+    pinSetAt: string | null;
+    pinUses: string[];
 } & ManagePasskeysProps &
     ManageTwoFactorProps;
 
@@ -123,6 +127,12 @@ export default function Security(props: Props) {
                     )}
                 </Form>
             </div>
+
+            <PersonalPin
+                hasPin={props.hasPin}
+                pinSetAt={props.pinSetAt}
+                uses={props.pinUses}
+            />
 
             <ManageTwoFactor
                 canManageTwoFactor={props.canManageTwoFactor}

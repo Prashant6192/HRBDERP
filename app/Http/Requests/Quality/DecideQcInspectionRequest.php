@@ -9,9 +9,15 @@ use Illuminate\Validation\Rule;
 
 class DecideQcInspectionRequest extends FormRequest
 {
+    /**
+     * Authorisation is answered before validation, so someone without the
+     * right sees a 403 rather than a request for their PIN.
+     */
     public function authorize(): bool
     {
-        return true;
+        $ability = $this->routeIs('qc.reject') ? 'reject' : ($this->routeIs('qc.hold') ? 'hold' : 'approve');
+
+        return (bool) $this->user()?->can($ability, $this->route('qcInspection'));
     }
 
     /**
@@ -26,6 +32,7 @@ class DecideQcInspectionRequest extends FormRequest
             : ['nullable', 'string', 'max:2000'];
 
         return [
+            'pin' => [config('erp.qc.require_pin', true) && ! $this->routeIs('qc.hold') ? 'required' : 'nullable', 'string', 'max:8'],
             'remarks' => $remarks,
             'parameters' => ['nullable', 'array'],
             'parameters.*.name' => ['required_with:parameters', 'string', 'max:64'],
@@ -47,6 +54,7 @@ class DecideQcInspectionRequest extends FormRequest
     {
         return [
             'remarks.required' => 'Say why the batch is being rejected.',
+            'pin.required' => 'Enter your personal PIN to sign the decision.',
         ];
     }
 }

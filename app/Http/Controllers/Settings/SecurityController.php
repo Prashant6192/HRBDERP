@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Domain\Identity\Services\PersonalPinService;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Formulation\SetFormulaPinRequest;
 use App\Http\Requests\Settings\PasswordUpdateRequest;
 use App\Http\Requests\Settings\TwoFactorAuthenticationRequest;
 use Illuminate\Http\RedirectResponse;
@@ -38,6 +40,12 @@ class SecurityController extends Controller
                     ->all()
                 : [],
             'passwordRules' => Password::defaults()->toPasswordRulesString(),
+            'hasPin' => $request->user()->hasFormulaPin(),
+            'pinSetAt' => $request->user()->formula_pin_set_at?->toIso8601String(),
+            'pinUses' => array_values(array_filter([
+                $request->user()->can('qc.approve') || $request->user()->can('qc.reject') ? 'signing QC decisions' : null,
+                $request->user()->can('formula.view') ? 'unlocking formulations' : null,
+            ])),
         ];
 
         if (Features::canManageTwoFactorAuthentication()) {
@@ -48,6 +56,17 @@ class SecurityController extends Controller
         }
 
         return Inertia::render('settings/security', $props);
+    }
+
+    /**
+     * Set or change the personal PIN that signs QC decisions and unlocks
+     * formulations.
+     */
+    public function updatePin(SetFormulaPinRequest $request, PersonalPinService $pins): RedirectResponse
+    {
+        $pins->set($request->user(), $request->validated('pin'));
+
+        return back()->withToast('success', 'Your personal PIN is set.');
     }
 
     /**

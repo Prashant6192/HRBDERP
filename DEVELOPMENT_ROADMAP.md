@@ -55,6 +55,7 @@ Where the build has got to, and what comes next.
 | Employee assignments to facility or store; permission AND assignment on every stock action        | Built |
 | Opening stock as immutable ledger postings; per-facility switch                                   | Built |
 | Inter-facility transfers: hold → dispatch → in transit → receive, discrepancies, optional QC      | Built |
+| Transfer challan with QR and inward code; booking in at the destination only after it is scanned, or the transporter's paperwork read (issue #5) | Built |
 | Requirement check per manufacturing facility with "available elsewhere → transfer" suggestions    | Built |
 | Facility filter on dashboard and stock; store-specific thresholds                                 | Built |
 | 300+ tests against PostgreSQL                                                                     | Built |

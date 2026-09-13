@@ -11,6 +11,7 @@ use App\Domain\Inventory\Enums\InventoryTransactionType;
 use App\Domain\Inventory\Enums\LotQcStatus;
 use App\Domain\Inventory\Enums\StockTransferStatus;
 use App\Domain\Inventory\Exceptions\OpeningStockException;
+use App\Domain\Inventory\Exceptions\StockTransferException;
 use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Models\InventoryTransaction;
 use App\Domain\Inventory\Models\StockBalance;
@@ -18,6 +19,7 @@ use App\Domain\Inventory\Services\InventoryLedgerService;
 use App\Domain\Inventory\Services\OpeningStockService;
 use App\Domain\Inventory\Services\StockBalanceService;
 use App\Domain\Inventory\Services\StockTransferService;
+use App\Domain\Inventory\Services\TransferInwardService;
 use App\Domain\Manufacturing\Exceptions\ManufacturingException;
 use App\Domain\Manufacturing\Services\ManufacturingOrderService;
 use App\Domain\MasterData\Models\PackagingMaterial;
@@ -267,6 +269,22 @@ class FacilityOperationsTest extends TestCase
         $transfer = $transfers->markInTransit($transfer);
         $this->assertSame(StockTransferStatus::InTransit, $transfer->status);
 
+        // The lorry has arrived, but nothing is booked in until the challan
+        // that travelled with it is scanned at Delhi.
+        $this->assertMatchesRegularExpression('/^[A-Z2-9]{8}$/', (string) $transfer->challan_code, 'Dispatch prints an inward code on the challan.');
+
+        try {
+            $transfers->receive($transfer, $this->delhiStorekeeper->id, [$transfer->lines->first()->id => ['quantity' => '200']]);
+            $this->fail('Receipt before the scan should be refused.');
+        } catch (StockTransferException $e) {
+            $this->assertStringContainsString('Scan the challan', $e->getMessage());
+        }
+
+        $this->assertSame('0', $balances->onHand($this->product, $this->delhiFg)->__toString(), 'Still nothing at Delhi.');
+
+        $transfer = app(TransferInwardService::class)->scan($transfer, $this->delhiStorekeeper->id, $transfer->challan_code);
+        $this->assertNotNull($transfer->scanned_at);
+
         $transfer = $transfers->receive($transfer, $this->delhiStorekeeper->id, [
             $transfer->lines->first()->id => ['quantity' => '200'],
         ]);
@@ -290,6 +308,7 @@ class FacilityOperationsTest extends TestCase
         $transfer = $transfers->create(['source_warehouse_id' => $this->rudrapurFg->id, 'destination_warehouse_id' => $this->delhiFg->id], [['item_id' => $this->product->id, 'quantity' => '100']], $this->factoryManager->id);
         $transfer = $transfers->approve($transfer, $this->owner->id);
         $transfer = $transfers->dispatch($transfer, $this->factoryManager->id);
+        $transfer = app(TransferInwardService::class)->scan($transfer, $this->delhiStorekeeper->id, $transfer->challan_code);
         $transfer = $transfers->receive($transfer, $this->delhiStorekeeper->id, [$transfer->lines->first()->id => ['quantity' => '95', 'written_off' => '5', 'notes' => 'Five bottles crushed']]);
 
         $this->assertSame(StockTransferStatus::Discrepancy, $transfer->status);

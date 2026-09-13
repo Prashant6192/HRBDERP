@@ -265,6 +265,24 @@ Keying a receipt in by hand, or changing quantities, rates and batch details
 the reader found, needs `purchase.receive_manual`, held by the Factory Manager
 and Super Admin by default. Everyone else books receipts from the scan alone.
 
+### Transfer challans and transport documents
+
+A dispatched stock transfer carries an eight-character inward code, printed
+under the QR on its challan. The code is a workflow gate, not a secret in the
+cryptographic sense: it proves the paperwork that travelled with the lorry
+reached the destination, so nothing is booked in against a consignment that
+has not arrived. It is therefore kept off the screen at the destination —
+only someone who can dispatch from the source facility may print the challan,
+and the transfer's page never sends the code to the browser. The gate is
+enforced in `StockTransferService::receive`, so no route books in unverified
+stock. Comparison is constant-time.
+
+The transporter's invoice or LR uploaded at the scan is stored on the private
+`local` disk under `stock-transfers/inward/` and served only through
+`transfers.document` behind the transfer's view policy. It is sent to
+Anthropic's API only to be read for the transfer it names; a document that
+names another consignment, or that cannot be read, is deleted at once.
+
 ---
 
 ## 6. Production checklist

@@ -10,6 +10,32 @@ between them.
 
 ## [Unreleased]
 
+### Added — Stock transfers: scan the challan to book in (issue #5)
+
+- **Dispatch prints a transfer challan.** Once a transfer is dispatched the
+  source prints an A4 challan: from and to (facility, store, address,
+  GSTIN), vehicle, the batches and quantities on the lorry, signature boxes,
+  and a QR code with an eight-character inward code printed under it. Only
+  someone working at the source facility can print it, and the code never
+  appears on a screen.
+- **Nothing lands at the destination until the challan is scanned.** On the
+  transfer's page the receiving store scans the QR (a handheld scanner, or
+  the phone camera, which opens the page with the code on the URL and
+  verifies at once) or types the code as printed. A wrong code, or the
+  challan of another consignment, is refused. Only then can the quantities
+  be booked in, and only then does the stock show at the destination store.
+  The gate is enforced in the service, so no screen or route gets round it.
+- **The transporter's paperwork can stand in for the code.** The invoice or
+  LR that came with the lorry can be uploaded; Claude reads it for the
+  transfer number and inward code, and the transporter, LR number and
+  vehicle are recorded on the transfer. Paperwork for another consignment is
+  refused and not kept. Without the API key the code alone verifies. The
+  document stays attached to the transfer and opens from its page.
+- The transfer's progress shows a _Challan scanned_ step with who scanned it
+  and when. Consignments already on the road when this deploys are given a
+  code by the migration (or when their challan is first printed), so nothing
+  is left stuck in transit.
+
 ### Added — Goods receipts off the supplier's bill (issue #3)
 
 - **Upload the bill, get the receipt.** The goods receipt screen takes the

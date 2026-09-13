@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace App\Domain\Procurement\Services;
 
-use Anthropic\Client;
-use Anthropic\Core\Exceptions\APIStatusException;
 use App\Domain\Procurement\Contracts\InvoiceReader;
 use App\Domain\Procurement\DTOs\InvoiceExtraction;
 use App\Domain\Procurement\Exceptions\InvoiceIntakeException;
-use Throwable;
+use App\Support\Ai\ClaudeDocuments;
+use App\Support\Ai\DocumentReadException;
 
 /**
  * Asks Claude to read the bill. The document goes in as a PDF or image
@@ -70,63 +69,26 @@ PROMPT;
         ],
     ];
 
+    public function __construct(private readonly ClaudeDocuments $documents) {}
+
     public function available(): bool
     {
-        return trim((string) config('erp.ai.api_key')) !== '';
+        return $this->documents->available();
     }
 
     public function read(string $contents, string $mime, string $filename): InvoiceExtraction
     {
-        if (! $this->available()) {
-            throw new InvoiceIntakeException('Bill reading is not set up on this server: ANTHROPIC_API_KEY is missing. Enter the receipt by hand, or ask the administrator to add the key.');
-        }
-
-        $model = (string) config('erp.ai.model', 'claude-opus-5');
-        $client = new Client(apiKey: (string) config('erp.ai.api_key'));
-
-        $document = $mime === 'application/pdf'
-            ? ['type' => 'document', 'source' => ['type' => 'base64', 'mediaType' => 'application/pdf', 'data' => base64_encode($contents)]]
-            : ['type' => 'image', 'source' => ['type' => 'base64', 'mediaType' => $mime, 'data' => base64_encode($contents)]];
-
         try {
-            $message = $client->messages->create(
-                model: $model,
-                maxTokens: 16000,
-                system: [['type' => 'text', 'text' => self::SYSTEM, 'cacheControl' => ['type' => 'ephemeral']]],
-                messages: [[
-                    'role' => 'user',
-                    'content' => [
-                        $document,
-                        ['type' => 'text', 'text' => "Read this bill ({$filename}) and return its particulars."],
-                    ],
-                ]],
-                outputConfig: ['format' => ['type' => 'json_schema', 'schema' => self::SCHEMA]],
-            );
-        } catch (APIStatusException $e) {
-            throw new InvoiceIntakeException('The bill could not be read right now ('.($e->type?->value ?? 'api error').'). Try again in a moment, or enter the receipt by hand.', previous: $e);
-        } catch (Throwable $e) {
-            throw new InvoiceIntakeException('The bill could not be read: '.$e->getMessage(), previous: $e);
+            $data = $this->documents->extract(self::SYSTEM, self::SCHEMA, $contents, $mime, "Read this bill ({$filename}) and return its particulars.");
+        } catch (DocumentReadException $e) {
+            throw new InvoiceIntakeException(match ($e->reason) {
+                DocumentReadException::NOT_CONFIGURED => 'Bill reading is not set up on this server: ANTHROPIC_API_KEY is missing. Enter the receipt by hand, or ask the administrator to add the key.',
+                DocumentReadException::API => 'The bill could not be read right now ('.$e->getMessage().'). Try again in a moment, or enter the receipt by hand.',
+                DocumentReadException::REFUSED => 'The document was declined by the reader. Enter the receipt by hand.',
+                default => 'The reader returned nothing usable for this document. Enter the receipt by hand.',
+            }, previous: $e);
         }
 
-        if ($message->stopReason === 'refusal') {
-            throw new InvoiceIntakeException('The document was declined by the reader. Enter the receipt by hand.');
-        }
-
-        $json = null;
-
-        foreach ($message->content as $block) {
-            if ($block->type === 'text') {
-                $json = $block->text;
-                break;
-            }
-        }
-
-        $data = is_string($json) ? json_decode($json, true) : null;
-
-        if (! is_array($data)) {
-            throw new InvoiceIntakeException('The reader returned nothing usable for this document. Enter the receipt by hand.');
-        }
-
-        return InvoiceExtraction::fromArray($data, $model);
+        return InvoiceExtraction::fromArray($data, $this->documents->model());
     }
 }

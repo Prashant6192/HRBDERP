@@ -73,6 +73,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('transfers/lots', [StockTransferController::class, 'lots'])->name('transfers.lots');
     Route::post('transfers', [StockTransferController::class, 'store'])->name('transfers.store');
     Route::get('transfers/{transfer}', [StockTransferController::class, 'show'])->name('transfers.show');
+    Route::get('transfers/{transfer}/challan', [StockTransferController::class, 'challan'])->name('transfers.challan');
+    Route::get('transfers/{transfer}/transport-document', [StockTransferController::class, 'transportDocument'])->name('transfers.document');
+    Route::post('transfers/{transfer}/scan', [StockTransferController::class, 'scan'])->name('transfers.scan');
     Route::post('transfers/{transfer}/request', [StockTransferController::class, 'request'])->name('transfers.request');
     Route::post('transfers/{transfer}/approve', [StockTransferController::class, 'approve'])->name('transfers.approve');
     Route::post('transfers/{transfer}/reject', [StockTransferController::class, 'reject'])->name('transfers.reject');

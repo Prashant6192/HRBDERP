@@ -299,6 +299,17 @@ source → `SYS-TRANSIT` on dispatch, `SYS-TRANSIT` → destination (or the
 destination's quarantine) on receipt, and a `DAMAGE` posting out of transit
 for anything written off.
 
+Dispatch also stamps `challan_code` (eight characters, unique) — the inward
+code printed under the QR on the transfer challan. The destination's scan
+fills `scanned_at` / `scanned_by`, and, when the transporter's paperwork was
+uploaded, `transporter`, `transport_reference` (LR number), the document
+(`transport_document_path` / `_name` / `_mime`, on the private `local` disk
+under `stock-transfers/inward/`) and what was read from it
+(`transport_extraction`, `jsonb`, including `matched_by`: `code` or
+`document`). `StockTransferService::receive` refuses a transfer whose
+`scanned_at` is null, so stock cannot reach the destination store before the
+consignment is verified.
+
 ### `stock_balances`
 
 The cache: `on_hand` and `reserved` per `(item, warehouse, lot)`, unique with

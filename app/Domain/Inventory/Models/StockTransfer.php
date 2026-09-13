@@ -38,8 +38,10 @@ class StockTransfer extends Model
 
     protected $fillable = [
         'number', 'source_facility_id', 'source_warehouse_id', 'destination_facility_id', 'destination_warehouse_id',
-        'status', 'requires_inspection', 'expected_at', 'reason', 'notes', 'vehicle_ref',
+        'status', 'requires_inspection', 'expected_at', 'reason', 'notes', 'vehicle_ref', 'challan_code',
         'requested_by', 'requested_at', 'approved_by', 'approved_at', 'dispatched_by', 'dispatched_at',
+        'scanned_by', 'scanned_at', 'transporter', 'transport_reference',
+        'transport_document_path', 'transport_document_name', 'transport_document_mime', 'transport_extraction',
         'received_by', 'received_at', 'cancelled_at',
     ];
 
@@ -52,6 +54,8 @@ class StockTransfer extends Model
             'requested_at' => 'datetime',
             'approved_at' => 'datetime',
             'dispatched_at' => 'datetime',
+            'scanned_at' => 'datetime',
+            'transport_extraction' => 'array',
             'received_at' => 'datetime',
             'cancelled_at' => 'datetime',
         ];
@@ -132,6 +136,25 @@ class StockTransfer extends Model
     public function receiver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'received_by');
+    }
+
+    /**
+     * Who matched the consignment's paperwork to this transfer at the
+     * destination.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function scannedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'scanned_by');
+    }
+
+    /**
+     * The paperwork has been scanned: the consignment may be booked in.
+     */
+    public function isVerified(): bool
+    {
+        return $this->scanned_at !== null;
     }
 
     /**

@@ -102,6 +102,16 @@ received — in full, in part, or with a discrepancy written off. Nothing shows
 at the destination before receipt; an optional inspection routes it through
 the destination's quarantine.
 
+At the destination the consignment is booked in only after the paperwork that
+came with it is matched to the transfer. Dispatch prints a challan with a QR
+and an eight-character inward code; the receiving store scans the QR (a
+handheld scanner, or the phone camera, which opens the transfer with the code
+on the URL) or types the code, or uploads the transporter's invoice or LR for
+Claude to read the transfer number off. Until that scan nothing can be
+received and nothing shows at the destination; after it, what arrived is
+booked in and the stock appears in the destination store (or its quarantine
+when an inspection was asked for).
+
 ### Master data — _built_
 
 **Stores** (the `warehouses` table) with locations, belonging to a facility

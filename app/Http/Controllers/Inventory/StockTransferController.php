@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Inventory;
 
+use App\Domain\Inventory\Contracts\ChallanReader;
 use App\Domain\Inventory\Enums\StockTransferStatus;
 use App\Domain\Inventory\Exceptions\StockTransferException;
 use App\Domain\Inventory\Models\StockBalance;
@@ -11,23 +12,30 @@ use App\Domain\Inventory\Models\StockTransfer;
 use App\Domain\Inventory\Models\StockTransferLine;
 use App\Domain\Inventory\Services\StockBalanceService;
 use App\Domain\Inventory\Services\StockTransferService;
+use App\Domain\Inventory\Services\TransferChallanService;
+use App\Domain\Inventory\Services\TransferInwardService;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Models\Warehouse;
 use App\Domain\Warehousing\Services\FacilityAccess;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventory\ReceiveStockTransferRequest;
+use App\Http\Requests\Inventory\ScanStockTransferRequest;
 use App\Http\Requests\Inventory\StoreStockTransferRequest;
 use App\Support\Tables\TableQuery;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
+use InvalidArgumentException;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 /**
- * Stock transfers between facilities: raise, approve, dispatch, receive.
+ * Stock transfers between facilities: raise, approve, dispatch, scan the
+ * challan at the other end, receive.
  */
 class StockTransferController extends Controller
 {
@@ -37,6 +45,9 @@ class StockTransferController extends Controller
         private readonly StockTransferService $transfers,
         private readonly StockBalanceService $balances,
         private readonly FacilityAccess $access,
+        private readonly TransferInwardService $inward,
+        private readonly TransferChallanService $challans,
+        private readonly ChallanReader $reader,
     ) {}
 
     public function index(Request $request): Response
@@ -145,11 +156,13 @@ class StockTransferController extends Controller
         $transfer->load([
             'lines.item:id,code,name,type', 'lines.lot:id,batch_number,expiry_at,qc_status', 'lines.uom:id,code',
             'sourceFacility:id,code,name', 'sourceStore:id,code,name,type', 'destinationFacility:id,code,name', 'destinationStore:id,code,name,type',
-            'requester:id,name', 'approver:id,name', 'dispatcher:id,name', 'receiver:id,name',
+            'requester:id,name', 'approver:id,name', 'dispatcher:id,name', 'receiver:id,name', 'scannedBy:id,name',
         ]);
 
         $user = $request->user();
         $status = $transfer->status;
+        $atDestination = $this->access->canWorkAt($user, $transfer->destination_facility_id);
+        $atSource = $this->access->canWorkAt($user, $transfer->source_facility_id);
 
         $lines = $transfer->lines->map(function (StockTransferLine $line) use ($transfer): array {
             $free = $line->lot_id === null
@@ -194,19 +207,38 @@ class StockTransferController extends Controller
                     ['label' => 'Requested', 'by' => $transfer->requester?->name, 'at' => $transfer->requested_at?->toIso8601String(), 'done' => $transfer->requested_at !== null],
                     ['label' => 'Approved', 'by' => $transfer->approver?->name, 'at' => $transfer->approved_at?->toIso8601String(), 'done' => $transfer->approved_at !== null],
                     ['label' => 'Dispatched', 'by' => $transfer->dispatcher?->name, 'at' => $transfer->dispatched_at?->toIso8601String(), 'done' => $transfer->dispatched_at !== null],
+                    ['label' => 'Challan scanned', 'by' => $transfer->scannedBy?->name, 'at' => $transfer->scanned_at?->toIso8601String(), 'done' => $transfer->scanned_at !== null],
                     ['label' => 'Received', 'by' => $transfer->receiver?->name, 'at' => $transfer->received_at?->toIso8601String(), 'done' => $transfer->received_at !== null && ! $status->isOpen()],
                 ],
                 'created_at' => $transfer->created_at?->toIso8601String(),
             ],
             'lines' => $lines,
+            // The inward gate at the destination. The code itself is never
+            // sent to the screen: it lives on the paper that travels.
+            'inward' => [
+                'scanned' => $transfer->isVerified(),
+                'scanned_at' => $transfer->scanned_at?->toIso8601String(),
+                'scanned_by' => $transfer->scannedBy?->name,
+                'transporter' => $transfer->transporter,
+                'reference' => $transfer->transport_reference,
+                'document' => $transfer->transport_document_path === null ? null : [
+                    'name' => $transfer->transport_document_name,
+                    'url' => route('transfers.document', $transfer),
+                ],
+                'reader_available' => $this->reader->available(),
+            ],
+            // Opened from the QR on the challan: the code rides on the URL.
+            'scanCode' => is_string($request->query('scan')) ? $request->query('scan') : null,
             'can' => [
+                'challan' => ($status->isOnTheRoad() || in_array($status, [StockTransferStatus::Received, StockTransferStatus::Discrepancy], strict: true)) && $user->can('dispatch', $transfer) && $atSource,
+                'scan' => $status->canBeReceived() && ! $transfer->isVerified() && $user->can('receive', $transfer) && $atDestination,
                 'request' => $status === StockTransferStatus::Draft && $user->can('request', $transfer),
                 'approve' => in_array($status, [StockTransferStatus::Requested, StockTransferStatus::Draft], strict: true) && $user->can('approve', $transfer) && $this->access->canWorkAt($user, $transfer->source_facility_id),
                 'reject' => $status === StockTransferStatus::Requested && $user->can('approve', $transfer),
                 'pack' => $status === StockTransferStatus::Approved && $user->can('dispatch', $transfer) && $this->access->canWorkAt($user, $transfer->source_facility_id),
                 'dispatch' => in_array($status, [StockTransferStatus::Approved, StockTransferStatus::Packed], strict: true) && $user->can('dispatch', $transfer) && $this->access->canWorkAt($user, $transfer->source_facility_id),
                 'transit' => $status === StockTransferStatus::Dispatched && $user->can('dispatch', $transfer),
-                'receive' => $status->canBeReceived() && $user->can('receive', $transfer) && $this->access->canWorkAt($user, $transfer->destination_facility_id),
+                'receive' => $status->canBeReceived() && $transfer->isVerified() && $user->can('receive', $transfer) && $atDestination,
                 'cancel' => $status->canBeCancelled() && $user->can('cancel', $transfer),
             ],
         ]);
@@ -257,6 +289,67 @@ class StockTransferController extends Controller
         $this->authorize('dispatch', $transfer);
 
         return $this->act(fn () => $this->transfers->markInTransit($transfer), "{$transfer->number} marked in transit.");
+    }
+
+    /**
+     * The consignment has arrived: match its paperwork to this transfer so
+     * the quantities can be booked in.
+     */
+    public function scan(ScanStockTransferRequest $request, StockTransfer $transfer): RedirectResponse
+    {
+        $this->authorize('receive', $transfer);
+        $this->access->assertCanWorkAt($request->user(), $transfer->destinationFacility);
+
+        try {
+            $transfer = $this->inward->scan(
+                $transfer,
+                $request->user()->id,
+                $request->input('code'),
+                $request->file('document'),
+                $request->input('transport_reference'),
+                $request->input('transporter'),
+            );
+        } catch (StockTransferException $e) {
+            return back()->withErrors(['code' => $e->getMessage()]);
+        }
+
+        return redirect()->route('transfers.show', $transfer)
+            ->withToast('success', "{$transfer->number} verified. Book in what arrived to bring the stock into {$transfer->destinationStore->name}.");
+    }
+
+    /**
+     * The challan that travels with the consignment, QR and inward code
+     * included. Printed at the source; the code must not leak to the
+     * destination through the screen.
+     */
+    public function challan(Request $request, StockTransfer $transfer): HttpResponse
+    {
+        $this->authorize('dispatch', $transfer);
+        $this->access->assertCanWorkAt($request->user(), $transfer->sourceFacility);
+
+        try {
+            $pdf = $this->challans->render($transfer);
+        } catch (InvalidArgumentException $e) {
+            abort(422, $e->getMessage());
+        }
+
+        return $pdf->stream($this->challans->filename($transfer));
+    }
+
+    /**
+     * The transport document kept at the scan, shown inline.
+     */
+    public function transportDocument(StockTransfer $transfer): HttpResponse
+    {
+        $this->authorize('view', $transfer);
+
+        if ($transfer->transport_document_path === null || ! Storage::disk(TransferInwardService::DISK)->exists($transfer->transport_document_path)) {
+            abort(404, 'No transport document is attached to this transfer.');
+        }
+
+        return Storage::disk(TransferInwardService::DISK)->response($transfer->transport_document_path, $transfer->transport_document_name, [
+            'Content-Type' => $transfer->transport_document_mime ?? 'application/octet-stream',
+        ]);
     }
 
     public function receive(ReceiveStockTransferRequest $request, StockTransfer $transfer): RedirectResponse

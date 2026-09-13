@@ -16,6 +16,7 @@ use App\Domain\Inventory\Models\StockBalance;
 use App\Domain\Inventory\Models\StockReservation;
 use App\Domain\Inventory\Models\StockTransfer;
 use App\Domain\Inventory\Models\StockTransferLine;
+use App\Domain\Inventory\Support\ChallanCode;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\Measurement\Exceptions\IncompatibleUnitsException;
 use App\Domain\Measurement\Models\Uom;
@@ -37,10 +38,12 @@ use Illuminate\Support\Facades\DB;
  *   → in transit → received / partially received / received with discrepancy
  *
  * On dispatch the stock leaves the source store for the system's in-transit
- * position, lot by lot. On receipt it moves from there into the destination
- * store — or the destination facility's quarantine when an inspection was
- * asked for. Nothing appears at the destination before receipt, and every
- * leg is a ledger posting against the transfer.
+ * position, lot by lot, and the challan that travels with it gets an inward
+ * code. At the destination the challan is scanned (TransferInwardService)
+ * before anything can be received; on receipt the stock moves from transit
+ * into the destination store — or the destination facility's quarantine
+ * when an inspection was asked for. Nothing appears at the destination
+ * before that, and every leg is a ledger posting against the transfer.
  */
 class StockTransferService
 {
@@ -258,6 +261,8 @@ class StockTransferService
                 'dispatched_by' => $userId,
                 'dispatched_at' => now(),
                 'vehicle_ref' => $vehicleRef ?? $transfer->vehicle_ref,
+                // Printed under the QR on the challan; the destination scans it.
+                'challan_code' => $transfer->challan_code ?? ChallanCode::generate(),
             ])->save();
 
             return $transfer->refresh();
@@ -282,6 +287,12 @@ class StockTransferService
             $transfer = $this->lock($transfer, [StockTransferStatus::Dispatched, StockTransferStatus::InTransit, StockTransferStatus::PartiallyReceived]);
             $transfer->load(['lines.item', 'lines.lot', 'destinationStore.facility', 'destinationFacility']);
             $transit = $this->warehouses->inTransit();
+
+            // The gate: the paperwork that came with the lorry has to have
+            // been matched to this transfer before a single unit lands.
+            if (! $transfer->isVerified()) {
+                throw new StockTransferException("Scan the challan that came with {$transfer->number} before booking it in. Nothing reaches {$transfer->destinationStore->name} until the consignment is verified.");
+            }
 
             $target = $transfer->destinationStore;
             $inspecting = false;

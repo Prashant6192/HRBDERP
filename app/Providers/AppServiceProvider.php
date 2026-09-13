@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Domain\Inventory\Contracts\ChallanReader;
+use App\Domain\Inventory\Services\ClaudeChallanReader;
 use App\Domain\Procurement\Contracts\InvoiceReader;
 use App\Domain\Procurement\Services\ClaudeInvoiceReader;
 use Carbon\CarbonImmutable;
@@ -23,6 +25,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(InvoiceReader::class, ClaudeInvoiceReader::class);
+        $this->app->bind(ChallanReader::class, ClaudeChallanReader::class);
 
         //
     }

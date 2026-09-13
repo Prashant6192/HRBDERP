@@ -1,8 +1,18 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { ArrowRight, Check, PackageCheck, Send, Truck, X } from 'lucide-react';
-import { useState } from 'react';
+import {
+    ArrowRight,
+    Check,
+    FileText,
+    PackageCheck,
+    Printer,
+    ScanLine,
+    Send,
+    Truck,
+    X,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { DetailItem } from '@/components/form-field';
+import { DetailItem, Field } from '@/components/form-field';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
@@ -23,12 +33,14 @@ import { show as showStore } from '@/routes/stores';
 import {
     approve,
     cancel,
+    challan,
     dispatch,
     index,
     pack,
     receive,
     reject,
     request,
+    scan,
     show,
     transit,
 } from '@/routes/transfers';
@@ -88,6 +100,17 @@ type Transfer = {
     created_at: string | null;
 };
 
+/** The gate at the destination: has the consignment's paperwork been matched? */
+type Inward = {
+    scanned: boolean;
+    scanned_at: string | null;
+    scanned_by: string | null;
+    transporter: string | null;
+    reference: string | null;
+    document: { name: string | null; url: string } | null;
+    reader_available: boolean;
+};
+
 const when = (v: string | null) =>
     v
         ? new Date(v).toLocaleString('en-IN', {
@@ -99,10 +122,14 @@ const when = (v: string | null) =>
 export default function ShowTransfer({
     transfer,
     lines,
+    inward,
+    scanCode,
     can,
 }: {
     transfer: Transfer;
     lines: Line[];
+    inward: Inward;
+    scanCode: string | null;
     can: {
         request: boolean;
         approve: boolean;
@@ -110,11 +137,38 @@ export default function ShowTransfer({
         pack: boolean;
         dispatch: boolean;
         transit: boolean;
+        scan: boolean;
         receive: boolean;
+        challan: boolean;
         cancel: boolean;
     };
 }) {
     const [receiving, setReceiving] = useState(false);
+    const scanForm = useForm<{
+        code: string;
+        transport_reference: string;
+        transporter: string;
+        document: File | null;
+    }>({
+        code: scanCode ?? '',
+        transport_reference: '',
+        transporter: '',
+        document: null,
+    });
+    const submitScan = () =>
+        scanForm.post(scan(transfer.id).url, {
+            forceFormData: true,
+            preserveScroll: true,
+        });
+
+    useEffect(() => {
+        // Opened from the QR on the challan: the code is on the URL, so
+        // verify straight away.
+        if (scanCode && can.scan) {
+            submitScan();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
     const [vehicle, setVehicle] = useState(transfer.vehicle_ref ?? '');
     const receiveForm = useForm<{
         lines: {
@@ -220,6 +274,18 @@ export default function ShowTransfer({
                                     }
                                 >
                                     Mark in transit
+                                </Button>
+                            )}
+                            {can.challan && (
+                                <Button asChild variant="outline">
+                                    <a
+                                        href={challan(transfer.id).url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                    >
+                                        <Printer className="size-4" />
+                                        Print challan
+                                    </a>
                                 </Button>
                             )}
                             {can.receive && (
@@ -391,6 +457,165 @@ export default function ShowTransfer({
                         </ol>
                     </section>
                 </div>
+
+                {(can.scan || inward.scanned) && (
+                    <section className="bg-card rounded-xl border p-6">
+                        <h2 className="flex items-center gap-2 font-semibold">
+                            <ScanLine className="size-4" />
+                            Inward at {transfer.destination.facility}
+                        </h2>
+                        {inward.scanned ? (
+                            <div className="mt-4 rounded-md border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-100">
+                                <p className="font-medium">
+                                    Consignment verified
+                                </p>
+                                <p className="mt-1">
+                                    Challan scanned by{' '}
+                                    {inward.scanned_by ?? '—'} ·{' '}
+                                    {when(inward.scanned_at)}
+                                    {inward.transporter
+                                        ? ` · ${inward.transporter}`
+                                        : ''}
+                                    {inward.reference
+                                        ? ` · LR ${inward.reference}`
+                                        : ''}
+                                </p>
+                                {inward.document && (
+                                    <a
+                                        href={inward.document.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="mt-2 inline-flex items-center gap-1 underline underline-offset-4"
+                                    >
+                                        <FileText className="size-4" />
+                                        {inward.document.name ??
+                                            'Transport document'}
+                                    </a>
+                                )}
+                                {can.receive && !receiving && (
+                                    <div className="mt-3">
+                                        <Button
+                                            type="button"
+                                            onClick={() => setReceiving(true)}
+                                        >
+                                            <PackageCheck className="size-4" />
+                                            Book in what arrived
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <form
+                                onSubmit={(e) => {
+                                    e.preventDefault();
+                                    submitScan();
+                                }}
+                                className="mt-4 space-y-4"
+                            >
+                                <p className="text-muted-foreground text-sm">
+                                    Scan the QR on the transfer challan that
+                                    came with the consignment (a handheld
+                                    scanner, or the phone camera, which opens
+                                    this page), or type the inward code printed
+                                    under it.{' '}
+                                    {inward.reader_available
+                                        ? 'You can also upload the transporter\u2019s invoice or LR: it is read and matched to this transfer.'
+                                        : 'The transporter\u2019s invoice or LR can be attached for the record.'}
+                                </p>
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                    <Field
+                                        label="Inward code"
+                                        htmlFor="scan-code"
+                                        error={scanForm.errors.code}
+                                    >
+                                        <Input
+                                            id="scan-code"
+                                            autoFocus
+                                            autoComplete="off"
+                                            value={scanForm.data.code}
+                                            onChange={(e) =>
+                                                scanForm.setData(
+                                                    'code',
+                                                    e.target.value,
+                                                )
+                                            }
+                                            placeholder="Scan the QR or type ABCD-2345"
+                                            className="font-mono"
+                                        />
+                                    </Field>
+                                    <Field
+                                        label="Transporter's invoice / LR"
+                                        htmlFor="scan-document"
+                                        error={scanForm.errors.document}
+                                        hint="PDF or photo, optional."
+                                    >
+                                        <Input
+                                            id="scan-document"
+                                            type="file"
+                                            accept="application/pdf,image/jpeg,image/png,image/webp"
+                                            onChange={(e) =>
+                                                scanForm.setData(
+                                                    'document',
+                                                    e.target.files?.[0] ?? null,
+                                                )
+                                            }
+                                        />
+                                    </Field>
+                                    <Field
+                                        label="LR / consignment no."
+                                        htmlFor="scan-reference"
+                                        error={
+                                            scanForm.errors.transport_reference
+                                        }
+                                    >
+                                        <Input
+                                            id="scan-reference"
+                                            value={
+                                                scanForm.data
+                                                    .transport_reference
+                                            }
+                                            onChange={(e) =>
+                                                scanForm.setData(
+                                                    'transport_reference',
+                                                    e.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
+                                    <Field
+                                        label="Transporter"
+                                        htmlFor="scan-transporter"
+                                        error={scanForm.errors.transporter}
+                                    >
+                                        <Input
+                                            id="scan-transporter"
+                                            value={scanForm.data.transporter}
+                                            onChange={(e) =>
+                                                scanForm.setData(
+                                                    'transporter',
+                                                    e.target.value,
+                                                )
+                                            }
+                                        />
+                                    </Field>
+                                </div>
+                                <Button
+                                    type="submit"
+                                    disabled={
+                                        scanForm.processing ||
+                                        (scanForm.data.code.trim() === '' &&
+                                            !scanForm.data.document)
+                                    }
+                                >
+                                    <ScanLine className="size-4" />
+                                    {scanForm.processing
+                                        ? 'Verifying…'
+                                        : 'Verify consignment'}
+                                </Button>
+                            </form>
+                        )}
+                    </section>
+                )}
 
                 {receiving && can.receive && (
                     <form

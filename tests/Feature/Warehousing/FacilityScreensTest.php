@@ -209,6 +209,15 @@ class FacilityScreensTest extends TestCase
         $this->actingAs($this->owner)->post(route('transfers.dispatch', $transfer))->assertRedirect();
 
         $line = $transfer->lines()->firstOrFail();
+
+        // Nothing lands at Delhi until the challan that came with the lorry is scanned there.
+        $this->actingAs($this->delhiOnly)->post(route('transfers.receive', $transfer), [
+            'lines' => [['line_id' => $line->id, 'quantity' => '20']],
+        ])->assertRedirect();
+        $this->assertSame('dispatched', $transfer->fresh()->status->value);
+
+        $this->actingAs($this->delhiOnly)->post(route('transfers.scan', $transfer), ['code' => $transfer->fresh()->challan_code])->assertRedirect();
+
         $this->actingAs($this->delhiOnly)->post(route('transfers.receive', $transfer), [
             'lines' => [['line_id' => $line->id, 'quantity' => '20']],
         ])->assertRedirect();

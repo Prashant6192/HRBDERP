@@ -1,10 +1,14 @@
 import {
     ArrowLeftRight,
+    BarChart3,
     Beaker,
     Boxes,
     Building2,
     Calculator,
     CalendarX2,
+    CircleDollarSign,
+    FlaskRound,
+    Gauge,
     CalendarCheck,
     ClipboardCheck,
     ClipboardList,
@@ -34,6 +38,12 @@ import { index as manufacturingIndex } from '@/routes/manufacturing';
 import { index as materialRequestsIndex } from '@/routes/material-requests';
 import { index as packagingMaterialsIndex } from '@/routes/packaging-materials';
 import { index as plansIndex } from '@/routes/plans';
+import {
+    capacity as planningCapacity,
+    simulate as planningSimulate,
+} from '@/routes/planning';
+import { production as analyticsProduction } from '@/routes/analytics';
+import { profitability as clientsProfitability } from '@/routes/clients';
 import { index as productsIndex } from '@/routes/products';
 import { index as qcIndex } from '@/routes/qc';
 import { index as rawMaterialsIndex } from '@/routes/raw-materials';
@@ -180,6 +190,18 @@ export const erpNavigation: ErpNavGroup[] = [
                 permission: 'purchase.view',
             },
             {
+                title: 'What-if Simulation',
+                href: planningSimulate().url,
+                icon: FlaskRound,
+                permission: 'planning.view',
+            },
+            {
+                title: 'Capacity',
+                href: planningCapacity().url,
+                icon: Gauge,
+                permission: 'planning.view',
+            },
+            {
                 title: 'Vendors',
                 href: vendorsIndex().url,
                 icon: Truck,
@@ -203,6 +225,12 @@ export const erpNavigation: ErpNavGroup[] = [
                 icon: Beaker,
                 permission: 'formula.view',
             },
+            {
+                title: 'Production Analytics',
+                href: analyticsProduction().url,
+                icon: BarChart3,
+                permission: 'production.view',
+            },
         ],
     },
     {
@@ -221,6 +249,12 @@ export const erpNavigation: ErpNavGroup[] = [
                 href: clientsIndex().url,
                 icon: Building2,
                 permission: 'client.view',
+            },
+            {
+                title: 'Client Profitability',
+                href: clientsProfitability().url,
+                icon: CircleDollarSign,
+                permission: 'costing.view',
             },
         ],
     },

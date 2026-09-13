@@ -81,6 +81,19 @@ export function ProductionList({ rows }: { rows: InProductionRow[] }) {
                                   : ''}
                         </span>
                     </div>
+                    {o.floor_stage && o.floor_progress !== null && (
+                        <div className="mt-2 flex items-center gap-2 text-xs">
+                            <div className="bg-muted h-1.5 flex-1 overflow-hidden rounded-full">
+                                <div
+                                    className="bg-primary h-full"
+                                    style={{ width: `${o.floor_progress}%` }}
+                                />
+                            </div>
+                            <span className="text-muted-foreground tabular-nums">
+                                {o.floor_stage}
+                            </span>
+                        </div>
+                    )}
                 </li>
             ))}
         </ul>

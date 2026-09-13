@@ -32,6 +32,7 @@ final class FacilityRules
             'email' => ['nullable', 'email', 'max:255'],
             'gstin' => ['nullable', 'string', 'size:15'],
             'notes' => ['nullable', 'string', 'max:2000'],
+            'daily_capacity_kg' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 

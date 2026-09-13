@@ -12,6 +12,10 @@ import { useState } from 'react';
 import { DeleteDialog } from '@/components/confirm-dialog';
 import { DetailItem, Field } from '@/components/form-field';
 import InputError from '@/components/input-error';
+import {
+    ClientProfitabilityPanel,
+    type ClientProfitability,
+} from '@/components/contract/client-profitability-panel';
 import { PageHeader } from '@/components/page-header';
 import { ActiveBadge, StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
@@ -648,6 +652,7 @@ export default function ShowClient({
     material,
     finishedGoods,
     costing,
+    profitability,
     artworks,
     qcSpecs,
     productOptions,
@@ -667,6 +672,7 @@ export default function ShowClient({
     orders: Order[];
     material: ReconciliationRow[];
     finishedGoods: FinishedGood[];
+    profitability: ClientProfitability | null;
     costing: {
         jobs: number;
         chargeable: string;
@@ -838,6 +844,10 @@ export default function ShowClient({
                         </dl>
                     </section>
                 </div>
+
+                {profitability && (
+                    <ClientProfitabilityPanel profitability={profitability} />
+                )}
 
                 <section className="bg-card rounded-xl border">
                     <div className="border-b px-5 py-4">

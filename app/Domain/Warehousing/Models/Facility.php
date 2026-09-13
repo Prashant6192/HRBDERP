@@ -51,7 +51,7 @@ class Facility extends Model
         'address_line_1', 'address_line_2', 'city', 'state', 'pincode', 'country',
         'phone', 'email', 'gstin',
         'can_store', 'can_receive', 'can_qc', 'can_manufacture', 'can_pack', 'can_dispatch', 'can_return',
-        'opening_stock_enabled', 'is_active', 'notes', 'created_by', 'updated_by',
+        'daily_capacity_kg', 'opening_stock_enabled', 'is_active', 'notes', 'created_by', 'updated_by',
     ];
 
     protected function casts(): array

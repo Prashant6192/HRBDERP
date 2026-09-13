@@ -93,6 +93,7 @@ type FacilityView = {
     email: string | null;
     gstin: string | null;
     notes: string | null;
+    daily_capacity_kg?: string | null;
     opening_stock_enabled: boolean;
     is_active: boolean;
     can_manufacture: boolean;
@@ -420,6 +421,11 @@ export default function ShowFacility({
                                     </DetailItem>
                                     <DetailItem label="GSTIN">
                                         {facility.gstin ?? '—'}
+                                    </DetailItem>
+                                    <DetailItem label="Daily capacity">
+                                        {facility.daily_capacity_kg
+                                            ? `${Number(facility.daily_capacity_kg).toLocaleString('en-IN')} KG a day`
+                                            : 'not set'}
                                     </DetailItem>
                                     <DetailItem label="Notes">
                                         {facility.notes ?? '—'}

@@ -31,6 +31,7 @@ export type FacilityDetails = {
     email: string;
     gstin: string;
     notes: string;
+    daily_capacity_kg: string;
 };
 
 export type Capabilities = Record<FacilityCapabilityKey, boolean>;
@@ -50,6 +51,7 @@ export const EMPTY_DETAILS: FacilityDetails = {
     email: '',
     gstin: '',
     notes: '',
+    daily_capacity_kg: '',
 };
 
 export const CAPABILITY_KEYS: FacilityCapabilityKey[] = [
@@ -281,6 +283,21 @@ export function FacilityDetailsFields({
                         maxLength={15}
                         onChange={(e) =>
                             setField('gstin', e.target.value.toUpperCase())
+                        }
+                    />
+                </Field>
+                <Field
+                    label="Daily capacity (KG of bulk product)"
+                    htmlFor="daily_capacity_kg"
+                    error={errors.daily_capacity_kg}
+                    hint="What the plant can make in a working day. Capacity planning and the what-if simulation divide bookings by it."
+                >
+                    <Input
+                        id="daily_capacity_kg"
+                        inputMode="decimal"
+                        value={data.daily_capacity_kg ?? ''}
+                        onChange={(e) =>
+                            setField('daily_capacity_kg', e.target.value)
                         }
                     />
                 </Field>

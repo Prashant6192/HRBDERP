@@ -14,6 +14,14 @@ import {
     type ThirdPartyDetails,
 } from '@/components/contract/third-party-panel';
 import { DetailItem } from '@/components/form-field';
+import {
+    BatchAnalyticsPanel,
+    type BatchAnalytics,
+} from '@/components/manufacturing/batch-analytics';
+import {
+    StagePanel,
+    type StageSummary,
+} from '@/components/manufacturing/stage-panel';
 import InputError from '@/components/input-error';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
@@ -174,6 +182,9 @@ export default function ShowManufacturingOrder({
     reservations,
     today,
     thirdParty,
+    stages,
+    analytics,
+    lots,
     can,
 }: {
     order: ManufacturingOrder;
@@ -181,12 +192,17 @@ export default function ShowManufacturingOrder({
     reservations: Record<string, ReservationRow[]>;
     today: string;
     thirdParty: ThirdPartyDetails | null;
+    stages: StageSummary;
+    analytics: BatchAnalytics | null;
+    lots: { item_id: number; lot_id: number; batch_number: string }[];
     can: {
         terms: boolean;
         approve: boolean;
         start: boolean;
         complete: boolean;
         cancel: boolean;
+        stage: boolean;
+        adjust: boolean;
     };
 }) {
     const [completing, setCompleting] = useState(false);
@@ -611,11 +627,27 @@ export default function ShowManufacturingOrder({
                     </dl>
                 </section>
 
+                <StagePanel
+                    orderId={order.id}
+                    status={order.status}
+                    stages={stages}
+                    canRecord={can.stage}
+                />
+
                 {thirdParty && (
                     <ThirdPartyPanel
                         order={order}
                         details={thirdParty}
                         canTerms={can.terms}
+                    />
+                )}
+
+                {analytics && (
+                    <BatchAnalyticsPanel
+                        orderId={order.id}
+                        analytics={analytics}
+                        lots={lots}
+                        canAdjust={can.adjust}
                     />
                 )}
 

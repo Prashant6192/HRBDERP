@@ -52,6 +52,7 @@ export default function EditFacility({
         email: facility.email ?? '',
         gstin: facility.gstin ?? '',
         notes: facility.notes ?? '',
+        daily_capacity_kg: facility.daily_capacity_kg ?? '',
         ...capabilitiesFrom(facility),
         opening_stock_enabled: facility.opening_stock_enabled,
         is_active: facility.is_active,

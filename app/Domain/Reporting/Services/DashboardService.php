@@ -13,6 +13,7 @@ use App\Domain\Inventory\Services\StockAlertService;
 use App\Domain\Inventory\Services\StockBalanceService;
 use App\Domain\Manufacturing\Enums\ManufacturingOrderStatus;
 use App\Domain\Manufacturing\Models\ManufacturingOrder;
+use App\Domain\Manufacturing\Services\ProductionStageService;
 use App\Domain\Planning\Enums\ProductionPlanStatus;
 use App\Domain\Planning\Models\MaterialRequest;
 use App\Domain\Planning\Models\MaterialRequestLine;
@@ -378,6 +379,8 @@ class DashboardService
                 'started_at' => $o->started_at?->toIso8601String(),
                 'approved_at' => $o->approved_at?->toIso8601String(),
                 'stage' => $o->status === ManufacturingOrderStatus::InProgress ? 2 : 1,
+                'floor_stage' => ProductionStageService::phrase($o),
+                'floor_progress' => $o->current_stage === null ? null : $o->current_stage->overallProgress((int) $o->stage_progress),
             ])
             ->all();
     }

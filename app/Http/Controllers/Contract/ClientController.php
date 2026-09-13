@@ -9,6 +9,7 @@ use App\Domain\Contract\Models\Client;
 use App\Domain\Contract\Models\ClientArtwork;
 use App\Domain\Contract\Models\ClientQcSpec;
 use App\Domain\Contract\Services\ClientMaterialReconciliationService;
+use App\Domain\Contract\Services\ClientProfitabilityService;
 use App\Domain\Contract\Services\JobCostingService;
 use App\Domain\Formulation\Models\Formula;
 use App\Domain\Inventory\Models\InventoryLot;
@@ -178,6 +179,7 @@ class ClientController extends Controller
                 'qc_status' => $o->outputLot?->qc_status?->value,
             ])->all(),
             'material' => $this->reconciliation->rows($client),
+            'profitability' => $request->user()->can('costing.view') ? app(ClientProfitabilityService::class)->forClient($client) : null,
             'finishedGoods' => $finishedGoods,
             'costing' => [
                 'jobs' => $costed->count(),

@@ -53,6 +53,44 @@ be read.
   under `intelligence` (consumption window, planning horizon, default lead
   time, buckets, risk window).
 
+### Added — Production analytics: batch stages, consumption, yield, cost, client margin, what-if, capacity
+
+- **Real-time batch progress.** Instead of "in production", the floor
+  records the stage — weighing, charging, mixing, heating, cooling,
+  in-process QC, filling, packaging — and how far through it is. A stepper
+  and a progress bar on the order, the stage on the dashboard's production
+  list and in the command centre, and an append-only trail of readings.
+  Starting a batch opens it at Weighing; completing it closes it at 100%.
+- **Returns and wastage on a batch.** Material issued but not used goes
+  back to the store through the ledger (`PRODUCTION_RETURN`, against its
+  batch); material lost is recorded as wastage. Both are capped at what
+  was issued.
+- **Material consumption intelligence.** Per batch: standard vs issued vs
+  consumed vs returned vs wastage vs actual, with the variance flagged over
+  the threshold. Across batches, under **Manufacturing → Production
+  Analytics**: "Preservative consumption has been 4.8% above standard in
+  the last six batches", with a bar per batch.
+- **Yield analytics.** Per product: planned against actual output and the
+  leakage in units — "Expected 10,000 units, produced 9,620 units — yield
+  96.2%, 380-unit variance."
+- **Cost variance engine.** Per batch, for those who may see costing:
+  standard cost against actual, explained by raw-material price change,
+  extra consumption, raw-material wastage, packaging wastage, additional
+  charges and low yield, largest first, with the sentence that sums it up.
+- **Client profitability** under **Third-Party Manufacturing → Client
+  Profitability**, and on each client's page: revenue, manufacturing
+  charge, testing, freight, raw material cost, packaging cost, wastage and
+  margin per client, product and batch. Clients losing money are counted.
+- **What-if production simulation** under **Planning & Purchase → What-if
+  Simulation**: choose a formula, a quantity, a facility and an earliest
+  start; see raw material and packaging requirements, shortages, the
+  purchase value at the best known price, the expected material cost per
+  unit, the machine time, the completion date and which booked batches it
+  would push. Nothing is written.
+- **Capacity planning** under **Planning & Purchase → Capacity**: each
+  manufacturing facility's daily capacity (new field on the facility)
+  against booked production, week by week, with the bookings behind it.
+
 ### Added — Command centre, exceptions, notifications, escalation
 
 - **Factory command centre** (Overview → Command Centre, for anyone who may

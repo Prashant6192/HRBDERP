@@ -11,12 +11,19 @@ use App\Domain\Contract\Models\ClientArtwork;
 use App\Domain\Contract\Models\ClientQcSpec;
 use App\Domain\Contract\Services\ClientMaterialReconciliationService;
 use App\Domain\Contract\Services\JobCostingService;
+use App\Domain\Intelligence\Services\ProductionAnalyticsService;
+use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Models\StockReservation;
 use App\Domain\Manufacturing\Enums\ManufacturingOrderStatus;
+use App\Domain\Manufacturing\Enums\ProductionStage;
 use App\Domain\Manufacturing\Exceptions\ManufacturingException;
 use App\Domain\Manufacturing\Models\ManufacturingOrder;
+use App\Domain\Manufacturing\Models\ManufacturingOrderAdjustment;
 use App\Domain\Manufacturing\Models\ManufacturingOrderLine;
+use App\Domain\Manufacturing\Services\BatchAdjustmentService;
 use App\Domain\Manufacturing\Services\ManufacturingOrderService;
+use App\Domain\Manufacturing\Services\ProductionStageService;
+use App\Domain\MasterData\Models\Item;
 use App\Domain\Planning\Models\ProductionPlan;
 use App\Domain\Warehousing\Services\FacilityAccess;
 use App\Http\Controllers\Controller;
@@ -25,8 +32,10 @@ use App\Http\Requests\Manufacturing\UpdateOrderTermsRequest;
 use App\Support\Tables\TableQuery;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use InvalidArgumentException;
 use RuntimeException;
 
 class ManufacturingOrderController extends Controller
@@ -38,6 +47,9 @@ class ManufacturingOrderController extends Controller
         private readonly FacilityAccess $access,
         private readonly JobCostingService $costing,
         private readonly ClientMaterialReconciliationService $reconciliation,
+        private readonly ProductionStageService $stages,
+        private readonly BatchAdjustmentService $adjustments,
+        private readonly ProductionAnalyticsService $analytics,
     ) {}
 
     public function index(Request $request): Response
@@ -111,7 +123,7 @@ class ManufacturingOrderController extends Controller
             'createdBy:id,name',
             'approvedBy:id,name',
             'completedBy:id,name',
-            'lines.item:id,code,name,type',
+            'lines.item:id,code,name,type,standard_cost',
             'lines.uom:id,code',
         ]);
 
@@ -152,14 +164,83 @@ class ManufacturingOrderController extends Controller
             'today' => now()->toDateString(),
             // Everything a third-party job carries beyond an own-brand one.
             'thirdParty' => $this->thirdParty($request, $order),
+            // Where the batch is on the floor, and what it took and cost.
+            'stages' => $this->stages->summary($order),
+            'analytics' => $order->status === ManufacturingOrderStatus::Draft || $order->status === ManufacturingOrderStatus::Approved
+                ? null
+                : [
+                    'consumption' => $this->analytics->consumptionForOrder($order),
+                    'cost' => $request->user()->can('costing.view') || $request->user()->can('production.approve') ? $this->analytics->costVariance($order) : null,
+                ],
+            'lots' => $order->status === ManufacturingOrderStatus::InProgress || $order->status === ManufacturingOrderStatus::Completed
+                ? $order->reservations()->with('lot:id,batch_number,item_id')->get()->map(fn (StockReservation $r) => ['item_id' => $r->item_id, 'lot_id' => $r->lot_id, 'batch_number' => $r->lot?->batch_number])->filter(fn ($l) => $l['lot_id'] !== null)->unique('lot_id')->values()->all()
+                : [],
             'can' => [
                 'terms' => $order->isThirdParty() && ($request->user()->can('production.edit') || $request->user()->can('costing.edit')),
                 'approve' => $request->user()->can('approve', $order) && $order->status === ManufacturingOrderStatus::Draft,
                 'start' => $request->user()->can('start', $order) && $order->status === ManufacturingOrderStatus::Approved,
                 'complete' => $request->user()->can('complete', $order) && $order->status === ManufacturingOrderStatus::InProgress,
                 'cancel' => $request->user()->can('cancel', $order) && $order->status->isOpen(),
+                'stage' => $request->user()->can('production.consume') && $order->status === ManufacturingOrderStatus::InProgress,
+                'adjust' => $request->user()->can('production.consume') && in_array($order->status, [ManufacturingOrderStatus::InProgress, ManufacturingOrderStatus::Completed], true),
             ],
         ]);
+    }
+
+    /**
+     * The floor says where the batch is: "mixing, 60%".
+     */
+    public function stage(Request $request, ManufacturingOrder $order): RedirectResponse
+    {
+        $this->authorize('start', $order);
+        $this->assertAtFacility($request, $order);
+
+        $data = $request->validate([
+            'stage' => ['required', Rule::enum(ProductionStage::class)],
+            'progress' => ['required', 'integer', 'min:0', 'max:100'],
+            'note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $this->stages->record($order, ProductionStage::from($data['stage']), (int) $data['progress'], $data['note'] ?? null, $request->user()->id);
+        } catch (ManufacturingException $e) {
+            return back()->withToast('error', $e->getMessage());
+        }
+
+        return back()->withToast('success', "{$order->number}: ".ProductionStage::from($data['stage'])->label()." {$data['progress']}%.");
+    }
+
+    /**
+     * Material the batch gave back or lost after it was issued.
+     */
+    public function adjust(Request $request, ManufacturingOrder $order): RedirectResponse
+    {
+        $this->authorize('start', $order);
+        $this->assertAtFacility($request, $order);
+
+        $data = $request->validate([
+            'kind' => ['required', Rule::in([ManufacturingOrderAdjustment::RETURN, ManufacturingOrderAdjustment::WASTAGE])],
+            'item_id' => ['required', 'integer', Rule::exists('items', 'id')],
+            'lot_id' => ['nullable', 'integer', Rule::exists('inventory_lots', 'id')],
+            'quantity' => ['required', 'numeric', 'gt:0'],
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $this->adjustments->record(
+                $order,
+                $data['kind'],
+                Item::query()->findOrFail($data['item_id']),
+                isset($data['lot_id']) && $data['lot_id'] ? InventoryLot::query()->findOrFail($data['lot_id']) : null,
+                (string) $data['quantity'],
+                $data['reason'] ?? null,
+                $request->user()->id,
+            );
+        } catch (ManufacturingException|InvalidArgumentException $e) {
+            return back()->withErrors(['quantity' => $e->getMessage()]);
+        }
+
+        return back()->withToast('success', $data['kind'] === ManufacturingOrderAdjustment::RETURN ? 'Return booked back into the store.' : 'Wastage recorded on the batch.');
     }
 
     public function approve(Request $request, ManufacturingOrder $order): RedirectResponse

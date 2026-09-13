@@ -13,6 +13,7 @@ use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Models\StockTransfer;
 use App\Domain\Manufacturing\Enums\ManufacturingOrderStatus;
 use App\Domain\Manufacturing\Models\ManufacturingOrder;
+use App\Domain\Manufacturing\Services\ProductionStageService;
 use App\Domain\Planning\Enums\MaterialRequestStatus;
 use App\Domain\Planning\Enums\ProductionPlanStatus;
 use App\Domain\Planning\Models\MaterialRequestLine;
@@ -95,6 +96,8 @@ class CommandCentreService
                     'batch' => Decimal::strip($o->planned_quantity).' '.($o->plannedUom?->code ?? '').($o->planned_units ? " · {$o->planned_units} units" : ''),
                     'status' => $o->status->value,
                     'status_label' => $o->status->label(),
+                    'stage' => ProductionStageService::phrase($o),
+                    'progress' => $o->current_stage === null ? null : $o->current_stage->overallProgress((int) $o->stage_progress),
                     'started_at' => $o->started_at?->toIso8601String(),
                     'elapsed_hours' => $elapsed,
                     'late' => $elapsed !== null && $elapsed >= $hours,

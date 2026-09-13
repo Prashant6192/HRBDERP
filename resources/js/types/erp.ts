@@ -155,6 +155,7 @@ export type Facility = {
     can_pack: boolean;
     can_dispatch: boolean;
     can_return: boolean;
+    daily_capacity_kg?: string | null;
     opening_stock_enabled: boolean;
     is_active: boolean;
     notes: string | null;
@@ -1145,6 +1146,8 @@ export type InProductionRow = {
     started_at: string | null;
     approved_at: string | null;
     stage: 1 | 2;
+    floor_stage: string | null;
+    floor_progress: number | null;
 };
 
 export type UpcomingRow = {

@@ -72,7 +72,11 @@ Where the build has got to, and what comes next.
 | Slow-moving stock by 30 / 60 / 90 / 180 days with blocked working capital                                                 | Built |
 | Expiry risk: expected use before expiry, first-expiry-first-out, value at risk                                            | Built |
 | Command centre, exception feed, notifications, escalation                                                                 | Next  |
-| Batch stages, consumption intelligence, yield analytics, cost variance, client profitability, what-if, capacity           | Next  |
+| Real-time batch stages with a trail; returns and wastage on a batch                                                       | Built |
+| Consumption intelligence per batch and per material across batches; yield analytics per product                           | Built |
+| Cost variance engine: price, usage, wastage, charges and yield effects                                                    | Built |
+| Client profitability per client, product and batch                                                                        | Built |
+| What-if production simulation; capacity planning against daily facility capacity                                          | Built |
 | Risk-based approvals, maker-checker, signatures, reversals, recall tracing, document versions                             | Next  |
 | Shop-floor scanning, stock counts, mobile floor mode                                                                      | Next  |
 | Department scorecards, OTIF, the assistant                                                                                | Next  |

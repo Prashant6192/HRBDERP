@@ -15,6 +15,7 @@ use App\Domain\Inventory\Services\InventoryReservationService;
 use App\Domain\Inventory\Services\SequenceService;
 use App\Domain\Inventory\Services\StockBalanceService;
 use App\Domain\Manufacturing\Enums\ManufacturingOrderStatus;
+use App\Domain\Manufacturing\Enums\ProductionStage;
 use App\Domain\Manufacturing\Exceptions\ManufacturingException;
 use App\Domain\Manufacturing\Models\ManufacturingOrder;
 use App\Domain\Manufacturing\Models\ManufacturingOrderLine;
@@ -211,9 +212,14 @@ class ManufacturingOrderService
 
             $order->fill([
                 'status' => ManufacturingOrderStatus::InProgress,
+                'current_stage' => ProductionStage::Weighing,
+                'stage_progress' => 0,
+                'stage_updated_at' => now(),
                 'started_by' => $userId,
                 'started_at' => now(),
             ])->save();
+
+            $order->stageEvents()->create(['stage' => ProductionStage::Weighing, 'progress' => 0, 'note' => 'Batch started.', 'recorded_by' => $userId, 'recorded_at' => now()]);
 
             return $order->refresh();
         });
@@ -258,6 +264,9 @@ class ManufacturingOrderService
 
             $order->fill([
                 'status' => ManufacturingOrderStatus::Completed,
+                'current_stage' => ProductionStage::Completed,
+                'stage_progress' => 100,
+                'stage_updated_at' => now(),
                 'output_quantity' => $outputQuantity->__toString(),
                 'output_units' => $units,
                 'yield_percentage' => $yield->__toString(),
@@ -268,6 +277,7 @@ class ManufacturingOrderService
                 'completed_at' => now(),
             ])->save();
 
+            $order->stageEvents()->create(['stage' => ProductionStage::Completed, 'progress' => 100, 'note' => 'Batch completed.', 'recorded_by' => $userId, 'recorded_at' => now()]);
             $order->plan?->fill(['status' => ProductionPlanStatus::Completed])->save();
 
             return $order->refresh();

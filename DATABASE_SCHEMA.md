@@ -478,6 +478,33 @@ the order polymorphically.
 
 ---
 
+## Production stages and adjustments
+
+### `manufacturing_orders` — stage columns
+
+`current_stage` (`weighing` … `packaging`, `completed`), `stage_progress`
+(0–100) and `stage_updated_at` hold where the batch is now; the history is
+in the events.
+
+### `manufacturing_order_stage_events`
+
+Append-only readings from the floor: `stage`, `progress`, `note`,
+`recorded_by`, `recorded_at`. Starting a batch writes Weighing 0;
+completing it writes Completed 100.
+
+### `manufacturing_order_adjustments`
+
+Material a batch gave back or lost after it was issued: `kind` (`return`
+or `wastage`), `item_id`, `lot_id`, `quantity` (> 0), `reason`,
+`inventory_transaction_id` (the `PRODUCTION_RETURN` posting, for a
+return), `recorded_by`, `recorded_at`. The total per material cannot
+exceed what the batch consumed.
+
+### `facilities.daily_capacity_kg`
+
+What the plant can make in a day, in kilograms of bulk product. Capacity
+planning and the what-if simulation divide bookings by it.
+
 ## Intelligence
 
 ### `notifications`

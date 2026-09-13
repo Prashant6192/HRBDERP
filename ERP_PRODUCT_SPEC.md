@@ -324,10 +324,27 @@ unfilled, transfer late, could stop production.
 the roles responsible, then to their seniors, once per level, and closed
 when it clears. Notifications land under the bell.
 
-**Still to come in this layer:** batch stages, consumption and yield
-analytics, cost variance, client profitability, what-if simulation,
-capacity, risk-based approvals, recall tracing, shop-floor scanning and the
-assistant.
+**Real-time batch progress.** The floor records exact stages and how far
+through each is; management sees the bar on the dashboard, the command
+centre and the order.
+
+**Material consumption intelligence.** Standard vs issued vs consumed vs
+returned vs wastage per batch, and the trend per material across batches.
+
+**Yield analytics and the cost variance engine.** Planned against actual
+yield per product with the leakage in units; standard against actual cost
+per batch, explained by price change, extra consumption, wastage, charges
+and yield.
+
+**Client profitability.** Revenue, costs and margin per client, product
+and batch for contract manufacturing.
+
+**What-if simulation and capacity planning.** A batch that does not exist
+yet, priced, scheduled and its impact on the plan shown; plant capacity
+against bookings week by week.
+
+**Still to come in this layer:** risk-based approvals, recall tracing,
+shop-floor scanning, scorecards and the assistant.
 
 ### Costing — _planned_
 

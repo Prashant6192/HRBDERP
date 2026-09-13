@@ -7,16 +7,20 @@ use App\Http\Controllers\Administration\RoleController;
 use App\Http\Controllers\Administration\UserController;
 use App\Http\Controllers\Contract\ClientArtworkController;
 use App\Http\Controllers\Contract\ClientController;
+use App\Http\Controllers\Contract\ClientProfitabilityController;
 use App\Http\Controllers\Contract\ClientQcSpecController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Formulation\FormulaController;
 use App\Http\Controllers\Formulation\FormulaImportController;
 use App\Http\Controllers\Formulation\FormulaSecurityController;
 use App\Http\Controllers\Formulation\FormulaVersionController;
+use App\Http\Controllers\Intelligence\CapacityController;
 use App\Http\Controllers\Intelligence\CommandCentreController;
 use App\Http\Controllers\Intelligence\ExpiryRiskController;
+use App\Http\Controllers\Intelligence\ProductionAnalyticsController;
 use App\Http\Controllers\Intelligence\ReorderAdviceController;
 use App\Http\Controllers\Intelligence\SlowMovingStockController;
+use App\Http\Controllers\Intelligence\WhatIfController;
 use App\Http\Controllers\Inventory\LotController;
 use App\Http\Controllers\Inventory\OpeningStockController;
 use App\Http\Controllers\Inventory\StockController;
@@ -114,6 +118,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::resource('vendors', VendorController::class);
 
     // Third-party / contract manufacturing clients and what is theirs.
+    Route::get('clients/profitability', ClientProfitabilityController::class)->name('clients.profitability');
     Route::resource('clients', ClientController::class);
     Route::post('clients/{client}/artworks', [ClientArtworkController::class, 'store'])->name('clients.artworks.store');
     Route::post('clients/{client}/artworks/{artwork}/status', [ClientArtworkController::class, 'status'])->name('clients.artworks.status');
@@ -175,6 +180,11 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('manufacturing/{order}/complete', [ManufacturingOrderController::class, 'complete'])->name('manufacturing.complete');
     Route::post('manufacturing/{order}/cancel', [ManufacturingOrderController::class, 'cancel'])->name('manufacturing.cancel');
     Route::put('manufacturing/{order}/terms', [ManufacturingOrderController::class, 'terms'])->name('manufacturing.terms');
+    Route::post('manufacturing/{order}/stage', [ManufacturingOrderController::class, 'stage'])->name('manufacturing.stage');
+    Route::post('manufacturing/{order}/adjustments', [ManufacturingOrderController::class, 'adjust'])->name('manufacturing.adjust');
+    Route::get('analytics/production', ProductionAnalyticsController::class)->name('analytics.production');
+    Route::get('planning/simulate', WhatIfController::class)->name('planning.simulate');
+    Route::get('planning/capacity', CapacityController::class)->name('planning.capacity');
 
     // ---- Formulations -----------------------------------------------------
     // The list and the PIN screens need only formula.view. Anything that

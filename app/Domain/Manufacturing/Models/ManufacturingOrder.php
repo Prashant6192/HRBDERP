@@ -13,6 +13,7 @@ use App\Domain\Formulation\Models\FormulaVersion;
 use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Models\StockReservation;
 use App\Domain\Manufacturing\Enums\ManufacturingOrderStatus;
+use App\Domain\Manufacturing\Enums\ProductionStage;
 use App\Domain\MasterData\Models\Product;
 use App\Domain\Measurement\Models\Uom;
 use App\Domain\Planning\Models\ProductionPlan;
@@ -60,7 +61,7 @@ class ManufacturingOrder extends Model
     protected $fillable = [
         'number', 'facility_id', 'production_plan_id', 'formula_id', 'formula_version_id', 'product_id',
         'manufacturing_type', 'client_id', 'client_po_ref', 'required_delivery_at', 'material_source', 'client_supplied_item_ids', 'charges',
-        'planned_quantity', 'planned_uom_id', 'planned_units', 'status',
+        'planned_quantity', 'planned_uom_id', 'planned_units', 'status', 'current_stage', 'stage_progress', 'stage_updated_at',
         'output_quantity', 'output_units', 'yield_percentage', 'output_lot_id', 'manufactured_at',
         'notes', 'created_by', 'approved_by', 'approved_at', 'started_by', 'started_at',
         'completed_by', 'completed_at', 'cancelled_at',
@@ -75,6 +76,9 @@ class ManufacturingOrder extends Model
             'client_supplied_item_ids' => 'array',
             'charges' => 'array',
             'status' => ManufacturingOrderStatus::class,
+            'current_stage' => ProductionStage::class,
+            'stage_progress' => 'integer',
+            'stage_updated_at' => 'datetime',
             'planned_units' => 'integer',
             'output_units' => 'integer',
             'manufactured_at' => 'date',
@@ -136,6 +140,22 @@ class ManufacturingOrder extends Model
     public function lines(): HasMany
     {
         return $this->hasMany(ManufacturingOrderLine::class, 'manufacturing_order_id')->orderBy('store_kind')->orderBy('line_no');
+    }
+
+    /**
+     * @return HasMany<ManufacturingOrderStageEvent, $this>
+     */
+    public function stageEvents(): HasMany
+    {
+        return $this->hasMany(ManufacturingOrderStageEvent::class, 'manufacturing_order_id');
+    }
+
+    /**
+     * @return HasMany<ManufacturingOrderAdjustment, $this>
+     */
+    public function adjustments(): HasMany
+    {
+        return $this->hasMany(ManufacturingOrderAdjustment::class, 'manufacturing_order_id');
     }
 
     /**

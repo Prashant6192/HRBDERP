@@ -106,6 +106,16 @@ account. A Super Admin still cannot delete themselves, deactivate themselves,
 or grant themselves a role — see
 [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md#the-super-admin-bypass-and-its-one-exception).
 
+### Clearing data
+
+**Administration → Data** is not behind a permission at all: it is reachable
+only by a Super Admin, and the Roles screen cannot grant it to anyone else.
+Clearing asks for the company name typed in full before it runs, is one
+transaction, and is written to the audit trail with who ran it and what went.
+It never touches users, roles, permissions, units, departments, facility and
+store categories, or the audit trail itself. The same guard applies to the
+`erp:reset` and `erp:demo-data` commands, which need a shell on the server.
+
 ### Who may hand out roles
 
 **Only a Super Admin, and never to themselves.** Role assignment is the one

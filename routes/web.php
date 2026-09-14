@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Administration\AuditLogController;
+use App\Http\Controllers\Administration\DataController;
 use App\Http\Controllers\Administration\RoleController;
 use App\Http\Controllers\Administration\UserController;
 use App\Http\Controllers\Approvals\ApprovalController;
@@ -295,6 +296,12 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('settings/facility-types', [FacilityTypeController::class, 'index'])->name('facility-types.index');
     Route::post('settings/facility-types', [FacilityTypeController::class, 'store'])->name('facility-types.store');
     Route::put('settings/facility-types/{facilityType}', [FacilityTypeController::class, 'update'])->name('facility-types.update');
+
+    // Clearing what testing left behind, and the worked example. Both are
+    // the system administrator's alone.
+    Route::get('administration/data', [DataController::class, 'index'])->name('administration.data');
+    Route::post('administration/data/clear', [DataController::class, 'clear'])->name('administration.data.clear');
+    Route::post('administration/data/demo', [DataController::class, 'fillDemo'])->name('administration.data.demo');
 
     Route::get('audit', [AuditLogController::class, 'index'])->name('audit.index');
     Route::get('audit/{auditLog}', [AuditLogController::class, 'show'])

@@ -83,6 +83,8 @@ Where the build has got to, and what comes next.
 | Controlled documents with versions, approval and supersession                                                             | Built |
 | Shop-floor scanning with scan-before-issue, stock counts with inventory accuracy, mobile floor mode (PWA)                 | Built |
 | Department scorecards with OTIF and inventory accuracy, process performance, the ERP assistant                            | Built |
+| Selective data clearing and a worked demo fill, for the system administrator only (Administration → Data)                 | Built |
+| Left menu reduced to destinations: batches on the material page, receiving from the store page                            | Built |
 
 ---
 

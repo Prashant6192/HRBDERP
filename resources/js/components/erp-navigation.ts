@@ -12,8 +12,8 @@ import {
     Gauge,
     CalendarCheck,
     ClipboardCheck,
-    ClipboardList,
     ClipboardPen,
+    DatabaseZap,
     FileCheck2,
     Factory,
     FlaskConical,
@@ -32,12 +32,10 @@ import {
     Warehouse,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { data as dataAdministration } from '@/routes/administration';
 import { index as auditIndex } from '@/routes/audit';
 import { index as clientsIndex } from '@/routes/clients';
-import { index as countsIndex } from '@/routes/counts';
 import { index as formulasIndex } from '@/routes/formulas';
-import { index as goodsReceiptsIndex } from '@/routes/goods-receipts';
-import { index as lotsIndex } from '@/routes/lots';
 import { index as manufacturingIndex } from '@/routes/manufacturing';
 import { index as materialRequestsIndex } from '@/routes/material-requests';
 import { index as packagingMaterialsIndex } from '@/routes/packaging-materials';
@@ -153,27 +151,9 @@ export const erpNavigation: ErpNavGroup[] = [
                 exact: true,
             },
             {
-                title: 'Goods Receipts',
-                href: goodsReceiptsIndex().url,
-                icon: PackageCheck,
-                permission: 'purchase.view',
-            },
-            {
-                title: 'Batches',
-                href: lotsIndex().url,
-                icon: ClipboardList,
-                permission: 'inventory.view',
-            },
-            {
                 title: 'Stock Transfers',
                 href: transfersIndex().url,
                 icon: ArrowLeftRight,
-                permission: 'inventory.view',
-            },
-            {
-                title: 'Stock Counts',
-                href: countsIndex().url,
-                icon: ClipboardCheck,
                 permission: 'inventory.view',
             },
             {
@@ -394,6 +374,12 @@ export const erpNavigation: ErpNavGroup[] = [
                 href: auditIndex().url,
                 icon: ScrollText,
                 permission: 'audit.view',
+            },
+            {
+                title: 'Data',
+                href: dataAdministration().url,
+                icon: DatabaseZap,
+                superAdminOnly: true,
             },
         ],
     },

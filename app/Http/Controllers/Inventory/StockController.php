@@ -9,6 +9,7 @@ use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Models\StockBalance;
 use App\Domain\Inventory\Services\StockAlertService;
 use App\Domain\Inventory\Services\StockBalanceService;
+use App\Domain\Procurement\Models\GoodsReceipt;
 use App\Domain\Warehousing\Enums\WarehouseType;
 use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Models\Warehouse;
@@ -137,6 +138,11 @@ class StockController extends Controller
             ],
             'rows' => $rows,
             'counts' => $counts,
+            // Receiving starts here, in the store the material belongs to.
+            'can' => [
+                'receive' => $request->user()->can('create', GoodsReceipt::class),
+                'view_receipts' => $request->user()->can('purchase.view'),
+            ],
             'levels' => array_map(fn (StockAlertLevel $l) => [
                 'value' => $l->value, 'label' => $l->shortLabel(), 'variant' => $l->badgeVariant(), 'severity' => $l->severity(),
             ], StockAlertLevel::cases()),

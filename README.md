@@ -123,8 +123,17 @@ on the server, not by hiding buttons.
 | `php artisan erp:create-admin`             | Creates or promotes the first administrator                                                  |
 | `php artisan erp:lock-audit-trail`         | Makes the audit and formula access trails append-only at the database (`--check` to inspect) |
 | `php artisan erp:import-formulations FILE` | Imports a formulation workbook (`--dry-run` to preview)                                      |
+| `php artisan erp:demo-data`                | Fills an empty ERP with one worked example, end to end (creates no login accounts)           |
+| `php artisan erp:reset --scope=…`          | Clears chosen kinds of trial data; never people, roles, reference data or the audit trail    |
 
 ### Commands that destroy data
+
+`erp:reset` clears the kinds of data named in `--scope`, and everything the
+foreign keys make it clear with it — the command lists what that is and asks
+before it does anything (`--force` skips the question, for scripts). People,
+roles, permissions, units, departments, facility and store categories and the
+audit trail are never touched. The same thing is on the screen under
+**Administration → Data**, for the system administrator only.
 
 `migrate:fresh`, `db:wipe` and `migrate:refresh` **drop every table**. They are
 blocked in production by `DB::prohibitDestructiveCommands`, but nothing stops

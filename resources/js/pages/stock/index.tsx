@@ -1,9 +1,20 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { AlertTriangle, CalendarClock, Search } from 'lucide-react';
+import {
+    AlertTriangle,
+    CalendarClock,
+    PackageCheck,
+    PackagePlus,
+    Search,
+} from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+    create as createReceipt,
+    index as goodsReceiptsIndex,
+} from '@/routes/goods-receipts';
 import {
     Select,
     SelectContent,
@@ -70,6 +81,7 @@ export default function StockIndex({
     levels,
     filters,
     expiring,
+    can,
 }: {
     facilities: FacilityOption[];
     facility: number | null;
@@ -80,6 +92,7 @@ export default function StockIndex({
     levels: LevelDef[];
     filters: { search: string; level: string };
     expiring: { days: number; count: number };
+    can: { receive: boolean; view_receipts: boolean };
 }) {
     const [search, setSearch] = useState(filters.search);
     const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -113,6 +126,30 @@ export default function StockIndex({
                     description="What is on the shelf, what is held for production, and what needs ordering."
                     actions={
                         <div className="flex flex-wrap gap-2">
+                            {can.receive &&
+                                selected &&
+                                !selected.is_quarantine && (
+                                    <Button asChild>
+                                        <Link
+                                            href={createReceipt({
+                                                query: {
+                                                    warehouse: selected.id,
+                                                },
+                                            })}
+                                        >
+                                            <PackagePlus className="size-4" />
+                                            Receive into this store
+                                        </Link>
+                                    </Button>
+                                )}
+                            {can.view_receipts && (
+                                <Button variant="outline" asChild>
+                                    <Link href={goodsReceiptsIndex()}>
+                                        <PackageCheck className="size-4" />
+                                        Past deliveries
+                                    </Link>
+                                </Button>
+                            )}
                             {facilities.length > 1 && (
                                 <Select
                                     value={facility ? String(facility) : ''}

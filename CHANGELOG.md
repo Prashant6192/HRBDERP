@@ -10,6 +10,54 @@ between them.
 
 ## [Unreleased]
 
+### Added — Clearing what testing left behind, and a worked example (issue #12)
+
+- **Administration → Data**, the system administrator's alone. Two cards:
+  fill the ERP with a worked example, and clear what a trial put in.
+- **Clear test data** is chosen kind by kind, not all or nothing: plans and
+  batches, deliveries and QC, stock and movements, approvals and documents,
+  formulations, materials and products, vendors and clients, facilities and
+  stores. Stores stay unless facilities are ticked, so the factory survives
+  a clear-out of the trial that was run in it.
+- What a choice **drags in with it is named before it happens**: the
+  dependencies are the foreign keys, not a matter of taste — clearing stock
+  clears the deliveries that brought it in, and clearing materials clears
+  everything made from them. Live counts sit beside each kind. The whole
+  clear is one transaction: all of it, or none of it. Document numbering can
+  be restarted with it.
+- **Never touched, whatever is ticked:** people, their roles and permissions,
+  units, departments, facility and store categories, and the audit trail —
+  which is the record that the clearing itself happened, and is written with
+  who did it and what went.
+- Confirmation is the **company name typed in full**, and the screen is
+  reachable only by the system administrator.
+- **Fill with demo data** builds one worked example end to end: a facility
+  with four stores, two vendors and a contract client, three raw materials,
+  two packaging materials, a product with its bill of materials, an activated
+  formula, opening stock, a delivery taken through QC, a third-party plan with
+  its material requests, a completed batch and an open stock count. It creates
+  **no login accounts** — the people on the system are the real ones.
+- Also from the terminal: `php artisan erp:reset --scope=… --restart-numbering`
+  and `php artisan erp:demo-data`.
+
+### Changed — Less in the left menu; receiving starts in the store (issue #13)
+
+- **Batches**, **Stock Counts** and **Goods Receipts** have left the menu.
+  Nothing was removed from the ERP — each has a home where the work actually
+  happens:
+    - a material's batches are on the material's own page (issue #8), with
+      brand, QC status, dates, rate and where each one sits;
+    - stock counts stay reachable and keep working, but no longer take a line
+      in a menu the factory does not use them from;
+    - **deliveries are received from the store they arrive into**. The store
+      page now carries **Receive into this store**, which opens the receipt with
+      that store already filled in, and **Past deliveries** for what has been
+      booked before. Quarantine stores offer neither: nothing is received
+      straight into quarantine.
+- The receipt itself is unchanged and still asks the short way round — upload
+  the supplier's bill if there is one, or type the lines, and say which brand
+  the material belongs to when it is a client's.
+
 ### Added — Old stock entry (issue #7)
 
 - **Store → Old Stock Entry**, for the system administrator only: the raw

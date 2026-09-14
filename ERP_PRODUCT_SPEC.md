@@ -449,6 +449,29 @@ The escalation pass runs hourly. Daily low-stock and expiry digests,
 reconciliation, inventory snapshots and scheduled reports are next; the
 scheduler entry is already in place.
 
+### Administration: data — _built_
+
+A factory learns the ERP by using it, and what it learns on leaves a trail:
+trial deliveries, half-planned batches, stock that was never on a shelf.
+**Administration → Data**, the system administrator's alone, clears exactly
+the kinds of data chosen — plans and batches, deliveries and QC, stock and
+movements, approvals and documents, formulations, materials and products,
+vendors and clients, facilities and stores — and shows what each choice
+drags in with it before anything happens, because the dependencies are the
+foreign keys and not a preference. It is one transaction: all of it or none.
+
+People, roles and permissions, the reference data the ERP is built on, and
+the audit trail are never touched, whatever is ticked; the clearing itself is
+written to the audit trail with who did it. Confirmation is the company name
+typed in full. The same thing runs headless as `erp:reset`.
+
+The other half of the screen fills an empty ERP with **one worked example**
+end to end — a facility with its stores, vendors, a contract client,
+materials, a product with its bill of materials, an activated formula,
+opening stock, a delivery through QC, a third-party plan and a completed
+batch — so the whole flow can be walked before real data goes in. It creates
+no login accounts: the people on the system are the real ones.
+
 ---
 
 ## Interface
@@ -460,3 +483,10 @@ those actions work at every width.
 Every list shares one component: search, sort, filter, paginate, choose columns.
 Every figure a user is not entitled to see is absent from the payload, not
 merely hidden.
+
+The left menu carries destinations, not tables. Anything that has a natural
+home elsewhere is reached from there instead of taking a line of its own: a
+material's batches are on the material's page, and a delivery is received
+from the store it arrives into, with that store already filled in. Screens
+dropped from the menu keep working and keep their addresses — the clutter
+goes, the capability does not.

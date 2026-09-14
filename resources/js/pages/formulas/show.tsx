@@ -80,6 +80,7 @@ export default function ShowFormula({
     ingredients,
     versions,
     scaled,
+    scalingError,
     scaleInput,
     uoms,
     can,
@@ -89,6 +90,7 @@ export default function ShowFormula({
     ingredients: FormulaIngredientRow[];
     versions: FormulaVersionSummary[];
     scaled: ScaledBatch | null;
+    scalingError: string | null;
     scaleInput: { batch: string; batch_uom: number | string | null };
     uoms: (SelectOption & { dimension: string })[];
     can: {
@@ -544,6 +546,11 @@ export default function ShowFormula({
                             </Button>
                         </form>
                     </div>
+                    {scalingError && (
+                        <p className="mx-5 mb-5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+                            {scalingError}
+                        </p>
+                    )}
                     {scaled ? (
                         <div className="overflow-x-auto">
                             <Table>

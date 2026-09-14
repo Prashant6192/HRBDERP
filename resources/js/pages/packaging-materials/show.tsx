@@ -1,4 +1,5 @@
 import { Head } from '@inertiajs/react';
+import type { BatchHistory } from '@/components/items/batch-history';
 import { ItemDetails, type ItemStock } from '@/components/items/item-details';
 import { create as createReceipt } from '@/routes/goods-receipts';
 import { dashboard } from '@/routes';
@@ -11,6 +12,7 @@ export default function ShowPackagingMaterial({
     can,
     stock,
     outlook,
+    batches,
 }: {
     item: Item;
     can: {
@@ -23,6 +25,7 @@ export default function ShowPackagingMaterial({
     };
     stock: ItemStock | null;
     outlook: ItemOutlook | null;
+    batches: BatchHistory | null;
 }) {
     return (
         <>
@@ -32,7 +35,9 @@ export default function ShowPackagingMaterial({
                 can={can}
                 editUrl={edit(item.id).url}
                 deleteUrl={destroy(item.id).url}
+                receiveLabel="Add Packaging Inventory"
                 receiveUrl={createReceipt({ query: { item: item.id } }).url}
+                batches={batches}
                 stock={stock}
                 outlook={outlook}
             />

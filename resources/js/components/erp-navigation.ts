@@ -22,7 +22,6 @@ import {
     MonitorDot,
     Package,
     PackageCheck,
-    PackagePlus,
     PackageX,
     ScrollText,
     ShieldCheck,
@@ -36,7 +35,6 @@ import type { LucideIcon } from 'lucide-react';
 import { index as auditIndex } from '@/routes/audit';
 import { index as clientsIndex } from '@/routes/clients';
 import { index as countsIndex } from '@/routes/counts';
-import { index as openingStockIndex } from '@/routes/opening-stock';
 import { index as formulasIndex } from '@/routes/formulas';
 import { index as goodsReceiptsIndex } from '@/routes/goods-receipts';
 import { index as lotsIndex } from '@/routes/lots';
@@ -171,12 +169,6 @@ export const erpNavigation: ErpNavGroup[] = [
                 href: transfersIndex().url,
                 icon: ArrowLeftRight,
                 permission: 'inventory.view',
-            },
-            {
-                title: 'Old Stock Entry',
-                href: openingStockIndex().url,
-                icon: PackagePlus,
-                superAdminOnly: true,
             },
             {
                 title: 'Stock Counts',

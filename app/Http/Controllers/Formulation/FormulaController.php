@@ -11,6 +11,7 @@ use App\Domain\Formulation\Enums\FormulaStatus;
 use App\Domain\Formulation\Enums\FormulaVersionStatus;
 use App\Domain\Formulation\Enums\MaterialGrade;
 use App\Domain\Formulation\Exceptions\FormulaStateException;
+use App\Domain\Formulation\Exceptions\MissingIngredientItemException;
 use App\Domain\Formulation\Models\Formula;
 use App\Domain\Formulation\Models\FormulaIngredient;
 use App\Domain\Formulation\Models\FormulaVersion;
@@ -125,6 +126,7 @@ class FormulaController extends Controller
 
         $ingredients = [];
         $scaled = null;
+        $scalingError = null;
 
         if ($version !== null) {
             $version->load(['ingredients.item:id,code,name,inci_name,stock_uom_id,density_g_per_ml', 'ingredients.item.stockUom:id,code']);
@@ -151,9 +153,16 @@ class FormulaController extends Controller
 
             if ($request->filled('batch') && is_numeric($request->input('batch')) && (float) $request->input('batch') > 0) {
                 $uom = Uom::query()->active()->find($request->integer('batch_uom')) ?? $version->batchUom;
-                $scaled = $this->scaling->scale($version, (string) $request->input('batch'), $uom)->toArray();
 
-                $this->security->record($request->user(), FormulaAccessAction::Scaled, $formula, $version, context: ['batch' => (string) $request->input('batch'), 'uom' => $uom->code], ip: $request->ip(), userAgent: $request->userAgent());
+                try {
+                    $scaled = $this->scaling->scale($version, (string) $request->input('batch'), $uom)->toArray();
+
+                    $this->security->record($request->user(), FormulaAccessAction::Scaled, $formula, $version, context: ['batch' => (string) $request->input('batch'), 'uom' => $uom->code], ip: $request->ip(), userAgent: $request->userAgent());
+                } catch (MissingIngredientItemException $e) {
+                    // The recipe outlived one of its materials; say so here
+                    // rather than failing the whole page.
+                    $scalingError = $e->getMessage();
+                }
             }
         }
 
@@ -163,6 +172,7 @@ class FormulaController extends Controller
             'formula' => $formula,
             'version' => $version,
             'ingredients' => $ingredients,
+            'scalingError' => $scalingError,
             'versions' => $versions->map(static fn (FormulaVersion $v): array => [
                 'id' => $v->id,
                 'version_number' => $v->version_number,

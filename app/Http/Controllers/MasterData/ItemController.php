@@ -6,6 +6,7 @@ namespace App\Http\Controllers\MasterData;
 
 use App\Domain\Contract\Models\Client;
 use App\Domain\Intelligence\Services\StockOutlookService;
+use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Models\StockBalance;
 use App\Domain\MasterData\Enums\ItemType;
 use App\Domain\MasterData\Models\Item;
@@ -14,13 +15,16 @@ use App\Domain\MasterData\Services\ItemCodeGenerator;
 use App\Domain\Measurement\Models\Uom;
 use App\Domain\Procurement\Contracts\InvoiceReader;
 use App\Domain\Procurement\Models\GoodsReceipt;
+use App\Domain\Procurement\Models\GoodsReceiptLine;
 use App\Domain\Procurement\Services\BillReader;
 use App\Domain\Quality\Models\QcInspection;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\MasterData\StoreItemRequest;
 use App\Http\Requests\MasterData\UpdateItemRequest;
+use App\Support\Math\Decimal;
 use App\Support\Tables\TableQuery;
 use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -203,6 +207,9 @@ abstract class ItemController extends Controller
                 'purchase' => $request->user()->can('purchase.view'),
             ],
             'stock' => $this->stockSummary($item),
+            // Every batch of this material ever booked in, with where it came
+            // from, what QC said, and what it cost.
+            'batches' => $request->user()->can('inventory.view') ? $this->batchHistory($item) : null,
             // Where the material is heading, for those who may see stock.
             'outlook' => $request->user()->can('inventory.view') && in_array($item->type, [ItemType::RawMaterial, ItemType::PackagingMaterial], true)
                 ? app(StockOutlookService::class)->forItem($item)->toArray()
@@ -323,6 +330,77 @@ abstract class ItemController extends Controller
      *
      * @return array{on_hand: string, available: string, in_quarantine: string, awaiting_qc: list<array{id: int, number: string, batch: string|null, quantity: string, status: string}>}
      */
+    /**
+     * The batch history of one material: every lot, newest first, with its
+     * supplier, QC decision, dates, cost and what is left of it.
+     *
+     * @return array{rows: list<array<string, mixed>>, total: int, received_value: string}
+     */
+    private function batchHistory(Item $item): array
+    {
+        $lots = InventoryLot::query()
+            ->where('item_id', $item->id)
+            ->with(['vendor:id,code,name', 'ownerClient:id,code,name', 'qcDecidedBy:id,name', 'balances.warehouse:id,code,name,is_quarantine'])
+            ->orderByDesc('received_at')
+            ->orderByDesc('id')
+            ->limit(100)
+            ->get();
+
+        // The goods receipt a lot came off, so the row can link back to the bill.
+        $receiptLineIds = $lots->where('source_type', (new GoodsReceiptLine)->getMorphClass())->pluck('source_id')->filter();
+        $receipts = $receiptLineIds->isEmpty()
+            ? collect()
+            : GoodsReceiptLine::query()->whereIn('id', $receiptLineIds)->with('receipt:id,number,invoice_ref')->get()->keyBy('id');
+
+        $value = BigDecimal::zero();
+
+        $rows = $lots->map(function (InventoryLot $lot) use ($receipts, &$value): array {
+            $onHand = $lot->balances->reduce(fn (BigDecimal $c, StockBalance $b) => $c->plus(BigDecimal::of($b->on_hand)), BigDecimal::zero());
+            $cost = $lot->unit_cost === null ? null : BigDecimal::of($lot->unit_cost);
+
+            if ($cost !== null) {
+                $value = $value->plus($cost->multipliedBy(BigDecimal::of($lot->initial_quantity)));
+            }
+
+            $line = $receipts->get($lot->source_id);
+            $receipt = $lot->source_type === (new GoodsReceiptLine)->getMorphClass() ? $line?->receipt : null;
+
+            return [
+                'id' => $lot->id,
+                'batch_number' => $lot->batch_number,
+                'supplier_batch_ref' => $lot->supplier_batch_ref,
+                // "Brand" on the shop floor: whose material it is. A client's
+                // own stock is theirs; everything else is the supplier's.
+                'brand' => $lot->ownerClient?->name ?? $lot->vendor?->name,
+                'brand_kind' => $lot->ownerClient !== null ? 'client' : ($lot->vendor !== null ? 'vendor' : null),
+                'qc_status' => $lot->qc_status->value,
+                'qc_status_label' => $lot->qc_status->label(),
+                'qc_variant' => $lot->qc_status->badgeVariant(),
+                'qc_decided_at' => $lot->qc_decided_at?->toIso8601String(),
+                'qc_decided_by' => $lot->qcDecidedBy?->name,
+                'manufactured_at' => $lot->manufactured_at?->toDateString(),
+                'expiry_at' => $lot->expiry_at?->toDateString(),
+                'received_at' => $lot->received_at?->toDateString(),
+                'received_quantity' => Decimal::strip($lot->initial_quantity),
+                'on_hand' => Decimal::strip($onHand),
+                'unit_cost' => $cost === null ? null : (string) $cost->toScale(4, RoundingMode::HalfUp),
+                'value' => $cost === null ? null : (string) $cost->multipliedBy(BigDecimal::of($lot->initial_quantity))->toScale(2, RoundingMode::HalfUp),
+                'stores' => $lot->balances->filter(fn (StockBalance $b) => BigDecimal::of($b->on_hand)->isPositive())
+                    ->map(fn (StockBalance $b) => ['code' => $b->warehouse?->code, 'name' => $b->warehouse?->name, 'quarantine' => (bool) $b->warehouse?->is_quarantine, 'quantity' => Decimal::strip($b->on_hand)])
+                    ->values()->all(),
+                'source' => $receipt !== null ? 'receipt' : ($lot->source_type === null ? 'opening' : 'production'),
+                'receipt' => $receipt === null ? null : ['id' => $receipt->id, 'number' => $receipt->number, 'invoice_ref' => $receipt->invoice_ref],
+                'expired' => $lot->isExpired(),
+            ];
+        })->values()->all();
+
+        return [
+            'rows' => $rows,
+            'total' => InventoryLot::query()->where('item_id', $item->id)->count(),
+            'received_value' => (string) $value->toScale(2, RoundingMode::HalfUp),
+        ];
+    }
+
     private function stockSummary(Item $item): array
     {
         $balances = StockBalance::query()

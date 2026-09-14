@@ -1,4 +1,5 @@
 import { Head } from '@inertiajs/react';
+import type { BatchHistory } from '@/components/items/batch-history';
 import { ItemDetails, type ItemStock } from '@/components/items/item-details';
 import { create as createReceipt } from '@/routes/goods-receipts';
 import { PackagingBom } from '@/components/items/packaging-bom';
@@ -10,6 +11,7 @@ export default function ShowProduct({
     item,
     can,
     stock,
+    batches,
     packagingLines,
     packagingOptions,
 }: {
@@ -22,6 +24,7 @@ export default function ShowProduct({
         view_qc: boolean;
     };
     stock: ItemStock | null;
+    batches: BatchHistory | null;
     packagingLines: ProductPackagingLine[];
     packagingOptions: SelectOption[];
 }) {
@@ -34,6 +37,7 @@ export default function ShowProduct({
                 editUrl={edit(item.id).url}
                 deleteUrl={destroy(item.id).url}
                 receiveUrl={createReceipt({ query: { item: item.id } }).url}
+                batches={batches}
                 stock={stock}
             />
             <div className="px-4 pb-6 sm:px-6">

@@ -1,5 +1,6 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Download, FileUp, Plus, Trash2 } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { Field, FormSection } from '@/components/form-field';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,7 @@ import {
     show as showFacility,
 } from '@/routes/facilities';
 import openingStock from '@/routes/facilities/opening-stock';
+import openingStockSheet from '@/routes/stores/opening-stock';
 import type { SelectOption } from '@/types';
 
 type ItemOption = SelectOption & {
@@ -85,9 +87,102 @@ export default function OpeningStock({
         lines: [{ ...EMPTY }],
     });
 
+    const [problems, setProblems] = useState<string[]>([]);
+    const [uploading, setUploading] = useState(false);
+    const sheetInput = useRef<HTMLInputElement>(null);
+
     const store = stores.find(
         (s) => String(s.value) === form.data.warehouse_id,
     );
+
+    const readSheet = async (file: File | undefined) => {
+        if (!file || !store) return;
+
+        setUploading(true);
+        setProblems([]);
+
+        try {
+            const body = new FormData();
+            body.append('sheet', file);
+
+            const token = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]+)/);
+            const response = await fetch(
+                openingStockSheet.parse(Number(store.value)).url,
+                {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-XSRF-TOKEN': token
+                            ? decodeURIComponent(token[1])
+                            : '',
+                    },
+                    body,
+                },
+            );
+
+            const json = (await response.json()) as {
+                lines?: {
+                    item_id: number;
+                    quantity: string;
+                    uom_id: number | null;
+                    batch_number: string | null;
+                    manufactured_at: string | null;
+                    expiry_at: string | null;
+                    unit_cost: string | null;
+                    remarks: string | null;
+                }[];
+                problems?: string[];
+                message?: string;
+                errors?: Record<string, string[]>;
+            };
+
+            if (!response.ok) {
+                setProblems([
+                    json.message ??
+                        Object.values(json.errors ?? {})[0]?.[0] ??
+                        'The sheet could not be read.',
+                ]);
+                return;
+            }
+
+            const read: Line[] = (json.lines ?? []).map((l) => ({
+                item_id: String(l.item_id),
+                quantity: String(l.quantity ?? ''),
+                uom_id: l.uom_id ? String(l.uom_id) : '',
+                batch_number: l.batch_number ?? '',
+                manufactured_at: l.manufactured_at ?? '',
+                expiry_at: l.expiry_at ?? '',
+                unit_cost: l.unit_cost ?? '',
+                remarks: l.remarks ?? '',
+            }));
+
+            const kept = form.data.lines.filter(
+                (l) => l.item_id !== '' || l.quantity !== '',
+            );
+
+            form.setData(
+                'lines',
+                read.length > 0
+                    ? [...kept, ...read]
+                    : kept.length > 0
+                      ? kept
+                      : [{ ...EMPTY }],
+            );
+            setProblems([
+                ...(json.problems ?? []),
+                ...(read.length > 0
+                    ? [
+                          `${read.length} line${read.length === 1 ? '' : 's'} read from the sheet and added below. Check them, then post.`,
+                      ]
+                    : []),
+            ]);
+        } catch {
+            setProblems(['Could not reach the server. Try again.']);
+        } finally {
+            setUploading(false);
+        }
+    };
     const offered = items.filter((i) => {
         if (!store) return true;
         if (store.type === 'raw_material') return i.type === 'raw_material';
@@ -207,20 +302,85 @@ export default function OpeningStock({
                                     a unit that converts to it), dates and rate.
                                 </p>
                             </div>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() =>
-                                    form.setData('lines', [
-                                        ...form.data.lines,
-                                        { ...EMPTY },
-                                    ])
-                                }
-                            >
-                                <Plus className="size-4" />
-                                Add line
-                            </Button>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <input
+                                    ref={sheetInput}
+                                    type="file"
+                                    accept=".xlsx,.xls,.csv"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        void readSheet(e.target.files?.[0]);
+                                        e.target.value = '';
+                                    }}
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={!store}
+                                    asChild={Boolean(store)}
+                                >
+                                    {store ? (
+                                        <a
+                                            href={
+                                                openingStockSheet.template(
+                                                    Number(store.value),
+                                                ).url
+                                            }
+                                        >
+                                            <Download className="size-4" />
+                                            Sheet template
+                                        </a>
+                                    ) : (
+                                        <span>
+                                            <Download className="size-4" />
+                                            Sheet template
+                                        </span>
+                                    )}
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={!store || uploading}
+                                    onClick={() => sheetInput.current?.click()}
+                                >
+                                    <FileUp className="size-4" />
+                                    {uploading
+                                        ? 'Reading…'
+                                        : 'Upload filled sheet'}
+                                </Button>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() =>
+                                        form.setData('lines', [
+                                            ...form.data.lines,
+                                            { ...EMPTY },
+                                        ])
+                                    }
+                                >
+                                    <Plus className="size-4" />
+                                    Add line
+                                </Button>
+                            </div>
                         </div>
+                        {problems.length > 0 && (
+                            <ul className="space-y-1 px-5 pt-4 text-sm">
+                                {problems.map((problem, i) => (
+                                    <li
+                                        key={i}
+                                        className={
+                                            problem.startsWith('Row')
+                                                ? 'text-amber-700 dark:text-amber-300'
+                                                : 'text-muted-foreground'
+                                        }
+                                    >
+                                        {problem}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
                         {form.errors.lines && (
                             <p className="text-destructive px-5 pt-4 text-sm">
                                 {form.errors.lines}
@@ -234,7 +394,7 @@ export default function OpeningStock({
                                 return (
                                     <div
                                         key={i}
-                                        className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-8"
+                                        className="grid items-start gap-3 p-5 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr_1fr_auto]"
                                     >
                                         <Field
                                             label="Item"
@@ -389,46 +549,45 @@ export default function OpeningStock({
                                                 }
                                             />
                                         </Field>
-                                        <div className="flex items-end gap-2">
-                                            <Field
-                                                label="Rate ₹"
-                                                htmlFor={`rate-${i}`}
-                                                error={err(i, 'unit_cost')}
-                                            >
-                                                <Input
-                                                    id={`rate-${i}`}
-                                                    type="number"
-                                                    step="any"
-                                                    min="0"
-                                                    value={line.unit_cost}
-                                                    onChange={(e) =>
-                                                        setLine(i, {
-                                                            unit_cost:
-                                                                e.target.value,
-                                                        })
-                                                    }
-                                                />
-                                            </Field>
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                className="mb-0.5"
-                                                disabled={
-                                                    form.data.lines.length === 1
+                                        <Field
+                                            label="Rate ₹"
+                                            htmlFor={`rate-${i}`}
+                                            error={err(i, 'unit_cost')}
+                                        >
+                                            <Input
+                                                id={`rate-${i}`}
+                                                type="number"
+                                                step="any"
+                                                min="0"
+                                                value={line.unit_cost}
+                                                onChange={(e) =>
+                                                    setLine(i, {
+                                                        unit_cost:
+                                                            e.target.value,
+                                                    })
                                                 }
-                                                onClick={() =>
-                                                    form.setData(
-                                                        'lines',
-                                                        form.data.lines.filter(
-                                                            (_, j) => j !== i,
-                                                        ),
-                                                    )
-                                                }
-                                            >
-                                                <Trash2 className="size-4" />
-                                            </Button>
-                                        </div>
+                                            />
+                                        </Field>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            aria-label={`Remove line ${i + 1}`}
+                                            className="mt-[1.65rem] justify-self-end"
+                                            disabled={
+                                                form.data.lines.length === 1
+                                            }
+                                            onClick={() =>
+                                                form.setData(
+                                                    'lines',
+                                                    form.data.lines.filter(
+                                                        (_, j) => j !== i,
+                                                    ),
+                                                )
+                                            }
+                                        >
+                                            <Trash2 className="size-4" />
+                                        </Button>
                                         <Field
                                             label="Remarks"
                                             htmlFor={`rem-${i}`}

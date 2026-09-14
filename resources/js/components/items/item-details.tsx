@@ -5,6 +5,10 @@ import type { ItemOutlook } from '@/lib/intelligence';
 import { ClipboardCheck, PackagePlus, Pencil, Trash2 } from 'lucide-react';
 import { DeleteDialog } from '@/components/confirm-dialog';
 import { DetailItem } from '@/components/form-field';
+import {
+    BatchHistory,
+    type BatchHistory as BatchHistoryData,
+} from '@/components/items/batch-history';
 import { PageHeader } from '@/components/page-header';
 import { ActiveBadge, StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
@@ -49,8 +53,10 @@ export function ItemDetails({
     editUrl,
     deleteUrl,
     receiveUrl,
+    receiveLabel = 'Receive stock',
     stock,
     outlook,
+    batches,
 }: {
     item: Item;
     can: {
@@ -63,11 +69,15 @@ export function ItemDetails({
     };
     editUrl: string;
     deleteUrl: string;
-    /** Where "Receive stock" goes: the goods receipt form with this item preset. */
+    /** Where the receive action goes: the goods receipt form with this item preset. */
     receiveUrl?: string;
+    /** What that action is called here: materials take stock in, products are made. */
+    receiveLabel?: string;
     stock?: ItemStock | null;
     /** Where the material is heading; only for raw and packaging materials. */
     outlook?: ItemOutlook | null;
+    /** Every batch ever booked in, for anyone who may see stock. */
+    batches?: BatchHistoryData | null;
 }) {
     const isProduct = item.type === 'finished_good';
     const stockUnit = item.stock_uom?.code;
@@ -83,7 +93,7 @@ export function ItemDetails({
                             <Button asChild>
                                 <Link href={receiveUrl}>
                                     <PackagePlus className="size-4" />
-                                    Receive stock
+                                    {receiveLabel}
                                 </Link>
                             </Button>
                         )}
@@ -291,6 +301,14 @@ export function ItemDetails({
                     </section>
                 </div>
             </div>
+
+            {batches && (
+                <BatchHistory
+                    history={batches}
+                    unit={stockUnit}
+                    noun={isProduct ? 'product' : 'ingredient'}
+                />
+            )}
         </div>
     );
 }

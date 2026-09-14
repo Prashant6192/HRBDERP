@@ -23,9 +23,11 @@ use App\Http\Requests\Planning\StoreProductionPlanRequest;
 use App\Support\Tables\TableQuery;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 use RuntimeException;
+use Throwable;
 
 /**
  * Planning & Purchase: raise a batch, see what the stores can give, raise
@@ -137,6 +139,8 @@ class ProductionPlanController extends Controller
             $plan = $this->plans->create($data, $request->user()->id);
         } catch (PlanningException|RuntimeException $e) {
             return back()->withInput()->withErrors(['formula_id' => $e->getMessage()]);
+        } catch (Throwable $e) {
+            return back()->withInput()->withErrors(['formula_id' => $this->unexpected($e, $request, $data)]);
         }
 
         $message = $plan->hasShortage()
@@ -170,10 +174,12 @@ class ProductionPlanController extends Controller
             'line_no' => $line->line_no,
             'store_kind' => $line->store_kind->value,
             'item_id' => $line->item_id,
-            'item_code' => $line->item->code,
-            'item_name' => $line->item->name,
-            'item_type' => $line->item->type->value,
-            'uom' => $line->uom->code,
+            // A master deleted after the plan was checked leaves the line
+            // readable rather than blanking the page.
+            'item_code' => $line->item?->code ?? '—',
+            'item_name' => $line->item?->name ?? 'Material no longer on file',
+            'item_type' => $line->item?->type->value ?? 'raw_material',
+            'uom' => $line->uom?->code ?? '',
             'percentage' => $line->percentage,
             'is_qs' => $line->is_qs,
             'as_required' => $line->as_required,
@@ -184,8 +190,8 @@ class ProductionPlanController extends Controller
             'level_now' => $line->level_now->value,
             'level_after' => $line->level_after->value,
             'source' => $line->source,
-            'reorder_level' => $line->item->reorder_level,
-            'minimum_stock' => $line->item->minimum_stock,
+            'reorder_level' => $line->item?->reorder_level,
+            'minimum_stock' => $line->item?->minimum_stock,
             'notes' => $line->notes ?? [],
             'available_elsewhere' => $line->available_elsewhere ?? [],
         ]);
@@ -228,6 +234,32 @@ class ProductionPlanController extends Controller
     }
 
     /**
+     * Something the planning code did not expect.
+     *
+     * The person gets a sentence they can act on and a reference to quote;
+     * the detail goes to the log, where it can be read without asking them
+     * to reproduce it.
+     *
+     * @param  array<string, mixed>  $context
+     */
+    private function unexpected(Throwable $e, Request $request, array $context): string
+    {
+        $reference = strtoupper(substr(bin2hex(random_bytes(4)), 0, 8));
+
+        Log::error("Planning failed unexpectedly [{$reference}]", [
+            'reference' => $reference,
+            'user_id' => $request->user()?->id,
+            'exception' => $e::class,
+            'message' => $e->getMessage(),
+            'at' => $e->getFile().':'.$e->getLine(),
+            'context' => $context,
+        ]);
+
+        return "The plan could not be checked because of an unexpected fault (reference {$reference}). "
+            .'It has been logged. Check that every material on the recipe still exists and has a stock unit, then try again.';
+    }
+
+    /**
      * @return list<array{value: int, label: string}>
      */
     private function clientOptions(): array
@@ -245,6 +277,8 @@ class ProductionPlanController extends Controller
             $plan = $this->plans->check($plan);
         } catch (PlanningException|RuntimeException $e) {
             return back()->withToast('error', $e->getMessage());
+        } catch (Throwable $e) {
+            return back()->withToast('error', $this->unexpected($e, $request, ['plan' => $plan->number]));
         }
 
         return back()->withToast($plan->hasShortage() ? 'warning' : 'success', $plan->hasShortage()
@@ -260,6 +294,8 @@ class ProductionPlanController extends Controller
             $requests = $this->plans->generateRequests($plan, $request->user()->id, $request->input('needed_by'));
         } catch (PlanningException|RuntimeException $e) {
             return back()->withToast('error', $e->getMessage());
+        } catch (Throwable $e) {
+            return back()->withToast('error', $this->unexpected($e, $request, ['plan' => $plan->number]));
         }
 
         $numbers = $requests->pluck('number')->implode(', ');

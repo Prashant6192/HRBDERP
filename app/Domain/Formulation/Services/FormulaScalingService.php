@@ -6,6 +6,7 @@ namespace App\Domain\Formulation\Services;
 
 use App\Domain\Formulation\DTOs\ScaledBatch;
 use App\Domain\Formulation\DTOs\ScaledIngredient;
+use App\Domain\Formulation\Exceptions\MissingIngredientItemException;
 use App\Domain\Formulation\Models\FormulaIngredient;
 use App\Domain\Formulation\Models\FormulaVersion;
 use App\Domain\Measurement\Enums\UomDimension;
@@ -32,7 +33,20 @@ class FormulaScalingService
         $scale = (int) config('erp.precision.quantity_scale', 6);
         $batch = BigDecimal::of($batchQuantity);
 
-        $version->loadMissing('ingredients.item.stockUom');
+        $version->loadMissing(['ingredients.item.stockUom', 'formula:id,name']);
+
+        // A material deleted after the recipe was written leaves the line
+        // pointing at nothing. Say which lines, rather than failing on a
+        // null somewhere deeper.
+        $orphaned = $version->ingredients
+            ->filter(fn (FormulaIngredient $i) => $i->item === null)
+            ->map(fn (FormulaIngredient $i) => (int) $i->line_no)
+            ->values()
+            ->all();
+
+        if ($orphaned !== []) {
+            throw MissingIngredientItemException::forLines($orphaned, $version->formula?->name ?? 'This recipe');
+        }
 
         $fixedTotal = BigDecimal::zero();
         $fixedQuantity = BigDecimal::zero();

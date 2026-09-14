@@ -28,8 +28,8 @@ use App\Http\Controllers\Intelligence\SlowMovingStockController;
 use App\Http\Controllers\Intelligence\WhatIfController;
 use App\Http\Controllers\Inventory\LedgerController;
 use App\Http\Controllers\Inventory\LotController;
-use App\Http\Controllers\Inventory\OldStockController;
 use App\Http\Controllers\Inventory\OpeningStockController;
+use App\Http\Controllers\Inventory\OpeningStockSheetController;
 use App\Http\Controllers\Inventory\StockController;
 use App\Http\Controllers\Inventory\StockCountController;
 use App\Http\Controllers\Inventory\StockTransferController;
@@ -94,12 +94,6 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('floor/production', [FloorController::class, 'production'])->name('floor.production');
     Route::post('floor/photo', [FloorController::class, 'photo'])->name('floor.photo');
 
-    // Old stock, entered once by the administrator when the ERP goes live.
-    Route::get('opening-stock', [OldStockController::class, 'index'])->name('opening-stock.index');
-    Route::post('opening-stock', [OldStockController::class, 'store'])->name('opening-stock.store');
-    Route::get('opening-stock/template/{kind}', [OldStockController::class, 'template'])->name('opening-stock.template');
-    Route::post('opening-stock/parse', [OldStockController::class, 'parse'])->name('opening-stock.parse');
-
     Route::get('counts', [StockCountController::class, 'index'])->name('counts.index');
     Route::post('counts', [StockCountController::class, 'store'])->name('counts.store');
     Route::get('counts/{count}', [StockCountController::class, 'show'])->name('counts.show');
@@ -121,6 +115,10 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('facilities/{facility}/employees', [EmployeeAssignmentController::class, 'store'])->name('facilities.employees.store');
     Route::get('facilities/{facility}/opening-stock', [OpeningStockController::class, 'create'])->name('facilities.opening-stock.create');
     Route::post('facilities/{facility}/opening-stock', [OpeningStockController::class, 'store'])->name('facilities.opening-stock.store');
+    // The counting sheet for one store: the template to fill in, and the
+    // filled-in sheet matched to the masters before it is booked.
+    Route::get('stores/{warehouse}/opening-stock/template', [OpeningStockSheetController::class, 'template'])->name('stores.opening-stock.template');
+    Route::post('stores/{warehouse}/opening-stock/parse', [OpeningStockSheetController::class, 'parse'])->name('stores.opening-stock.parse');
 
     Route::get('stores/{warehouse}', [FacilityStoreController::class, 'show'])->name('stores.show');
     Route::get('stores/{warehouse}/labels', [FacilityStoreController::class, 'labels'])->name('stores.labels');

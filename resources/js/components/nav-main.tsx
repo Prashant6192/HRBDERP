@@ -19,14 +19,16 @@ import { erpNavigation, type ErpNavItem } from '@/components/erp-navigation';
  */
 export function NavMain() {
     const { isCurrentUrl } = useCurrentUrl();
-    const { can } = usePermissions();
+    const { can, isSuperAdmin } = usePermissions();
     const { url } = usePage();
 
     const groups = erpNavigation
         .map((group) => ({
             ...group,
             items: group.items.filter(
-                (item) => !item.permission || can(item.permission),
+                (item) =>
+                    (item.superAdminOnly ? isSuperAdmin : true) &&
+                    (!item.permission || can(item.permission)),
             ),
         }))
         .filter((group) => group.items.length > 0);

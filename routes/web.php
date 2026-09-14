@@ -28,6 +28,7 @@ use App\Http\Controllers\Intelligence\SlowMovingStockController;
 use App\Http\Controllers\Intelligence\WhatIfController;
 use App\Http\Controllers\Inventory\LedgerController;
 use App\Http\Controllers\Inventory\LotController;
+use App\Http\Controllers\Inventory\OldStockController;
 use App\Http\Controllers\Inventory\OpeningStockController;
 use App\Http\Controllers\Inventory\StockController;
 use App\Http\Controllers\Inventory\StockCountController;
@@ -92,6 +93,12 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('floor/issue/{order}', [FloorController::class, 'issue'])->name('floor.issue');
     Route::get('floor/production', [FloorController::class, 'production'])->name('floor.production');
     Route::post('floor/photo', [FloorController::class, 'photo'])->name('floor.photo');
+
+    // Old stock, entered once by the administrator when the ERP goes live.
+    Route::get('opening-stock', [OldStockController::class, 'index'])->name('opening-stock.index');
+    Route::post('opening-stock', [OldStockController::class, 'store'])->name('opening-stock.store');
+    Route::get('opening-stock/template/{kind}', [OldStockController::class, 'template'])->name('opening-stock.template');
+    Route::post('opening-stock/parse', [OldStockController::class, 'parse'])->name('opening-stock.parse');
 
     Route::get('counts', [StockCountController::class, 'index'])->name('counts.index');
     Route::post('counts', [StockCountController::class, 'store'])->name('counts.store');

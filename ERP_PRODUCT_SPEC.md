@@ -94,7 +94,10 @@ Super Admin, Owner, Director and Management work company-wide.
 A five-step wizard sets a facility up: details, capabilities, the store
 checklist, employees (optional), and whether to book opening stock now.
 **Opening stock** is booked through the ledger as `OPENING_BALANCE` postings
-with a batch per line, and administrators close it once the facility is live.
+with a batch per line, and administrators close it once the facility is live. The administrator books the old stock of a whole facility from
+**Store → Old Stock Entry**: raw materials, packaging and finished goods in
+three sections, by hand or from a filled-in sheet, one posting per store,
+every batch QC passed automatically and usable at once.
 
 **Stock transfers** move stock between facilities: requested, approved (held
 at the source, one line per batch), dispatched into the in-transit position,
@@ -427,10 +430,11 @@ visible.
 
 ### Reporting, imports and exports — _partly built_
 
-The formulation import is built. Excel import for opening stock, masters,
-vendor prices and marketplace sales, validated before anything is committed,
-and exports for the stock ledger, inventory, purchases, production, sales and
-costing, are next. Large files will run on the queue.
+The formulation import and the opening-stock sheet import are built. Excel
+import for masters, vendor prices and marketplace sales, validated before
+anything is committed, and exports for the stock ledger, inventory,
+purchases, production, sales and costing, are next. Large files will run on
+the queue.
 
 ### Notifications — _built, in-app_
 

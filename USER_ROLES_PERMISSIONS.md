@@ -607,6 +607,11 @@ asking person's own permissions: a tool the person may not see answers
 
 `report.view` also opens the **Scorecards** screen.
 
+**Old Stock Entry** (Store → Old Stock Entry) is reserved for the Super
+Admin, whatever permissions others hold: the one-time booking of the stock
+already on the shelf at go-live, QC passed automatically. The per-facility
+opening-stock form stays open to `inventory.opening_stock` holders.
+
 `inventory.count` (Warehouse Manager, Store Executive) starts a stock count
 and records what is on the shelf; `inventory.approve_count` (Warehouse
 Manager) approves a submitted count and posts the differences. Whoever

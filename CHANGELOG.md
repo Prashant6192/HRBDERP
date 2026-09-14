@@ -10,6 +10,22 @@ between them.
 
 ## [Unreleased]
 
+### Added — Old stock entry (issue #7)
+
+- **Store → Old Stock Entry**, for the system administrator only: the raw
+  materials, packaging materials and finished goods already on the shelf
+  when the ERP goes live, booked from one screen into the right store of
+  the factory. Three sections, one per store; lines are typed in or come
+  from a filled-in sheet (a template per section lists every material on
+  file with its code and unit; rows are matched by code, else by name, and
+  what does not match is reported row by row before anything is posted).
+- Every batch booked as opening stock is **QC passed automatically**, on
+  record with who booked it, and usable at once; the expiry comes from the
+  shelf life when the sheet leaves it blank. One opening-balance posting per
+  store, all or nothing, listed on the screen once booked.
+- The facility's opening-stock switch still governs it: close it under the
+  facility's Settings once the old stock is in.
+
 ### Changed — Bills are read on the server; Claude is optional
 
 - **Built-in bill reader.** A PDF bill printed from the supplier's billing

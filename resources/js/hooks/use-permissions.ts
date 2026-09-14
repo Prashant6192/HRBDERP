@@ -25,5 +25,7 @@ export function usePermissions() {
 
     const hasRole = (role: string): boolean => roles.includes(role);
 
-    return { can, canAny, canAll, hasRole, permissions, roles };
+    const isSuperAdmin = auth?.isSuperAdmin === true;
+
+    return { can, canAny, canAll, hasRole, isSuperAdmin, permissions, roles };
 }

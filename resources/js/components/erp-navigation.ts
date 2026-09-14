@@ -22,6 +22,7 @@ import {
     MonitorDot,
     Package,
     PackageCheck,
+    PackagePlus,
     PackageX,
     ScrollText,
     ShieldCheck,
@@ -35,6 +36,7 @@ import type { LucideIcon } from 'lucide-react';
 import { index as auditIndex } from '@/routes/audit';
 import { index as clientsIndex } from '@/routes/clients';
 import { index as countsIndex } from '@/routes/counts';
+import { index as openingStockIndex } from '@/routes/opening-stock';
 import { index as formulasIndex } from '@/routes/formulas';
 import { index as goodsReceiptsIndex } from '@/routes/goods-receipts';
 import { index as lotsIndex } from '@/routes/lots';
@@ -74,6 +76,8 @@ export type ErpNavItem = {
     exact?: boolean;
     /** On the roadmap: shown so the shape of the system is visible, not yet a page. */
     comingSoon?: boolean;
+    /** Reserved for the system administrator, whatever permissions others hold. */
+    superAdminOnly?: boolean;
 };
 
 export type ErpNavGroup = {
@@ -167,6 +171,12 @@ export const erpNavigation: ErpNavGroup[] = [
                 href: transfersIndex().url,
                 icon: ArrowLeftRight,
                 permission: 'inventory.view',
+            },
+            {
+                title: 'Old Stock Entry',
+                href: openingStockIndex().url,
+                icon: PackagePlus,
+                superAdminOnly: true,
             },
             {
                 title: 'Stock Counts',

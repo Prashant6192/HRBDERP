@@ -37,6 +37,32 @@ class OpeningStockService
     ) {}
 
     /**
+     * Several stores of one facility in one go: raw materials, packaging
+     * and finished goods each become their own posting, all or nothing.
+     *
+     * @param  array<int, list<array<string, mixed>>>  $linesByStore  keyed by warehouse id
+     * @return list<InventoryTransaction>
+     */
+    public function bookMany(array $linesByStore, int $userId, ?string $asOf = null, ?string $remarks = null): array
+    {
+        $linesByStore = array_filter($linesByStore, fn (array $lines) => $lines !== []);
+
+        if ($linesByStore === []) {
+            throw new OpeningStockException('Add at least one line in one of the stores.');
+        }
+
+        return DB::transaction(function () use ($linesByStore, $userId, $asOf, $remarks): array {
+            $postings = [];
+
+            foreach ($linesByStore as $warehouseId => $lines) {
+                $postings[] = $this->book(Warehouse::query()->findOrFail($warehouseId), array_values($lines), $userId, $asOf, $remarks);
+            }
+
+            return $postings;
+        });
+    }
+
+    /**
      * @param  list<array{item_id: int, quantity: string, uom_id?: int|null, batch_number?: string|null, manufactured_at?: string|null, expiry_at?: string|null, unit_cost?: string|null, remarks?: string|null}>  $lines
      */
     public function book(Warehouse $store, array $lines, int $userId, ?string $asOf = null, ?string $remarks = null): InventoryTransaction
@@ -90,7 +116,11 @@ class OpeningStockService
                     'manufactured_at' => $manufacturedAt?->toDateString(),
                     'received_at' => $date->toDateString(),
                     'expiry_at' => $expiryAt?->toDateString(),
-                    'qc_status' => LotQcStatus::NotRequired,
+                    // Stock that was already on the shelf on go-live is taken
+                    // as released: QC passes it automatically, on record.
+                    'qc_status' => LotQcStatus::Approved,
+                    'qc_decided_at' => now(),
+                    'qc_decided_by' => $userId,
                     'initial_quantity' => $quantity->__toString(),
                     'unit_cost' => $unitCost?->__toString(),
                     'notes' => trim('Opening stock at '.$store->facility->name.'. '.($line['remarks'] ?? '')),

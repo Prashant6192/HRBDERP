@@ -148,7 +148,7 @@ export default function CreateGoodsReceipt({
     presetItem?: number | null;
     presetWarehouse?: number | null;
     intake: Intake | null;
-    reader: { available: boolean; model: string | null };
+    reader: { available: boolean; photos: boolean; model: string | null };
     can: { manual: boolean; add_material: boolean };
     clients: SelectOption[];
 }) {
@@ -409,11 +409,19 @@ export default function CreateGoodsReceipt({
 
                     {!reader.available && (
                         <p className="mt-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
-                            The bill reader is not set up on this server (no
-                            Claude API key).{' '}
+                            The bill reader is not set up on this server.{' '}
                             {can.manual
                                 ? 'Enter the receipt by hand below.'
                                 : 'Ask the plant head or an administrator to book this receipt.'}
+                        </p>
+                    )}
+                    {reader.available && !reader.photos && !intake && (
+                        <p className="text-muted-foreground mt-4 text-xs">
+                            PDF bills printed from the supplier&rsquo;s billing
+                            software are read here on the server. A photo or a
+                            scanned bill needs the Claude bill reader, which is
+                            not set up on this server; ask the supplier for the
+                            PDF instead.
                         </p>
                     )}
                     <InputError message={pageErrors.invoice} className="mt-3" />

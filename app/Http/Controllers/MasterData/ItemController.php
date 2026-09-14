@@ -14,6 +14,7 @@ use App\Domain\MasterData\Services\ItemCodeGenerator;
 use App\Domain\Measurement\Models\Uom;
 use App\Domain\Procurement\Contracts\InvoiceReader;
 use App\Domain\Procurement\Models\GoodsReceipt;
+use App\Domain\Procurement\Services\BillReader;
 use App\Domain\Quality\Models\QcInspection;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\MasterData\StoreItemRequest;
@@ -100,6 +101,7 @@ abstract class ItemController extends Controller
                 'upload' => in_array($this->itemType(), [ItemType::RawMaterial, ItemType::PackagingMaterial], true)
                     && $request->user()->can('create', GoodsReceipt::class),
                 'reader' => app(InvoiceReader::class)->available(),
+                'photos' => ($reader = app(InvoiceReader::class)) instanceof BillReader ? $reader->readsPhotos() : $reader->available(),
             ],
         ]);
     }

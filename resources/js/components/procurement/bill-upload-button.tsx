@@ -10,9 +10,12 @@ import { intake } from '@/routes/goods-receipts';
  */
 export function BillUploadButton({
     readerAvailable,
+    readsPhotos = true,
     variant = 'outline',
 }: {
     readerAvailable: boolean;
+    /** Whether a photo or a scan can be read too, or only a PDF from billing software. */
+    readsPhotos?: boolean;
     variant?: 'default' | 'outline';
 }) {
     const input = useRef<HTMLInputElement>(null);
@@ -33,7 +36,11 @@ export function BillUploadButton({
             <input
                 ref={input}
                 type="file"
-                accept="application/pdf,image/jpeg,image/png,image/webp"
+                accept={
+                    readsPhotos
+                        ? 'application/pdf,image/jpeg,image/png,image/webp'
+                        : 'application/pdf'
+                }
                 className="hidden"
                 onChange={(e) => {
                     upload(e.target.files?.[0]);
@@ -46,9 +53,11 @@ export function BillUploadButton({
                 disabled={!readerAvailable || uploading}
                 onClick={() => input.current?.click()}
                 title={
-                    readerAvailable
-                        ? "Upload the supplier's bill: it is read and matched to the materials"
-                        : 'The bill reader is not set up on this server (no Claude API key)'
+                    !readerAvailable
+                        ? 'The bill reader is not set up on this server'
+                        : readsPhotos
+                          ? "Upload the supplier's bill as a PDF or a photo: it is read and matched to the materials"
+                          : "Upload the supplier's bill as the PDF their billing software produced: it is read here and matched to the materials"
                 }
             >
                 <FileUp className="size-4" />

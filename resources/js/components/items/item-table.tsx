@@ -38,7 +38,7 @@ export function ItemTable({
     categories: SelectOption[];
     can: { create: boolean; export: boolean; import: boolean };
     /** Materials arrive with a bill; it can be uploaded from here. */
-    bill?: { upload: boolean; reader: boolean };
+    bill?: { upload: boolean; reader: boolean; photos: boolean };
 }) {
     const columns: DataTableColumn<Item>[] = [
         {
@@ -140,7 +140,10 @@ export function ItemTable({
                 actions={
                     <div className="flex flex-wrap items-center gap-2">
                         {bill?.upload && (
-                            <BillUploadButton readerAvailable={bill.reader} />
+                            <BillUploadButton
+                                readerAvailable={bill.reader}
+                                readsPhotos={bill.photos}
+                            />
                         )}
                         {can.create && (
                             <Button asChild>

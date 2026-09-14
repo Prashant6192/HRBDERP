@@ -6,35 +6,41 @@
         /* 80 x 50 mm by default (config erp.labels.batch_sticker). Helvetica is a PDF core font: no embedding, tiny file. */
         @page { margin: 0; }
         body { margin: 0; font-family: Helvetica, Arial, sans-serif; color: #000; }
-        .sticker { width: {{ $width }}mm; height: {{ $height }}mm; box-sizing: border-box; padding: 2.5mm 3.5mm; border: 0.5mm solid #000; }
-        .top { width: 100%; }
+        /* dompdf ignores box-sizing, so the padding and border are taken off the page size by hand. */
+        .sticker { width: {{ $width - 7 }}mm; height: {{ $height - 6 }}mm; padding: 2mm 3mm; border: 0.5mm solid #000; overflow: hidden; }
+        /* Two columns: the words on the left, the QR and the stamp floated in their own column on the right, so nothing overlaps. */
+        .right { float: right; width: 16mm; text-align: right; }
+        .left { margin-right: 18mm; height: 20mm; }
+        .clear { clear: both; height: 0; }
+        .qr { width: 15mm; height: 15mm; display: block; margin-left: auto; }
         .company { font-size: 6.5pt; letter-spacing: 0.5pt; text-transform: uppercase; color: #333; }
-        .approved { font-size: 9.5pt; font-weight: bold; text-align: right; border: 0.4mm solid #000; padding: 0.6mm 1.8mm; display: inline-block; }
-        .item { margin-top: 1.5mm; font-size: 8pt; line-height: 1.2; height: 7mm; overflow: hidden; }
+        .approved { margin-top: 0.6mm; font-size: 5.5pt; font-weight: bold; text-align: center; border: 0.4mm solid #000; padding: 0.4mm 0; white-space: nowrap; letter-spacing: 0.2pt; }
+        .item { margin-top: 1.5mm; font-size: 8pt; line-height: 1.2; max-height: 7.5mm; overflow: hidden; }
         .item .code { font-weight: bold; }
-        .batch { margin-top: 0.8mm; font-size: 15pt; font-weight: bold; letter-spacing: 0.8pt; }
+        .batch { margin-top: 0.6mm; font-size: 13.5pt; font-weight: bold; letter-spacing: 0.5pt; }
         table.facts { width: 100%; margin-top: 1.2mm; border-collapse: collapse; font-size: 7pt; }
         table.facts td { padding: 0.35mm 0; vertical-align: top; }
-        table.facts td.k { width: 16mm; color: #444; }
+        table.facts td.k { width: 15mm; color: #444; }
         table.facts td.v { font-weight: bold; }
         .foot { margin-top: 1mm; font-size: 6pt; color: #444; }
     </style>
 </head>
 <body>
 <div class="sticker">
-    <table class="top"><tr>
-        <td class="company">{{ $company }}</td>
-        <td style="text-align:right"><span class="approved">QC APPROVED</span></td>
-    </tr></table>
-
-    <div class="item">
-        <span class="code">{{ $item->code }}</span> &nbsp; {{ $item->name }}
+    <div class="right">
+        @isset($qr)
+            <img src="{{ $qr }}" alt="{{ $scan_code }}" class="qr">
+        @endisset
+        <div class="approved">QC APPROVED</div>
     </div>
-
-    <div class="batch">{{ $lot->batch_number }}</div>
-    @isset($qr)
-        <img src="{{ $qr }}" alt="{{ $scan_code }}" style="position:absolute; right:3mm; top:3mm; width:16mm; height:16mm;">
-    @endisset
+    <div class="left">
+        <div class="company">{{ $company }}</div>
+        <div class="item">
+            <span class="code">{{ $item->code }}</span> &nbsp; {{ $item->name }}
+        </div>
+        <div class="batch">{{ $lot->batch_number }}</div>
+    </div>
+    <div class="clear"></div>
 
     <table class="facts">
         <tr>

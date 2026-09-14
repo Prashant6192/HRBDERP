@@ -15,8 +15,10 @@ use App\Domain\Procurement\Enums\GoodsReceiptStatus;
 use App\Domain\Procurement\Exceptions\InvoiceIntakeException;
 use App\Domain\Procurement\Models\GoodsReceipt;
 use App\Domain\Procurement\Models\Vendor;
+use App\Domain\Procurement\Services\BillReader;
 use App\Domain\Procurement\Services\GoodsReceiptService;
 use App\Domain\Procurement\Services\InvoiceIntakeService;
+use App\Domain\Procurement\Services\LocalInvoiceReader;
 use App\Domain\Warehousing\Models\Warehouse;
 use App\Domain\Warehousing\Services\FacilityAccess;
 use App\Http\Controllers\Controller;
@@ -85,7 +87,9 @@ class GoodsReceiptController extends Controller
             'intake' => $intake,
             'reader' => [
                 'available' => $this->reader->available(),
-                'model' => config('erp.ai.model'),
+                // Photos and scans need Claude; PDFs from billing software do not.
+                'photos' => $this->reader instanceof BillReader ? $this->reader->readsPhotos() : $this->reader->available(),
+                'model' => LocalInvoiceReader::MODEL,
             ],
             'can' => [
                 // Keying lines by hand, or changing what the reader found.

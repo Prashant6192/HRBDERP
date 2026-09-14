@@ -28,7 +28,7 @@ export default function PackagingMaterialIndex({
     table: TableState;
     categories: SelectOption[];
     can: { create: boolean; export: boolean; import: boolean };
-    bill: { upload: boolean; reader: boolean };
+    bill: { upload: boolean; reader: boolean; photos: boolean };
 }) {
     return (
         <>

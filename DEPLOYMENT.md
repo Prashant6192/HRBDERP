@@ -90,12 +90,11 @@ ERP_FORMULA_ACCESS_TTL_MINUTES=20
 ERP_FORMULA_REQUIRE_PIN=true
 ERP_QC_REQUIRE_PIN=true
 
-# Reads the supplier's bill on the goods receipt screen. Without the key the
-# screen says the reader is not set up, and only someone with
-# "Procurement → Receive manual" (the Factory Manager by default) can book a
-# receipt at all, by hand.
-# The same key powers "Ask the ERP" (Overview → Ask the ERP), which reads
-# the ERP under the asker's permissions and never writes.
+# Optional. PDF bills from the supplier's billing software are read on the
+# server without it. The key adds: reading photos and scanned bills, reading
+# the transport challan on a stock transfer, and "Ask the ERP" (Overview →
+# Ask the ERP), which reads the ERP under the asker's permissions and never
+# writes.
 ANTHROPIC_API_KEY=
 ERP_AI_MODEL=claude-opus-5
 ERP_ASSISTANT_ENABLED=true

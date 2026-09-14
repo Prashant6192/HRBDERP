@@ -7,7 +7,7 @@ use App\Domain\Intelligence\Assistant\ClaudeBackend;
 use App\Domain\Inventory\Contracts\ChallanReader;
 use App\Domain\Inventory\Services\ClaudeChallanReader;
 use App\Domain\Procurement\Contracts\InvoiceReader;
-use App\Domain\Procurement\Services\ClaudeInvoiceReader;
+use App\Domain\Procurement\Services\BillReader;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Model;
@@ -26,7 +26,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->bind(InvoiceReader::class, ClaudeInvoiceReader::class);
+        $this->app->bind(InvoiceReader::class, BillReader::class);
         $this->app->bind(ChallanReader::class, ClaudeChallanReader::class);
         $this->app->bind(AssistantBackend::class, ClaudeBackend::class);
 

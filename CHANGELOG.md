@@ -10,6 +10,26 @@ between them.
 
 ## [Unreleased]
 
+### Changed — Bills are read on the server; Claude is optional
+
+- **Built-in bill reader.** A PDF bill printed from the supplier's billing
+  software (Tally, Busy, Marg, Zoho and the like) is now read here, on the
+  server, with no key and no network: the seller and their GSTIN, the bill
+  number and date, and each goods line with HSN, quantity, unit, rate,
+  amount and batch. It is proven on the two real bills the company shared.
+  `ANTHROPIC_API_KEY` is no longer needed for Upload bill.
+- **Photos and scans** carry no text, so they still need the Claude bill
+  reader. Without a key the screen says so and asks for the supplier's PDF
+  instead. With a key, photos go to Claude, and Claude also has a go at a PDF
+  the built-in reader could make nothing of.
+- Every extraction says which reader produced it.
+
+### Fixed — QC sticker
+
+- The QR code and the QC APPROVED stamp overlapped the material name and the
+  batch number; the sticker now has the words on the left and the QR with
+  the stamp under it in their own column on the right, on one page.
+
 ### Fixed — Posting a receipt no longer fails with a server error
 
 - Posting a delivery that needs QC at a facility with no quarantine store used

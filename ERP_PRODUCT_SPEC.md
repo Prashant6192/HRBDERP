@@ -239,10 +239,13 @@ held; what the kettle took stays taken.
 
 Goods receipts, vendors and material requests are built. A goods receipt is
 booked off the supplier's bill: the storekeeper uploads the invoice or
-delivery challan as a PDF or a photo, Claude reads the vendor, invoice number
-and date, totals, and every line with its quantity, unit, rate, batch number
-and dates, the ERP matches the vendor by GSTIN or name and each line to the
-item master by code, HSN and name, and the form opens filled in. The person
+delivery challan, the ERP reads the vendor, invoice number and date, totals,
+and every line with its quantity, unit, rate, batch number and dates. A PDF
+printed from the supplier's billing software is read on the server by the
+built-in reader, with no key and no network; a photo or a scan is read by
+Claude when a key is set. The ERP then matches the vendor by GSTIN or name
+and each line to the item master by code, HSN, name and INCI name, and the
+form opens filled in. The person
 confirms the item and unit where the reader could not, adds a vendor the ERP
 does not know from a pop-up on the same screen, and posts. Only the plant
 head or an administrator (`purchase.receive_manual`) may key a receipt in by

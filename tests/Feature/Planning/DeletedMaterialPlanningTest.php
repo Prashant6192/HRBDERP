@@ -15,12 +15,15 @@ use App\Domain\MasterData\Models\Product;
 use App\Domain\MasterData\Models\RawMaterial;
 use App\Domain\Measurement\Models\Uom;
 use App\Domain\Planning\Models\ProductionPlan;
+use App\Domain\Planning\Services\ProductionPlanService;
 use App\Domain\Warehousing\Enums\WarehouseType;
 use App\Domain\Warehousing\Models\Facility;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\UomSeeder;
+use ErrorException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -173,5 +176,57 @@ class DeletedMaterialPlanningTest extends TestCase
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->where('rawMaterials.1.item_name', 'Material no longer on file')
                 ->where('rawMaterials.1.item_code', '—'));
+    }
+
+    #[Test]
+    public function a_deleted_packaging_material_leaves_the_rest_of_the_plan_standing(): void
+    {
+        PackagingMaterial::query()->firstOrFail()->delete();
+
+        $response = $this->actingAs($this->manager)->post(route('plans.store'), $this->payload());
+
+        $response->assertRedirect()->assertSessionHasNoErrors();
+
+        $plan = ProductionPlan::sole();
+        $this->assertNotEmpty($plan->warnings);
+        $this->assertStringContainsString('no longer on file', implode(' ', $plan->warnings));
+
+        // The raw materials were still worked out.
+        $this->assertSame(3, $plan->lines()->count());
+    }
+
+    /**
+     * The message the planning screen would show for a failed save.
+     */
+    private function planningError(TestResponse $response): string
+    {
+        $response->assertSessionHasErrors('formula_id');
+
+        return (string) session('errors')->first('formula_id');
+    }
+
+    #[Test]
+    public function the_system_administrator_is_told_what_the_fault_actually_was(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RoleName::SuperAdmin->value);
+
+        // The kind of fault that used to come out as a bare 500: not a
+        // RuntimeException, so none of the planner's own handlers name it.
+        $this->mock(ProductionPlanService::class, function ($mock): void {
+            $mock->shouldReceive('create')->andThrow(new ErrorException('Attempt to read property "code" on null'));
+        });
+
+        $adminMessage = $this->planningError($this->actingAs($admin)->post(route('plans.store'), $this->payload()));
+
+        $this->assertStringContainsString('unexpected fault', $adminMessage);
+        $this->assertStringContainsString('ErrorException', $adminMessage);
+        $this->assertStringContainsString('Attempt to read property', $adminMessage);
+
+        // Everybody else sees the reference and the plain advice, nothing more.
+        $managerMessage = $this->planningError($this->actingAs($this->manager)->post(route('plans.store'), $this->payload()));
+
+        $this->assertStringContainsString('unexpected fault', $managerMessage);
+        $this->assertStringNotContainsString('ErrorException', $managerMessage);
     }
 }

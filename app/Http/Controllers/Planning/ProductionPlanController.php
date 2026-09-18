@@ -255,8 +255,23 @@ class ProductionPlanController extends Controller
             'context' => $context,
         ]);
 
-        return "The plan could not be checked because of an unexpected fault (reference {$reference}). "
-            .'It has been logged. Check that every material on the recipe still exists and has a stock unit, then try again.';
+        $message = "The plan could not be checked because of an unexpected fault (reference {$reference}). "
+            .'It has been logged with the reference above. Nothing was saved, so trying again is safe.';
+
+        // The system administrator is the one who can act on a fault like
+        // this, and reading a server log is not something they should have
+        // to do to find out what it was. Nobody else sees the internals.
+        if ($request->user()?->isSuperAdmin() === true) {
+            $message .= sprintf(
+                ' [%s: %s at %s:%d]',
+                class_basename($e),
+                $e->getMessage(),
+                basename($e->getFile()),
+                $e->getLine(),
+            );
+        }
+
+        return $message;
     }
 
     /**

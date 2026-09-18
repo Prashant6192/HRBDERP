@@ -139,6 +139,16 @@ class ProductionPlanService
                 $plan->facility()->associate($this->manufacturingFacility(null));
             }
 
+            // The recipe version the plan was raised against has to still be
+            // there; without it there is nothing to scale.
+            if ($plan->formulaVersion === null) {
+                throw new PlanningException("The recipe version {$plan->number} was raised against is no longer on file. Activate a version of the formula and raise the plan again.");
+            }
+
+            if ($plan->plannedUom === null) {
+                throw new PlanningException("The batch unit {$plan->number} was raised in is no longer on file. Raise the plan again with a unit of mass or volume.");
+            }
+
             $result = $this->requirements->calculate($plan->formulaVersion, $plan->planned_quantity, $plan->plannedUom, $plan->product, $plan->facility, $plan->client_id, $plan->clientSuppliedItemIds());
 
             // A product on file as made for one client, planned for another

@@ -15,6 +15,7 @@ use App\Domain\MasterData\Models\Item;
 use App\Domain\MasterData\Models\Product;
 use App\Domain\Measurement\Enums\UomDimension;
 use App\Domain\Measurement\Exceptions\IncompatibleUnitsException;
+use App\Domain\Measurement\Exceptions\MissingStockUnitException;
 use App\Domain\Measurement\Models\Uom;
 use App\Domain\Measurement\Services\UnitConversionService;
 use App\Domain\Planning\DTOs\RequirementLine;
@@ -101,6 +102,14 @@ class ProductionRequirementService
     private function rawMaterialLine(ScaledIngredient $line, ?Warehouse $store, ?Facility $facility): RequirementLine
     {
         $item = Item::with('stockUom')->findOrFail($line->itemId);
+
+        if ($item->stockUom === null) {
+            throw new MissingStockUnitException(
+                "{$item->name} ({$item->code}) has no stock unit, so the quantity the batch needs cannot be worked out. "
+                .'Set its stock unit under the masters, then check the plan again.'
+            );
+        }
+
         $notes = [];
 
         if ($line->asRequired) {
@@ -153,6 +162,15 @@ class ProductionRequirementService
         foreach ($product->packagingLines as $bom) {
             /** @var ProductPackagingLine $bom */
             $material = $bom->packagingMaterial;
+
+            // A packaging material deleted after the pack list was written
+            // leaves the line pointing at nothing. Say so and plan the rest.
+            if ($material === null || $material->stockUom === null) {
+                $result->warnings[] = "One line of {$product->name}'s packaging list points at a material that is no longer on file, or one with no stock unit; it was left out of the plan. Fix the pack list on the product screen.";
+
+                continue;
+            }
+
             $required = BigDecimal::of($bom->quantity_per_unit)->multipliedBy($units);
 
             // Packaging is counted in whole pieces; a share of a carton

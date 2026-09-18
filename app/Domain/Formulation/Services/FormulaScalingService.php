@@ -11,6 +11,7 @@ use App\Domain\Formulation\Models\FormulaIngredient;
 use App\Domain\Formulation\Models\FormulaVersion;
 use App\Domain\Measurement\Enums\UomDimension;
 use App\Domain\Measurement\Exceptions\IncompatibleUnitsException;
+use App\Domain\Measurement\Exceptions\MissingStockUnitException;
 use App\Domain\Measurement\Models\Uom;
 use App\Domain\Measurement\Services\UnitConversionService;
 use Brick\Math\BigDecimal;
@@ -46,6 +47,22 @@ class FormulaScalingService
 
         if ($orphaned !== []) {
             throw MissingIngredientItemException::forLines($orphaned, $version->formula?->name ?? 'This recipe');
+        }
+
+        // Without a stock unit there is no quantity to plan, and reading one
+        // off nothing is how this used to fail with a bare server error.
+        $unitless = $version->ingredients
+            ->filter(fn (FormulaIngredient $i) => $i->item?->stockUom === null)
+            ->map(fn (FormulaIngredient $i) => $i->item?->name ?? "line {$i->line_no}")
+            ->values()
+            ->all();
+
+        if ($unitless !== []) {
+            throw new MissingStockUnitException(sprintf(
+                '%s %s no stock unit, so the quantity the batch needs cannot be worked out. Set the stock unit under the masters, then check the plan again.',
+                implode(', ', $unitless),
+                count($unitless) === 1 ? 'has' : 'have',
+            ));
         }
 
         $fixedTotal = BigDecimal::zero();

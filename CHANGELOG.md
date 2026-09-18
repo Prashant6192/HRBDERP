@@ -10,6 +10,22 @@ between them.
 
 ## [Unreleased]
 
+### Fixed — Planning says what went wrong, to the person who can fix it
+
+- A **packaging material deleted after a product's pack list was written** no
+  longer stops a plan. The line is left out, the plan is checked on
+  everything else, and a warning names the product whose pack list needs
+  mending — the same treatment a deleted recipe material already got.
+- The recipe version and the batch unit a plan was raised against are checked
+  before the stores are, so a plan whose formula version has gone says so in
+  plain words instead of failing somewhere deeper.
+- A material with **no stock unit** is named rather than read off a blank.
+- When planning does hit a fault it cannot name, the **system administrator
+  now sees what the fault actually was** — its type, its message and where it
+  happened — beside the reference, instead of having to read a server log.
+  Everyone else still sees only the reference and the plain advice. The
+  message also says plainly that nothing was saved, so trying again is safe.
+
 ### Added — Clearing what testing left behind, and a worked example (issue #12)
 
 - **Administration → Data**, the system administrator's alone. Two cards:

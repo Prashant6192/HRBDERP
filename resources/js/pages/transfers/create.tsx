@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { Label } from '@/components/ui/label';
 import {
     Select,
@@ -124,6 +125,15 @@ export default function CreateTransfer({
                 return true;
             }),
         [items, source],
+    );
+    const offeredChoices = useMemo(
+        () =>
+            offered.map((it) => ({
+                value: String(it.value),
+                label: it.label,
+                hint: it.uom ? `Stocked in ${it.uom}` : undefined,
+            })),
+        [offered],
     );
 
     const [lots, setLots] = useState<Record<string, LotOption[]>>({});
@@ -353,7 +363,8 @@ export default function CreateTransfer({
                                             required
                                             error={err(i, 'item_id')}
                                         >
-                                            <Select
+                                            <SearchableSelect
+                                                id={`item-${i}`}
                                                 value={line.item_id}
                                                 onValueChange={(v) =>
                                                     setLine(i, {
@@ -361,26 +372,10 @@ export default function CreateTransfer({
                                                         lot_id: '',
                                                     })
                                                 }
-                                            >
-                                                <SelectTrigger
-                                                    id={`item-${i}`}
-                                                    className="w-full"
-                                                >
-                                                    <SelectValue placeholder="Choose" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {offered.map((it) => (
-                                                        <SelectItem
-                                                            key={it.value}
-                                                            value={String(
-                                                                it.value,
-                                                            )}
-                                                        >
-                                                            {it.label}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                                options={offeredChoices}
+                                                placeholder="Choose"
+                                                searchPlaceholder="Search by code or name…"
+                                            />
                                         </Field>
                                         <Field
                                             label={`Quantity${item?.uom ? ` (${item.uom})` : ''}`}

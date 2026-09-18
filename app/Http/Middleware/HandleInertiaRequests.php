@@ -48,6 +48,7 @@ class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'erp' => [
                 'company' => config('erp.company.name'),
+                'brand' => config('erp.company.brand'),
                 'timezone' => config('erp.company.timezone'),
                 'currency_symbol' => config('erp.company.currency_symbol'),
             ],

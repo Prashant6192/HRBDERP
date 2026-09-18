@@ -27,6 +27,7 @@ import {
     ShieldCheck,
     ShoppingCart,
     Signature,
+    Store,
     Truck,
     Users,
     Warehouse,
@@ -35,6 +36,8 @@ import type { LucideIcon } from 'lucide-react';
 import { data as dataAdministration } from '@/routes/administration';
 import { index as auditIndex } from '@/routes/audit';
 import { index as clientsIndex } from '@/routes/clients';
+import { index as customersIndex } from '@/routes/customers';
+import { index as dispatchesIndex } from '@/routes/dispatches';
 import { index as formulasIndex } from '@/routes/formulas';
 import { index as manufacturingIndex } from '@/routes/manufacturing';
 import { index as materialRequestsIndex } from '@/routes/material-requests';
@@ -306,11 +309,16 @@ export const erpNavigation: ErpNavGroup[] = [
         label: 'Dispatch',
         items: [
             {
-                title: 'Dispatch',
-                href: '#',
+                title: 'Dispatches',
+                href: dispatchesIndex().url,
                 icon: Truck,
-                permission: 'sales.view',
-                comingSoon: true,
+                permission: 'dispatch.view',
+            },
+            {
+                title: 'Customers',
+                href: customersIndex().url,
+                icon: Store,
+                permission: 'dispatch.view',
             },
         ],
     },

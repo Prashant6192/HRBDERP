@@ -575,6 +575,48 @@ asked for (the dashboard tile caches its count for ten minutes). The
 queries are grouped, so the cost is a fixed handful of statements however
 many materials there are.
 
+## Dispatch
+
+### `customers`
+
+Who finished goods are billed to and sent to: `code` (`CUS-001`…), `name`,
+`legal_name`, `gstin` (unique among live rows), `pan`, `kind` (client,
+marketplace, distributor, retailer, other), `client_id` → `clients` (the
+contract client whose own goods this customer takes), contact, billing and
+shipping addresses, `is_active`, soft deletes.
+
+### `dispatches`, `dispatch_lines`, `dispatch_attachments`
+
+A consignment leaving a finished goods store: `number` (`DSP-yymm-00001`),
+`facility_id`, `warehouse_id` (finished goods only), `customer_id`, `status`
+(draft → invoiced → dispatched → delivered, or cancelled), `reference`,
+the invoice (`invoice_number` — unique among live rows — `invoice_date`,
+`place_of_supply` state code, `is_interstate`), a frozen ship-to address,
+the e-invoice particulars (`irn` — unique, 64 characters — `ack_number`,
+`ack_date`, `signed_qr`), transport (`transporter_name`, `transporter_gstin`,
+`vehicle_number`, `lr_number`, `lr_date`, `eway_bill_number`,
+`eway_bill_date`, `distance_km`), money to the paisa (`taxable_value`,
+`cgst`, `sgst`, `igst`, `other_charges`, `round_off`, `total_value`), and who
+wrote it up, invoiced it, dispatched it and marked it delivered.
+
+`dispatch_lines`: `line_no`, `item_id`, `lot_id` (required: goods leave batch
+by batch), `uom_id`, `quantity` (> 0), `unit_price`, `discount_percent`,
+`hsn_code`, `gst_rate`, `taxable_value`, `cgst`, `sgst`, `igst`,
+`line_total`, `description`.
+
+`dispatch_attachments`: `kind` (invoice, signed_invoice, eway_bill, lr,
+other), `path`, `original_name`, `mime`, `size`, `uploaded_by`.
+
+The stock leaves through `inventory_transactions` of type `SALES_DISPATCH`
+referencing the dispatch, one line per batch, posted only when the goods
+are dispatched.
+
+### `facilities.legal_name`
+
+The registered company whose invoices goods leave the site under; printed
+as the seller on e-invoices and challans. Falls back to
+`ERP_COMPANY_LEGAL_NAME`, then the company name.
+
 ## Still to come
 
 Zone/rack/bin balances (`stock_balances.location_id` and

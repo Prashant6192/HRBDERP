@@ -136,6 +136,7 @@ export type Facility = {
     id: number;
     code: string;
     name: string;
+    legal_name?: string | null;
     facility_type_id: number;
     type?: { id: number; code: string; name: string } | null;
     manager_id: number | null;
@@ -1184,4 +1185,84 @@ export type ErpNotification = {
     category: string;
     read_at: string | null;
     created_at: string;
+};
+
+// ---- Dispatch ---------------------------------------------------------------
+
+export type DispatchStatus =
+    | 'draft'
+    | 'invoiced'
+    | 'dispatched'
+    | 'delivered'
+    | 'cancelled';
+
+export type DispatchTone =
+    | 'neutral'
+    | 'info'
+    | 'warning'
+    | 'success'
+    | 'danger';
+
+export type DispatchRow = {
+    id: number;
+    number: string;
+    status: DispatchStatus;
+    status_label: string;
+    status_tone: DispatchTone;
+    customer: { id: number; code: string; name: string; kind: string } | null;
+    facility: string | null;
+    store: string | null;
+    invoice_number: string | null;
+    invoice_date: string | null;
+    has_irn: boolean;
+    eway_bill_number: string | null;
+    vehicle_number: string | null;
+    lines_count: number;
+    total_value: string;
+    dispatched_at: string | null;
+    created_at: string | null;
+    created_by: string | null;
+};
+
+export type CustomerRow = {
+    id: number;
+    code: string;
+    name: string;
+    legal_name: string | null;
+    gstin: string | null;
+    kind: string;
+    kind_label: string;
+    client: string | null;
+    billing_city: string | null;
+    billing_state: string | null;
+    contact_person: string | null;
+    phone: string | null;
+    dispatches_count: number;
+    is_active: boolean;
+};
+
+export type Customer = {
+    id: number;
+    code: string;
+    name: string;
+    legal_name: string | null;
+    gstin: string | null;
+    pan: string | null;
+    kind: string;
+    client_id: number | null;
+    contact_person: string | null;
+    phone: string | null;
+    email: string | null;
+    billing_address_line_1: string | null;
+    billing_address_line_2: string | null;
+    billing_city: string | null;
+    billing_state: string | null;
+    billing_pincode: string | null;
+    shipping_address_line_1: string | null;
+    shipping_address_line_2: string | null;
+    shipping_city: string | null;
+    shipping_state: string | null;
+    shipping_pincode: string | null;
+    notes: string | null;
+    is_active: boolean;
 };

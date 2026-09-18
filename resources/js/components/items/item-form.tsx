@@ -1,4 +1,4 @@
-import { Form } from '@inertiajs/react';
+import { Form, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { Field, FormSection } from '@/components/form-field';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import type { Item, SelectOption, UomOption } from '@/types';
+import type { Item, SelectOption, SharedData, UomOption } from '@/types';
 
 type ItemFormProps = {
     item?: Item;
@@ -47,6 +47,7 @@ export function ItemForm({
     submitLabel,
 }: ItemFormProps) {
     const OWN = '__own__';
+    const brand = usePage<SharedData>().props.erp.brand;
     const [clientId, setClientId] = useState(
         item?.client_id ? String(item.client_id) : '',
     );
@@ -291,7 +292,7 @@ export function ItemForm({
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value={OWN}>
-                                            Our own brand
+                                            {brand} — our own brand
                                         </SelectItem>
                                         {clients.map((c) => (
                                             <SelectItem

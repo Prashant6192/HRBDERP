@@ -370,9 +370,11 @@ abstract class ItemController extends Controller
                 'batch_number' => $lot->batch_number,
                 'supplier_batch_ref' => $lot->supplier_batch_ref,
                 // "Brand" on the shop floor: whose material it is. A client's
-                // own stock is theirs; everything else is the supplier's.
-                'brand' => $lot->ownerClient?->name ?? $lot->vendor?->name,
-                'brand_kind' => $lot->ownerClient !== null ? 'client' : ($lot->vendor !== null ? 'vendor' : null),
+                // own stock is theirs; everything else is ours, under our
+                // own brand, whoever supplied it.
+                'brand' => $lot->ownerClient?->name ?? config('erp.company.brand'),
+                'brand_kind' => $lot->ownerClient !== null ? 'client' : 'own',
+                'supplier' => $lot->vendor?->name,
                 'qc_status' => $lot->qc_status->value,
                 'qc_status_label' => $lot->qc_status->label(),
                 'qc_variant' => $lot->qc_status->badgeVariant(),

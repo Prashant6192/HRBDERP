@@ -18,7 +18,7 @@ enum MaterialSource: string
     public function label(): string
     {
         return match ($this) {
-            self::Company => 'Our material',
+            self::Company => 'Our material ('.config('erp.company.brand').')',
             self::Client => 'Client supplied',
             self::Mixed => 'Mixed',
         };

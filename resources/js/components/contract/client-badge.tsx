@@ -1,7 +1,8 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { StatusBadge } from '@/components/status-badge';
 import { show as showClient } from '@/routes/clients';
 import { cn } from '@/lib/utils';
+import type { SharedData } from '@/types';
 
 /**
  * Whose batch it is, at a glance: OWN BRAND, or THIRD PARTY — ABC WELLNESS.
@@ -16,13 +17,15 @@ export function ClientBadge({
     className?: string;
     link?: boolean;
 }) {
+    const brand = usePage<SharedData>().props.erp.brand;
+
     if (!client) {
         return (
             <StatusBadge
                 variant="muted"
                 className={cn('tracking-wide uppercase', className)}
             >
-                Own brand
+                {brand} — own brand
             </StatusBadge>
         );
     }

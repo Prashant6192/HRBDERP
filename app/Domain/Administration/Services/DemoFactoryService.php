@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Domain\Administration\Services;
 
 use App\Domain\Contract\Models\Client;
+use App\Domain\Dispatch\Enums\CustomerKind;
+use App\Domain\Dispatch\Models\Customer;
 use App\Domain\Formulation\Models\Formula;
 use App\Domain\Formulation\Services\FormulaService;
 use App\Domain\Inventory\Services\OpeningStockService;
@@ -127,6 +129,9 @@ class DemoFactoryService
         $count = $this->stockCount($actor, $stores);
         $made['Stock count'] = $count ?? 'Not started';
 
+        $customers = $this->customers($client);
+        $made['Customers'] = $customers->count().' customers to dispatch to, one of them the contract client';
+
         return $made;
     }
 
@@ -225,6 +230,39 @@ class DemoFactoryService
         );
 
         return [$vendors, $client];
+    }
+
+    /**
+     * Who goods leave for: the contract client for their own goods, and a
+     * marketplace for ours.
+     *
+     * @return Collection<int, Customer>
+     */
+    private function customers(Client $client): Collection
+    {
+        return collect([
+            [
+                'code' => 'CUS-DEMO-001',
+                'name' => $client->name,
+                'legal_name' => $client->legal_name ?? $client->name,
+                'gstin' => $client->gstin,
+                'kind' => CustomerKind::Client,
+                'client_id' => $client->id,
+                'billing_city' => $client->billing_city,
+                'billing_state' => $client->billing_state,
+            ],
+            [
+                'code' => 'CUS-DEMO-002',
+                'name' => 'Demo Marketplace Seller Services',
+                'legal_name' => 'Demo Marketplace Seller Services Pvt Ltd',
+                'gstin' => '06AAACD3333C1Z7',
+                'kind' => CustomerKind::Marketplace,
+                'billing_address_line_1' => 'Fulfilment Centre 4, Sector 18',
+                'billing_city' => 'Gurugram',
+                'billing_state' => 'Haryana',
+                'billing_pincode' => '122015',
+            ],
+        ])->map(fn (array $row) => Customer::query()->firstOrCreate(['code' => $row['code']], [...$row, 'is_active' => true]));
     }
 
     /**

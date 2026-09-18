@@ -32,6 +32,7 @@ enum RoleName: string
     case MarketingManager = 'Marketing Manager';
     case EcommerceManager = 'E-commerce Manager';
     case SalesManager = 'Sales Manager';
+    case DispatchManager = 'Dispatch Manager';
     case BrandManager = 'Brand Manager';
     case Designer = 'Designer';
     case Viewer = 'Viewer';
@@ -70,6 +71,7 @@ enum RoleName: string
             self::MarketingManager => 'Brand, product presentation and marketing reporting.',
             self::EcommerceManager => 'Marketplace listings, imports and reconciliation.',
             self::SalesManager => 'Sales orders, customers and sales reporting.',
+            self::DispatchManager => 'Sends finished goods out: writes up consignments from the finished goods store, records the invoice and e-invoice, and lets the goods leave. Nothing else.',
             self::BrandManager => 'Product master and brand-level reporting.',
             self::Designer => 'Packaging artwork and product imagery. No access to formulations or costing.',
             self::Viewer => 'Read-only access to operational data. No formulations.',
@@ -116,6 +118,7 @@ enum RoleName: string
                 'production.view', 'production.approve', 'production.cancel', 'production.export',
                 'purchase.view', 'purchase.approve', 'purchase.export',
                 'qc.view', 'sales.view', 'sales.export',
+                'dispatch.view', 'dispatch.export',
                 'marketplace.view', 'costing.view', 'costing.export',
                 'report.view', 'assistant.view', 'report.export',
                 'approval.view', 'approval.act',
@@ -133,6 +136,7 @@ enum RoleName: string
                 'production.view', 'production.approve', 'production.export',
                 'purchase.view', 'purchase.approve', 'purchase.export',
                 'qc.view', 'sales.view', 'marketplace.view',
+                'dispatch.view', 'dispatch.export',
                 'costing.view', 'report.view', 'assistant.view', 'report.export',
                 'approval.view', 'approval.act',
                 'document.view',
@@ -226,6 +230,7 @@ enum RoleName: string
                 'sales.view', 'sales.export',
                 'marketplace.view',
                 'costing.*',
+                'dispatch.view', 'dispatch.export',
                 'report.view', 'assistant.view', 'report.export',
                 'approval.view',
             ],
@@ -242,6 +247,7 @@ enum RoleName: string
                 'inventory.view',
                 'sales.view', 'sales.create', 'sales.edit', 'sales.export',
                 'marketplace.*',
+                'dispatch.view',
                 'report.view', 'assistant.view', 'report.export',
             ],
 
@@ -249,8 +255,19 @@ enum RoleName: string
                 'product.view', 'client.*',
                 'inventory.view',
                 'sales.*',
+                'dispatch.view', 'dispatch.export',
                 'marketplace.view',
                 'report.view', 'assistant.view', 'report.export',
+            ],
+
+            // The gate. Everything a consignment needs and nothing of what
+            // made it: no planning, no production, no formulas.
+            self::DispatchManager => [
+                'facility.view', 'warehouse.view', 'product.view', 'client.view', 'uom.view',
+                'inventory.view',
+                'dispatch.*',
+                'report.view', 'assistant.view',
+                'document.view',
             ],
 
             self::BrandManager => [

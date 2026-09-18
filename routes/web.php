@@ -12,6 +12,8 @@ use App\Http\Controllers\Contract\ClientController;
 use App\Http\Controllers\Contract\ClientProfitabilityController;
 use App\Http\Controllers\Contract\ClientQcSpecController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Dispatch\CustomerController;
+use App\Http\Controllers\Dispatch\DispatchController;
 use App\Http\Controllers\Documents\DocumentController;
 use App\Http\Controllers\Floor\FloorController;
 use App\Http\Controllers\Formulation\FormulaController;
@@ -164,6 +166,22 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
 
     Route::post('vendors/quick', [VendorController::class, 'quick'])->name('vendors.quick');
     Route::resource('vendors', VendorController::class);
+
+    // Dispatch: finished goods leaving against a tax invoice, and who they go to.
+    Route::get('dispatches', [DispatchController::class, 'index'])->name('dispatches.index');
+    Route::get('dispatches/create', [DispatchController::class, 'create'])->name('dispatches.create');
+    Route::get('dispatches/lots', [DispatchController::class, 'lots'])->name('dispatches.lots');
+    Route::post('dispatches', [DispatchController::class, 'store'])->name('dispatches.store');
+    Route::get('dispatches/{dispatch}', [DispatchController::class, 'show'])->whereNumber('dispatch')->name('dispatches.show');
+    Route::post('dispatches/{dispatch}/invoice', [DispatchController::class, 'invoice'])->name('dispatches.invoice');
+    Route::post('dispatches/{dispatch}/attachments', [DispatchController::class, 'attach'])->name('dispatches.attachments.store');
+    Route::get('dispatches/{dispatch}/attachments/{attachment}', [DispatchController::class, 'attachment'])->name('dispatches.attachments.show');
+    Route::get('dispatches/{dispatch}/einvoice', [DispatchController::class, 'einvoice'])->name('dispatches.einvoice');
+    Route::get('dispatches/{dispatch}/challan', [DispatchController::class, 'challan'])->name('dispatches.challan');
+    Route::post('dispatches/{dispatch}/dispatch', [DispatchController::class, 'dispatch'])->name('dispatches.dispatch');
+    Route::post('dispatches/{dispatch}/deliver', [DispatchController::class, 'deliver'])->name('dispatches.deliver');
+    Route::post('dispatches/{dispatch}/cancel', [DispatchController::class, 'cancel'])->name('dispatches.cancel');
+    Route::resource('customers', CustomerController::class)->except(['show', 'destroy']);
 
     // Third-party / contract manufacturing clients and what is theirs.
     Route::get('clients/profitability', ClientProfitabilityController::class)->name('clients.profitability');

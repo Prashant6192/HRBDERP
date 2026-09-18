@@ -10,6 +10,78 @@ between them.
 
 ## [Unreleased]
 
+### Added — Dispatch, with the e-invoice on record before anything leaves (issue #17)
+
+- **Dispatch → Dispatches**: finished goods leaving a facility against a
+  tax invoice. A consignment is written up from a **finished goods store
+  only**, batch by batch, priced as the invoice carries it; the tax follows
+  the states (IGST between states, CGST + SGST within one) from the seller's
+  GSTIN and the buyer's. Only **QC-released, unexpired batches** are offered,
+  and a **client's batches go only to that client** — the customer linked to
+  them — while our own go to anyone. Nothing moves when it is written up.
+- **E-invoicing is mandatory** for a GST-registered buyer: the goods do not
+  leave until the invoice number and date, the **IRN and acknowledgement**
+  the IRP returned, and the **signed invoice with the QR** are all on
+  record. The ERP prepares the e-invoice as **JSON in the IRP's own schema
+  (INV-01 v1.1)** — seller, buyer, place of supply, HSN, GST unit codes,
+  batch and expiry, values to the paisa — for the bulk upload tool or a GSP;
+  the IRN it returns is recorded here. An unregistered buyer (B2C) is
+  invoiced without an IRN, with the plain invoice uploaded instead.
+- When the goods go, the **stock leaves through the ledger** (`SALES_DISPATCH`)
+  against the consignment, with the transporter, vehicle, LR and e-way bill
+  recorded and a **delivery challan / packing list** printed. A dispatched
+  consignment cannot be cancelled; it is marked delivered.
+- **Dispatch → Customers**: who goods are billed to and sent to — a contract
+  client (linked to their client record), a marketplace, a distributor — with
+  GSTIN, billing and shipping addresses. One GSTIN is one customer.
+- **History for management**: every consignment with its status, customer,
+  invoice, IRN, transport and value, searchable by number, invoice, IRN,
+  vehicle, e-way bill or customer, filtered by status, customer, facility
+  and period, with totals for the view. Every paper that travelled — invoice,
+  signed e-invoice, e-way bill, LR — is kept against it.
+- **Facilities bill under their own company**: a facility now carries a
+  legal name; the factory's invoices name Harbanshram Bhagwandas Ayurvedic
+  Sansthan, the depot's name HRBD. Set it under the facility's details.
+- **Dispatch Manager** role: everything a consignment needs — write up,
+  invoice, dispatch, deliver, cancel, customers — and nothing of what made
+  it: no planning, no production, no recipes. Director, Management,
+  Accounts, Sales and E-commerce see dispatches; only the Dispatch Manager
+  (and the administrators) act on them.
+- `ERP_EINVOICE_MANDATORY` (default `true`) and `ERP_COMPANY_LEGAL_NAME`.
+
+### Changed — Rahat Rooh is named as the company's own brand (issue #14)
+
+- Wherever stock, a batch or a product was "our own", "our company" or
+  "own brand", it now carries the company's own brand name — **Rahat Rooh**
+  by default, `ERP_OWN_BRAND` to change it: the material-owner choice on a
+  delivery, the brand on a material's batch history (with the supplier named
+  under it), the product's "manufactured for", the batch trace, the QC and
+  receipt pages, and the plan's material source.
+
+### Added — Search inside long lists (issue #15)
+
+- Any list with more than ten entries gets a **search box at the top**:
+  type any words in any order and the list narrows as you type. Used for
+  the material on a delivery, on opening stock and on a transfer, the
+  formula on a plan, and the customer and product on a dispatch.
+
+### Changed — The delivery screen says what it is for (issue #16)
+
+- **Add Material Inventory** (was "New goods receipt"), with the sections
+  **Inventory Details** (was "Delivery") and **Description** (was "Lines").
+
+### Added — The launch-day rehearsal
+
+- A test that walks launch day end to end the way the factory will do it:
+  opening stock from the counting sheets for raw material, packaging and
+  finished goods; a third-party batch planned for HRBD; the short material
+  requested, delivered and QC-released; the batch made, QC'd and landed in
+  HRBD's name; Rahat Rooh stock moved to the Paper Market depot on a
+  challan and booked in; HRBD's goods dispatched to HRBD from the factory
+  and Rahat Rooh to a marketplace from the depot, each with the e-invoice
+  on record first; and management seeing all of it — every step through
+  the screens, under the roles the people will hold.
+
 ### Fixed — Planning says what went wrong, to the person who can fix it
 
 - A **packaging material deleted after a product's pack list was written** no

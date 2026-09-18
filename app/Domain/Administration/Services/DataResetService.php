@@ -41,6 +41,12 @@ class DataResetService
             'count' => 'manufacturing_orders',
             'requires' => [],
         ],
+        'dispatch' => [
+            'label' => 'Dispatches',
+            'description' => 'Consignments that left or were written up, with their invoices, e-invoice records and attached papers. Customers stay.',
+            'count' => 'dispatches',
+            'requires' => [],
+        ],
         'purchasing' => [
             'label' => 'Deliveries and QC',
             'description' => 'Goods receipts with their uploaded bills, and every QC decision taken on them.',
@@ -49,9 +55,9 @@ class DataResetService
         ],
         'stock' => [
             'label' => 'Stock and movements',
-            'description' => 'Every batch, balance, ledger posting, reservation, stock count, transfer and floor photo. The stores go back to empty. Deliveries go with it, because they point at the batches they brought in.',
+            'description' => 'Every batch, balance, ledger posting, reservation, stock count, transfer and floor photo. The stores go back to empty. Deliveries and dispatches go with it, because they point at the batches they brought in or took out.',
             'count' => 'inventory_lots',
-            'requires' => ['purchasing'],
+            'requires' => ['purchasing', 'dispatch'],
         ],
         'workflow' => [
             'label' => 'Approvals, alerts and documents',
@@ -72,16 +78,16 @@ class DataResetService
             'requires' => ['stock', 'purchasing', 'production', 'formulas'],
         ],
         'partners' => [
-            'label' => 'Vendors and clients',
-            'description' => 'Suppliers and contract clients, with the artwork and QC specifications held for them.',
+            'label' => 'Vendors, clients and customers',
+            'description' => 'Suppliers, contract clients with the artwork and QC specifications held for them, and the customers goods are dispatched to. Deliveries and dispatches go with them.',
             'count' => 'vendors',
-            'requires' => ['purchasing'],
+            'requires' => ['purchasing', 'dispatch'],
         ],
         'facilities' => [
             'label' => 'Facilities and stores',
             'description' => 'The plants, their stores and racks, and who is assigned where. Rarely wanted: the factory itself does not change because a trial did.',
             'count' => 'warehouses',
-            'requires' => ['stock', 'purchasing', 'production'],
+            'requires' => ['stock', 'purchasing', 'production', 'dispatch'],
             'danger' => true,
         ],
     ];
@@ -95,6 +101,9 @@ class DataResetService
      * @var list<array{0: string, 1: string}>
      */
     private const array ORDER = [
+        ['dispatch_attachments', 'dispatch'],
+        ['dispatch_lines', 'dispatch'],
+        ['dispatches', 'dispatch'],
         ['floor_photos', 'stock'],
         ['manufacturing_order_scans', 'production'],
         ['manufacturing_order_stage_events', 'production'],
@@ -136,6 +145,7 @@ class DataResetService
         ['client_artworks', 'partners'],
         ['client_qc_specs', 'partners'],
         ['clients', 'partners'],
+        ['customers', 'partners'],
         ['vendors', 'partners'],
         ['employee_assignments', 'facilities'],
         ['warehouse_locations', 'facilities'],
@@ -269,6 +279,10 @@ class DataResetService
 
         if (in_array('stock', $resolved, true)) {
             $this->forgetDirectory('floor-photos');
+        }
+
+        if (in_array('dispatch', $resolved, true)) {
+            $this->forgetDirectory('dispatches');
         }
 
         return $cleared;

@@ -144,6 +144,14 @@ final class PermissionCatalogue
         ],
 
         // ---- Commercial ----------------------------------------------------
+        // Finished goods leaving the factory: the consignment, its invoice
+        // and e-invoice, the transport. invoice: record what the IRP
+        // returned; dispatch: let the goods go and post the stock out.
+        'dispatch' => [
+            'label' => 'Dispatch',
+            'group' => 'Commercial',
+            'abilities' => ['view', 'create', 'edit', 'invoice', 'dispatch', 'cancel', 'export'],
+        ],
         'sales' => [
             'label' => 'Sales',
             'group' => 'Commercial',

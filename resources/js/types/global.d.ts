@@ -12,7 +12,12 @@ declare module '@inertiajs/core' {
         sharedPageProps: {
             name: string;
             auth: Auth;
-            erp: { company: string; timezone: string; currency_symbol: string };
+            erp: {
+                company: string;
+                brand: string;
+                timezone: string;
+                currency_symbol: string;
+            };
             notifications: {
                 unread: number;
                 latest: ErpNotification[];

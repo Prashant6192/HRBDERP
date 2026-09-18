@@ -30,6 +30,7 @@ export type FacilityDetails = {
     phone: string;
     email: string;
     gstin: string;
+    legal_name: string;
     notes: string;
     daily_capacity_kg: string;
 };
@@ -50,6 +51,7 @@ export const EMPTY_DETAILS: FacilityDetails = {
     phone: '',
     email: '',
     gstin: '',
+    legal_name: '',
     notes: '',
     daily_capacity_kg: '',
 };
@@ -269,6 +271,20 @@ export function FacilityDetailsFields({
                         type="email"
                         value={data.email}
                         onChange={(e) => setField('email', e.target.value)}
+                    />
+                </Field>
+                <Field
+                    label="Bills as (legal name)"
+                    htmlFor="legal_name"
+                    error={errors.legal_name}
+                    hint="The registered company whose invoices goods leave this site under. Printed as the seller on e-invoices and challans."
+                    className="sm:col-span-2"
+                >
+                    <Input
+                        id="legal_name"
+                        value={data.legal_name}
+                        onChange={(e) => setField('legal_name', e.target.value)}
+                        placeholder="Harbanshram Bhagwandas Ayurvedic Sansthan Private Limited"
                     />
                 </Field>
                 <Field

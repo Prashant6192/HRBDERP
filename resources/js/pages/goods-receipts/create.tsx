@@ -1,5 +1,5 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { FileUp, Lock, Plus, ScanText, Trash2 } from 'lucide-react';
 import { Field, FormSection } from '@/components/form-field';
 import InputError from '@/components/input-error';
@@ -9,6 +9,7 @@ import { VendorQuickAdd } from '@/components/procurement/vendor-quick-add';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
     Select,
     SelectContent,
@@ -23,7 +24,7 @@ import {
     intake as intakeRoute,
     store,
 } from '@/routes/goods-receipts';
-import type { SelectOption } from '@/types';
+import type { SelectOption, SharedData } from '@/types';
 
 type ItemOption = SelectOption & {
     type: string;
@@ -155,6 +156,7 @@ export default function CreateGoodsReceipt({
     // Without the right to key a receipt by hand, the particulars are the
     // bill's: only the item mapping and the unit are chosen on screen.
     const locked = !can.manual;
+    const brand = usePage<SharedData>().props.erp.brand;
     const pageErrors = usePage().props.errors as Record<
         string,
         string | undefined
@@ -162,6 +164,15 @@ export default function CreateGoodsReceipt({
     const [vendorOptions, setVendorOptions] = useState<SelectOption[]>(vendors);
     // Materials added from the bill without leaving the page join the list.
     const [itemOptions, setItemOptions] = useState<ItemOption[]>(items);
+    const itemChoices = useMemo(
+        () =>
+            itemOptions.map((it) => ({
+                value: String(it.value),
+                label: it.label,
+                hint: it.stock_uom ? `Stocked in ${it.stock_uom}` : undefined,
+            })),
+        [itemOptions],
+    );
     const [uploading, setUploading] = useState(false);
     const fileInput = useRef<HTMLInputElement>(null);
 
@@ -359,10 +370,10 @@ export default function CreateGoodsReceipt({
 
     return (
         <>
-            <Head title="New goods receipt" />
+            <Head title="Add Material Inventory" />
             <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
                 <PageHeader
-                    title="New goods receipt"
+                    title="Add Material Inventory"
                     description="Upload the supplier's bill and check what was read off it. Batch numbers are generated when you post the receipt."
                 />
 
@@ -531,7 +542,7 @@ export default function CreateGoodsReceipt({
                     }}
                     className="space-y-6"
                 >
-                    <FormSection title="Delivery">
+                    <FormSection title="Inventory Details">
                         {materialRequests.length > 0 && (
                             <Field
                                 label="Against material request"
@@ -642,7 +653,7 @@ export default function CreateGoodsReceipt({
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value={NONE}>
-                                        Our company
+                                        {brand} — our own stock
                                     </SelectItem>
                                     {clients.map((c) => (
                                         <SelectItem
@@ -746,7 +757,7 @@ export default function CreateGoodsReceipt({
                     <section className="bg-card rounded-xl border">
                         <div className="flex items-center justify-between border-b px-5 py-4">
                             <div>
-                                <h2 className="font-semibold">Lines</h2>
+                                <h2 className="font-semibold">Description</h2>
                                 <p className="text-muted-foreground text-sm">
                                     {locked
                                         ? 'Quantities, rates and batch details come off the bill. Choose the item and unit where the reader could not.'
@@ -819,32 +830,15 @@ export default function CreateGoodsReceipt({
                                                         </StatusBadge>
                                                     )}
                                                 </div>
-                                                <Select
+                                                <SearchableSelect
                                                     value={line.item_id}
                                                     onValueChange={(v) =>
                                                         chooseItem(i, v)
                                                     }
-                                                >
-                                                    <SelectTrigger className="w-full">
-                                                        <SelectValue placeholder="Select an item" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {itemOptions.map(
-                                                            (it) => (
-                                                                <SelectItem
-                                                                    key={
-                                                                        it.value
-                                                                    }
-                                                                    value={String(
-                                                                        it.value,
-                                                                    )}
-                                                                >
-                                                                    {it.label}
-                                                                </SelectItem>
-                                                            ),
-                                                        )}
-                                                    </SelectContent>
-                                                </Select>
+                                                    options={itemChoices}
+                                                    placeholder="Select an item"
+                                                    searchPlaceholder="Search by code or name…"
+                                                />
                                                 {read && (
                                                     <p className="text-muted-foreground text-xs">
                                                         On the bill:{' '}

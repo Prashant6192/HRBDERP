@@ -6,6 +6,8 @@ namespace App\Providers;
 
 use App\Domain\Audit\Models\AuditLog;
 use App\Domain\Contract\Models\Client;
+use App\Domain\Dispatch\Models\Customer;
+use App\Domain\Dispatch\Models\Dispatch;
 use App\Domain\Documents\Models\Document;
 use App\Domain\Formulation\Models\Formula;
 use App\Domain\Formulation\Models\FormulaVersion;
@@ -28,7 +30,9 @@ use App\Domain\Warehousing\Models\Warehouse;
 use App\Models\User;
 use App\Policies\AuditLogPolicy;
 use App\Policies\ClientPolicy;
+use App\Policies\CustomerPolicy;
 use App\Policies\DepartmentPolicy;
+use App\Policies\DispatchPolicy;
 use App\Policies\DocumentPolicy;
 use App\Policies\FacilityPolicy;
 use App\Policies\FormulaPolicy;
@@ -68,6 +72,8 @@ class AuthServiceProvider extends ServiceProvider
         StockTransfer::class => StockTransferPolicy::class,
         Vendor::class => VendorPolicy::class,
         Client::class => ClientPolicy::class,
+        Customer::class => CustomerPolicy::class,
+        Dispatch::class => DispatchPolicy::class,
         Uom::class => UomPolicy::class,
         AuditLog::class => AuditLogPolicy::class,
         GoodsReceipt::class => GoodsReceiptPolicy::class,

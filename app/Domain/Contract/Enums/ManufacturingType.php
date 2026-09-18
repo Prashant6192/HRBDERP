@@ -18,7 +18,7 @@ enum ManufacturingType: string
     public function label(): string
     {
         return match ($this) {
-            self::Own => 'Own brand',
+            self::Own => 'Own brand — '.config('erp.company.brand'),
             self::ThirdParty => 'Third party',
         };
     }

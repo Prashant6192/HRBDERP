@@ -19,6 +19,7 @@ final class FacilityRules
     {
         return [
             'name' => ['required', 'string', 'max:160'],
+            'legal_name' => ['nullable', 'string', 'max:255'],
             'code' => ['nullable', 'string', 'max:32', 'regex:/^[A-Za-z0-9\-]+$/', Rule::unique('facilities', 'code')->ignore($ignoreId)],
             'facility_type_id' => ['required', 'integer', Rule::exists('facility_types', 'id')->where('is_active', true)],
             'manager_id' => ['nullable', 'integer', Rule::exists('users', 'id')],

@@ -1,4 +1,4 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { CheckCircle2, ExternalLink, FileText, XCircle } from 'lucide-react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { ClientBadge } from '@/components/contract/client-badge';
@@ -19,7 +19,7 @@ import { dashboard } from '@/routes';
 import { cancel, index, post, show } from '@/routes/goods-receipts';
 import { show as showLot } from '@/routes/lots';
 import { show as showQc } from '@/routes/qc';
-import type { GoodsReceipt } from '@/types';
+import type { GoodsReceipt, SharedData } from '@/types';
 
 const STATUS_VARIANT = {
     draft: 'muted',
@@ -48,6 +48,7 @@ export default function ShowGoodsReceipt({
     document: Document | null;
     can: { post: boolean; cancel: boolean; viewQc: boolean };
 }) {
+    const brand = usePage<SharedData>().props.erp.brand;
     return (
         <>
             <Head title={receipt.number} />
@@ -107,7 +108,7 @@ export default function ShowGoodsReceipt({
                                         client={receipt.owner_client}
                                     />
                                 ) : (
-                                    'Our company'
+                                    `${brand} — our own`
                                 )}
                             </DetailItem>
                             <DetailItem label="Destination store">

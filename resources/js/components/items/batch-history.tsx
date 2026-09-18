@@ -18,7 +18,8 @@ export type BatchRow = {
     batch_number: string;
     supplier_batch_ref: string | null;
     brand: string | null;
-    brand_kind: 'client' | 'vendor' | null;
+    brand_kind: 'client' | 'own' | null;
+    supplier: string | null;
     qc_status: string;
     qc_status_label: string;
     qc_variant: 'success' | 'warning' | 'destructive' | 'muted' | 'info';
@@ -179,6 +180,12 @@ export function BatchHistory({
                                             Client&rsquo;s own material
                                         </span>
                                     )}
+                                    {row.brand_kind === 'own' &&
+                                        row.supplier && (
+                                            <span className="text-muted-foreground block text-xs">
+                                                Supplied by {row.supplier}
+                                            </span>
+                                        )}
                                     {row.receipt && (
                                         <Link
                                             href={showGoodsReceipt(

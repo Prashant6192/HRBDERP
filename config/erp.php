@@ -12,6 +12,9 @@ return [
 
     'company' => [
         'name' => env('ERP_COMPANY_NAME', 'HRBD'),
+        // The company's own brand, as the stores and the batch records name
+        // it: our stock is this brand's; a client's is the client's.
+        'brand' => env('ERP_OWN_BRAND', 'Rahat Rooh'),
         'currency' => env('ERP_CURRENCY', 'INR'),
         'currency_symbol' => env('ERP_CURRENCY_SYMBOL', '₹'),
         // Our own GSTIN and PAN. A supplier's bill prints ours as the
@@ -19,6 +22,9 @@ return [
         // vendor's.
         'gstin' => env('ERP_COMPANY_GSTIN'),
         'pan' => env('ERP_COMPANY_PAN'),
+        // The registered name on the company's invoices, when it differs
+        // from the trading name above. A facility may carry its own.
+        'legal_name' => env('ERP_COMPANY_LEGAL_NAME'),
         // The clock on the wall of the factory. Timestamps are stored in UTC
         // and shown in this zone, so a shift's records read the same from
         // any browser.
@@ -278,6 +284,20 @@ return [
         // When true, a batch cannot start until every raw material line has
         // been verified by scanning a batch that passed the checks.
         'require_scan_before_start' => (bool) env('ERP_REQUIRE_SCAN_BEFORE_START', false),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Dispatch
+    |--------------------------------------------------------------------------
+    */
+
+    'dispatch' => [
+        // When true, goods for a GST-registered buyer do not leave until the
+        // e-invoice's IRN and acknowledgement are recorded and the signed
+        // invoice is uploaded. An unregistered buyer (B2C) needs the plain
+        // invoice uploaded instead.
+        'einvoice_mandatory' => (bool) env('ERP_EINVOICE_MANDATORY', true),
     ],
 
     'stock_alerts' => [

@@ -105,6 +105,15 @@ ERP_ASSISTANT_RATE_PER_MINUTE=20   # questions per person per minute
 ERP_COMPANY_GSTIN=
 ERP_COMPANY_PAN=
 
+# The registered name on the company's invoices when it differs from the
+# trading name, and the company's own brand as the stores name it.
+ERP_COMPANY_LEGAL_NAME=
+ERP_OWN_BRAND="Rahat Rooh"
+
+# Goods for a GST-registered buyer do not leave until the e-invoice's IRN,
+# acknowledgement and signed copy are on record. Leave it on.
+ERP_EINVOICE_MANDATORY=true
+
 # Signs every approval decision. Set a long random value; changing it later
 # means earlier signatures no longer verify. Falls back to APP_KEY.
 ERP_SIGNATURE_KEY=

@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
     Select,
     SelectContent,
@@ -436,33 +437,22 @@ export default function CreatePlan({
                             error={form.errors.formula_id}
                             hint="Only formulas with an active recipe are offered."
                         >
-                            <Select
+                            <SearchableSelect
+                                id="formula_id"
                                 value={form.data.formula_id}
                                 onValueChange={chooseFormula}
-                            >
-                                <SelectTrigger
-                                    id="formula_id"
-                                    className="w-full"
-                                >
-                                    <SelectValue placeholder="Choose a formula" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {offeredFormulas.map((f) => (
-                                        <SelectItem
-                                            key={f.value}
-                                            value={String(f.value)}
-                                        >
-                                            {f.label}
-                                            {f.version
-                                                ? ` · v${f.version}`
-                                                : ''}
-                                            {f.ownership !== 'company'
-                                                ? ` · ${f.ownership_label}${f.client ? ` — ${f.client}` : ''}`
-                                                : ''}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                                options={offeredFormulas.map((f) => ({
+                                    value: String(f.value),
+                                    label: `${f.label}${f.version ? ` · v${f.version}` : ''}${
+                                        f.ownership !== 'company'
+                                            ? ` · ${f.ownership_label}${f.client ? ` — ${f.client}` : ''}`
+                                            : ''
+                                    }`,
+                                    hint: f.product ?? undefined,
+                                }))}
+                                placeholder="Choose a formula"
+                                searchPlaceholder="Search formulas…"
+                            />
                             {formula && formula.ownership !== 'company' && (
                                 <StatusBadge variant="info" className="mt-2">
                                     {formula.ownership_label}

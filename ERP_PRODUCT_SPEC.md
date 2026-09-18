@@ -421,9 +421,33 @@ The consumption each manufacturing order already records is its input.
 Historical costing is preserved: a material price rise never rewrites what an
 earlier batch cost.
 
-### Accounting, dispatch and sales — _planned_
+### Dispatch — _built_
 
-Sales orders and allocation from finished stock; dispatch notes; marketplace
+Finished goods leave a facility against a tax invoice, and only from the
+finished goods store. A consignment is written up batch by batch from
+QC-released stock, priced as the invoice carries it; the tax follows the
+seller's and buyer's states. A contract client's batches go only to that
+client — the customer linked to them — and the company's own to anyone.
+Nothing moves at write-up.
+
+E-invoicing is enforced, not advised: for a GST-registered buyer the goods
+do not leave until the invoice number and date, the IRN and
+acknowledgement the Invoice Registration Portal returned, and the signed
+invoice with its QR are on record. The ERP prepares the e-invoice as JSON
+in the IRP's schema (INV-01 v1.1) for the bulk tool or a GSP; the IRN comes
+back and is recorded. An unregistered buyer is invoiced without an IRN and
+the plain invoice is uploaded instead. When the goods go, the stock leaves
+through the ledger against the consignment, the transport is recorded and
+a delivery challan prints; once gone, a consignment is delivered, never
+cancelled. Every paper that travelled is kept with it, and management sees
+everything that ever left, to whom, on which invoice, on which vehicle.
+
+Each facility bills under its own company: the factory's invoices name the
+manufacturing company, the depot's the brand owner.
+
+### Accounting and sales — _planned_
+
+Sales orders and allocation from finished stock ahead of dispatch; marketplace
 imports for Amazon and Flipkart, stock transfers to fulfilment centres, and
 reconciliation. Shown in the navigation now so the shape of the system is
 visible.

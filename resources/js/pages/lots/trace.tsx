@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { Radar } from 'lucide-react';
 import { StatTile } from '@/components/intelligence/facility-filter';
 import { PageHeader } from '@/components/page-header';
@@ -18,7 +18,7 @@ import { dashboard } from '@/routes';
 import { index, show, trace as traceRoute } from '@/routes/lots';
 import { show as showOrder } from '@/routes/manufacturing';
 import { show as showTransfer } from '@/routes/transfers';
-import type { InventoryLot, LotQcStatus } from '@/types';
+import type { InventoryLot, LotQcStatus, SharedData } from '@/types';
 
 type Affected = {
     lot: { id: number; batch_number: string };
@@ -88,6 +88,7 @@ export default function LotTrace({
     lot: InventoryLot;
     trace: Trace;
 }) {
+    const brand = usePage<SharedData>().props.erp.brand;
     const s = trace.summary;
 
     return (
@@ -239,7 +240,7 @@ export default function LotTrace({
                                             {o.product ?? '—'}
                                         </TableCell>
                                         <TableCell>
-                                            {o.client ?? 'Own brand'}
+                                            {o.client ?? brand}
                                         </TableCell>
                                         <TableCell className="font-mono text-xs">
                                             {o.from_batch}
@@ -321,7 +322,7 @@ export default function LotTrace({
                                             </StatusBadge>
                                         </TableCell>
                                         <TableCell>
-                                            {a.client ?? 'Own brand'}
+                                            {a.client ?? brand}
                                         </TableCell>
                                         <TableCell className="text-xs">
                                             {a.where.length === 0

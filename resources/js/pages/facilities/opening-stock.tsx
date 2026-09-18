@@ -5,6 +5,7 @@ import { Field, FormSection } from '@/components/form-field';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
     Select,
     SelectContent,
@@ -403,7 +404,8 @@ export default function OpeningStock({
                                             error={err(i, 'item_id')}
                                             className="lg:col-span-2"
                                         >
-                                            <Select
+                                            <SearchableSelect
+                                                id={`item-${i}`}
                                                 value={line.item_id}
                                                 onValueChange={(v) => {
                                                     const it = items.find(
@@ -422,26 +424,13 @@ export default function OpeningStock({
                                                                 ''),
                                                     });
                                                 }}
-                                            >
-                                                <SelectTrigger
-                                                    id={`item-${i}`}
-                                                    className="w-full"
-                                                >
-                                                    <SelectValue placeholder="Choose" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {offered.map((it) => (
-                                                        <SelectItem
-                                                            key={it.value}
-                                                            value={String(
-                                                                it.value,
-                                                            )}
-                                                        >
-                                                            {it.label}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                                options={offered.map((it) => ({
+                                                    value: String(it.value),
+                                                    label: it.label,
+                                                }))}
+                                                placeholder="Choose"
+                                                searchPlaceholder="Search by code or name…"
+                                            />
                                         </Field>
                                         <Field
                                             label="Batch no."

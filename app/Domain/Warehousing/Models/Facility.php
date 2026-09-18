@@ -47,7 +47,7 @@ class Facility extends Model
     use RecordsAuditTrail, SoftDeletes;
 
     protected $fillable = [
-        'code', 'name', 'facility_type_id', 'manager_id',
+        'code', 'name', 'legal_name', 'facility_type_id', 'manager_id',
         'address_line_1', 'address_line_2', 'city', 'state', 'pincode', 'country',
         'phone', 'email', 'gstin',
         'can_store', 'can_receive', 'can_qc', 'can_manufacture', 'can_pack', 'can_dispatch', 'can_return',

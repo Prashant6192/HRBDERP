@@ -67,13 +67,14 @@ roles to the defaults below.
 
 ### Commercial
 
-| Module        | Key           | Abilities                                    |
-| ------------- | ------------- | -------------------------------------------- |
-| Sales         | `sales`       | `view`, `create`, `edit`, `delete`, `export` |
-| Marketplace   | `marketplace` | `view`, `import`, `reconcile`, `export`      |
-| Costing       | `costing`     | `view`, `edit`, `export`                     |
-| Reports       | `report`      | `view`, `export`                             |
-| ERP Assistant | `assistant`   | `view`                                       |
+| Module        | Key           | Abilities                                                           |
+| ------------- | ------------- | ------------------------------------------------------------------- |
+| Dispatch      | `dispatch`    | `view`, `create`, `edit`, `invoice`, `dispatch`, `cancel`, `export` |
+| Sales         | `sales`       | `view`, `create`, `edit`, `delete`, `export`                        |
+| Marketplace   | `marketplace` | `view`, `import`, `reconcile`, `export`                             |
+| Costing       | `costing`     | `view`, `edit`, `export`                                            |
+| Reports       | `report`      | `view`, `export`                                                    |
+| ERP Assistant | `assistant`   | `view`                                                              |
 
 ### Workflow
 
@@ -121,6 +122,16 @@ store categories, or the audit trail itself. The same guard applies to the
 **Only a Super Admin, and never to themselves.** Role assignment is the one
 permission that can be used to grant every other, so it is gated more tightly
 than `user.edit`.
+
+### Dispatch
+
+Only the Dispatch Manager (and the administrators) may write a consignment
+up, record its invoice, let it go or cancel it. Director, Management,
+Accounts Manager, Sales Manager and E-commerce Manager see the dispatch
+history and its papers; the Store Executive, who books deliveries in, has
+no dispatch screen at all. E-invoicing is enforced by the module, not by a
+permission: for a GST-registered buyer nothing leaves until the IRN,
+acknowledgement and signed invoice are on record.
 
 ### Formulations
 
@@ -479,6 +490,25 @@ Sales orders, customers and sales reporting.
 | Marketplace      | `view`                                       |
 | Reports          | `view`, `export`                             |
 | ERP Assistant    | `use`                                        |
+
+### Dispatch Manager
+
+Sends finished goods out: writes up consignments from the finished goods
+store, records the invoice and e-invoice, and lets the goods leave. Nothing
+else.
+
+| Module           | Abilities                                                           |
+| ---------------- | ------------------------------------------------------------------- |
+| Facilities       | `view`                                                              |
+| Stores           | `view`                                                              |
+| Product Master   | `view`                                                              |
+| Contract Clients | `view`                                                              |
+| Units of Measure | `view`                                                              |
+| Inventory        | `view`                                                              |
+| Dispatch         | `view`, `create`, `edit`, `invoice`, `dispatch`, `cancel`, `export` |
+| Reports          | `view`                                                              |
+| ERP Assistant    | `view`                                                              |
+| Controlled Docs  | `view`                                                              |
 
 ### Brand Manager
 

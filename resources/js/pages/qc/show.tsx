@@ -1,4 +1,4 @@
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { CheckCircle2, PauseCircle, Printer, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { DetailItem } from '@/components/form-field';
@@ -27,6 +27,7 @@ import type {
     QcInspection,
     QcSpecParameter,
     SelectOption,
+    SharedData,
 } from '@/types';
 
 type Decision = 'approve' | 'reject' | 'hold';
@@ -60,6 +61,7 @@ export default function ShowQcInspection({
     };
     pin: { required: boolean; set: boolean };
 }) {
+    const brand = usePage<SharedData>().props.erp.brand;
     const [decision, setDecision] = useState<Decision | null>(null);
 
     const form = useForm({
@@ -177,7 +179,7 @@ export default function ShowQcInspection({
                                 {owner ? (
                                     <ClientBadge client={owner} />
                                 ) : (
-                                    'Our company'
+                                    `${brand} — our own`
                                 )}
                             </DetailItem>
                             <DetailItem label="Received">

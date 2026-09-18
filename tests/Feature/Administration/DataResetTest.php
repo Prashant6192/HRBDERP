@@ -84,7 +84,7 @@ class DataResetTest extends TestCase
         $this->actingAs($this->admin)->get(route('administration.data'))
             ->assertInertia(fn (AssertableInertia $page) => $page->component('administration/data')
                 ->where('company', 'HRBD')
-                ->has('scopes', 8)
+                ->has('scopes', 9)
                 ->where('counts.stock', 1)
                 ->where('counts.partners', 1));
     }
@@ -137,13 +137,13 @@ class DataResetTest extends TestCase
         $reset = app(DataResetService::class);
 
         $this->assertSame(
-            ['production', 'purchasing', 'stock', 'formulas', 'materials'],
+            ['production', 'dispatch', 'purchasing', 'stock', 'formulas', 'materials'],
             $reset->withDependencies(['materials']),
         );
-        $this->assertSame(['production', 'purchasing', 'stock', 'formulas'], $reset->addedByDependency(['materials']));
+        $this->assertSame(['production', 'dispatch', 'purchasing', 'stock', 'formulas'], $reset->addedByDependency(['materials']));
 
-        // Clearing the batches drags in the deliveries that point at them.
-        $this->assertSame(['purchasing', 'stock'], $reset->withDependencies(['stock']));
+        // Clearing the batches drags in the deliveries and dispatches that point at them.
+        $this->assertSame(['dispatch', 'purchasing', 'stock'], $reset->withDependencies(['stock']));
 
         // Facilities are the deepest, and are never pulled in by anything else.
         $this->assertNotContains('facilities', $reset->withDependencies(['materials']));

@@ -645,7 +645,19 @@ The assistant reads through the same services as the screens, under the
 asking person's own permissions: a tool the person may not see answers
 "you do not hold X" and nothing else. It never writes.
 
-`report.view` also opens the **Scorecards** screen.
+`report.view` also opens the **Scorecards** screen and the **management
+view on a phone** at `/m` — read-only, one number per question, with the
+detail a tap away — reached from the Management link in the header.
+
+Artwork on a product (Products → Artwork) is filed by whoever may edit the
+product (`product.edit`: Owner, Director, Marketing Manager, Brand Manager);
+a client's artwork by whoever may edit the client. The artwork file itself
+opens for anyone who may see the product, the client or production, so the
+packing line and management see the pack from the batch.
+
+**Backup and restore** (Administration → Data) are the Super Admin's
+alone, whatever permissions others hold: the whole ERP as one file, and the
+whole ERP back from it, company name typed to confirm.
 
 **Old Stock Entry** (Store → Old Stock Entry) is reserved for the Super
 Admin, whatever permissions others hold: the one-time booking of the stock

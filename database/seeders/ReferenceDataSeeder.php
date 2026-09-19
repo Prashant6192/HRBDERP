@@ -48,6 +48,7 @@ class ReferenceDataSeeder extends Seeder
         ['RET', 'Returns', 'RET', 'returns', 'undo', 'slate', 90],
         ['DMG', 'Damaged Goods', 'DMG', 'damaged', 'alert-triangle', 'red', 100],
         ['MKT', 'Marketplace', 'MKT', 'marketplace', 'store', 'indigo', 110],
+        ['ENG', 'Engineering Store', 'ENG', 'engineering', 'wrench', 'slate', 115],
         ['GEN', 'General', 'GEN', 'general', 'warehouse', 'slate', 120],
         ['TRANSIT', 'In Transit', 'TRANSIT', 'in_transit', 'truck', 'slate', 130],
     ];

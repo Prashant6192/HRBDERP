@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { ArtworkGallery } from '@/components/contract/artwork-gallery';
 import { ClientBadge } from '@/components/contract/client-badge';
 import { VerificationPanel } from '@/components/manufacturing/verification-panel';
 import {
@@ -73,11 +74,150 @@ import { show as showPlan } from '@/routes/plans';
 import { show as showProduct } from '@/routes/products';
 import type { Verification } from '@/pages/floor/issue';
 import type {
+    ArtworkRow,
     ManufacturingOrder,
     ManufacturingOrderLineRow,
     ReservationRow,
     StoreKind,
 } from '@/types';
+
+/** The account the completion form shows as it is typed. */
+function reconcileDraft(
+    filled: string,
+    rejected: string,
+    samples: string,
+    plannedUnits: number | null,
+): {
+    good: number | null;
+    packingYield: string | null;
+    overallYield: string | null;
+} {
+    if (filled === '') {
+        return { good: null, packingYield: null, overallYield: null };
+    }
+
+    const f = Number(filled);
+    const good = f - Number(rejected || 0) - Number(samples || 0);
+
+    return {
+        good,
+        packingYield: f > 0 ? ((good / f) * 100).toFixed(1) : null,
+        overallYield:
+            plannedUnits && plannedUnits > 0
+                ? ((good / plannedUnits) * 100).toFixed(1)
+                : null,
+    };
+}
+
+function pct(value: string | null): string {
+    return value === null ? '—' : `${Number(value)}%`;
+}
+
+/**
+ * The batch account, read after completion: planned against made, filled
+ * against kept, and where the difference went.
+ */
+function ReconciliationPanel({ order }: { order: ManufacturingOrder }) {
+    if (!order.output_quantity) {
+        return null;
+    }
+
+    const uom = order.planned_uom?.code ?? '';
+    const planned = Number(order.planned_quantity);
+    const made = Number(order.output_quantity);
+    const leftover = order.bulk_leftover_quantity
+        ? Number(order.bulk_leftover_quantity)
+        : null;
+    const bulkLoss = planned - made;
+    const rows: { label: string; value: string; muted?: boolean }[] = [
+        {
+            label: 'Bulk planned',
+            value: `${qty(order.planned_quantity)} ${uom}`,
+        },
+        { label: 'Bulk made', value: `${qty(order.output_quantity)} ${uom}` },
+        {
+            label: bulkLoss >= 0 ? 'Process loss' : 'Over-yield',
+            value: `${qty(String(Math.abs(bulkLoss)))} ${uom} · ${pct(order.yield_percentage)} bulk yield`,
+            muted: true,
+        },
+    ];
+
+    if (leftover !== null) {
+        rows.push({
+            label: 'Bulk left unpacked',
+            value: `${qty(String(leftover))} ${uom}`,
+        });
+    }
+
+    if (order.planned_units) {
+        rows.push({
+            label: 'Units planned',
+            value: order.planned_units.toLocaleString(),
+        });
+    }
+
+    if (order.filled_units !== null && order.filled_units !== undefined) {
+        rows.push(
+            {
+                label: 'Units filled',
+                value: order.filled_units.toLocaleString(),
+            },
+            {
+                label: 'Rejected at packing',
+                value: `${(order.rejected_units ?? 0).toLocaleString()}${order.filled_units > 0 ? ` (${(((order.rejected_units ?? 0) / order.filled_units) * 100).toFixed(1)}%)` : ''}`,
+            },
+            {
+                label: 'Samples kept',
+                value: (order.sample_units ?? 0).toLocaleString(),
+            },
+        );
+    }
+
+    if (order.output_units) {
+        rows.push({
+            label: 'Good units to stock',
+            value: `${order.output_units.toLocaleString()}${order.packing_yield_percentage ? ` · ${pct(order.packing_yield_percentage)} packing yield` : ''}${order.overall_yield_percentage ? ` · ${pct(order.overall_yield_percentage)} of plan` : ''}`,
+        });
+    }
+
+    return (
+        <section className="rounded-xl border">
+            <div className="border-b px-5 py-3">
+                <h2 className="font-medium">Batch reconciliation</h2>
+                <p className="text-muted-foreground text-xs">
+                    What was planned, what the kettle gave, what the line kept.
+                </p>
+            </div>
+            <dl className="divide-y">
+                {rows.map((r) => (
+                    <div
+                        key={r.label}
+                        className="flex items-center justify-between gap-4 px-5 py-2 text-sm"
+                    >
+                        <dt
+                            className={
+                                r.muted
+                                    ? 'text-muted-foreground'
+                                    : 'text-muted-foreground font-medium'
+                            }
+                        >
+                            {r.label}
+                        </dt>
+                        <dd className="text-right tabular-nums">{r.value}</dd>
+                    </div>
+                ))}
+                {order.loss_notes && (
+                    <div className="px-5 py-2 text-sm">
+                        <dt className="text-muted-foreground">
+                            Where the loss went
+                        </dt>
+                        <dd>{order.loss_notes}</dd>
+                    </div>
+                )}
+            </dl>
+        </section>
+    );
+}
 
 function LinesTable({
     lines,
@@ -193,6 +333,7 @@ export default function ShowManufacturingOrder({
     stages,
     approval,
     documents,
+    artworks,
     verification,
     scanCode,
     analytics,
@@ -221,6 +362,7 @@ export default function ShowManufacturingOrder({
         effective_from: string | null;
         has_file: boolean;
     }[];
+    artworks: ArtworkRow[];
     verification: Verification | null;
     scanCode: string;
     analytics: BatchAnalytics | null;
@@ -240,11 +382,24 @@ export default function ShowManufacturingOrder({
 
     const form = useForm({
         output_quantity: order.planned_quantity,
-        output_units: order.planned_units ? String(order.planned_units) : '',
+        filled_units: order.planned_units ? String(order.planned_units) : '',
+        rejected_units: '0',
+        sample_units: '0',
+        bulk_leftover_quantity: '',
+        loss_notes: '',
         manufactured_at: today,
         expiry_at: '',
         notes: '',
     });
+
+    // The batch account as the operator types it, so the good units
+    // that will go to stock are in view before the batch is posted.
+    const account = reconcileDraft(
+        form.data.filled_units,
+        form.data.rejected_units,
+        form.data.sample_units,
+        order.planned_units,
+    );
 
     const byStore = (kind: StoreKind) =>
         lines.filter((l) => l.store_kind === kind);
@@ -397,41 +552,185 @@ export default function ShowManufacturingOrder({
                                             </div>
 
                                             {order.product && (
+                                                <div className="space-y-3 rounded-md border p-3">
+                                                    <p className="text-sm font-medium">
+                                                        Packing account
+                                                    </p>
+                                                    <div className="grid gap-3 sm:grid-cols-3">
+                                                        <div className="space-y-2">
+                                                            <Label htmlFor="filled_units">
+                                                                Units filled
+                                                                {stockedByPiece
+                                                                    ? ''
+                                                                    : ' (optional)'}
+                                                            </Label>
+                                                            <Input
+                                                                id="filled_units"
+                                                                inputMode="numeric"
+                                                                value={
+                                                                    form.data
+                                                                        .filled_units
+                                                                }
+                                                                onChange={(e) =>
+                                                                    form.setData(
+                                                                        'filled_units',
+                                                                        e.target.value.replace(
+                                                                            /\D/g,
+                                                                            '',
+                                                                        ),
+                                                                    )
+                                                                }
+                                                                required={
+                                                                    stockedByPiece
+                                                                }
+                                                            />
+                                                            <InputError
+                                                                message={
+                                                                    form.errors
+                                                                        .filled_units
+                                                                }
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <Label htmlFor="rejected_units">
+                                                                Rejected at
+                                                                packing
+                                                            </Label>
+                                                            <Input
+                                                                id="rejected_units"
+                                                                inputMode="numeric"
+                                                                value={
+                                                                    form.data
+                                                                        .rejected_units
+                                                                }
+                                                                onChange={(e) =>
+                                                                    form.setData(
+                                                                        'rejected_units',
+                                                                        e.target.value.replace(
+                                                                            /\D/g,
+                                                                            '',
+                                                                        ),
+                                                                    )
+                                                                }
+                                                            />
+                                                            <InputError
+                                                                message={
+                                                                    form.errors
+                                                                        .rejected_units
+                                                                }
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <Label htmlFor="sample_units">
+                                                                Samples kept
+                                                            </Label>
+                                                            <Input
+                                                                id="sample_units"
+                                                                inputMode="numeric"
+                                                                value={
+                                                                    form.data
+                                                                        .sample_units
+                                                                }
+                                                                onChange={(e) =>
+                                                                    form.setData(
+                                                                        'sample_units',
+                                                                        e.target.value.replace(
+                                                                            /\D/g,
+                                                                            '',
+                                                                        ),
+                                                                    )
+                                                                }
+                                                            />
+                                                            <InputError
+                                                                message={
+                                                                    form.errors
+                                                                        .sample_units
+                                                                }
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <p
+                                                        className={
+                                                            account.good !==
+                                                                null &&
+                                                            account.good < 1
+                                                                ? 'text-destructive text-sm'
+                                                                : 'text-muted-foreground text-sm'
+                                                        }
+                                                    >
+                                                        {account.good === null
+                                                            ? 'Good units to stock = filled − rejected − samples.'
+                                                            : account.good < 1
+                                                              ? 'Nothing is left to post to stock.'
+                                                              : `${account.good.toLocaleString()} good units go to stock` +
+                                                                (account.packingYield !==
+                                                                null
+                                                                    ? ` · packing yield ${account.packingYield}%`
+                                                                    : '') +
+                                                                (account.overallYield !==
+                                                                null
+                                                                    ? ` · ${account.overallYield}% of the ${order.planned_units?.toLocaleString()} planned`
+                                                                    : '')}
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            <div className="grid gap-4 sm:grid-cols-2">
                                                 <div className="space-y-2">
-                                                    <Label htmlFor="output_units">
-                                                        Units packed
-                                                        {stockedByPiece
-                                                            ? ''
-                                                            : ' (optional)'}
+                                                    <Label htmlFor="bulk_leftover_quantity">
+                                                        Bulk left unpacked (
+                                                        {
+                                                            order.planned_uom
+                                                                ?.code
+                                                        }
+                                                        )
                                                     </Label>
                                                     <Input
-                                                        id="output_units"
-                                                        inputMode="numeric"
+                                                        id="bulk_leftover_quantity"
+                                                        inputMode="decimal"
                                                         value={
                                                             form.data
-                                                                .output_units
+                                                                .bulk_leftover_quantity
                                                         }
                                                         onChange={(e) =>
                                                             form.setData(
-                                                                'output_units',
-                                                                e.target.value.replace(
-                                                                    /\D/g,
-                                                                    '',
-                                                                ),
+                                                                'bulk_leftover_quantity',
+                                                                e.target.value,
                                                             )
-                                                        }
-                                                        required={
-                                                            stockedByPiece
                                                         }
                                                     />
                                                     <InputError
                                                         message={
                                                             form.errors
-                                                                .output_units
+                                                                .bulk_leftover_quantity
                                                         }
                                                     />
                                                 </div>
-                                            )}
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="loss_notes">
+                                                        Where the loss went
+                                                    </Label>
+                                                    <Input
+                                                        id="loss_notes"
+                                                        value={
+                                                            form.data.loss_notes
+                                                        }
+                                                        placeholder="Kettle residue, leaky tubes, line trial…"
+                                                        onChange={(e) =>
+                                                            form.setData(
+                                                                'loss_notes',
+                                                                e.target.value,
+                                                            )
+                                                        }
+                                                    />
+                                                    <InputError
+                                                        message={
+                                                            form.errors
+                                                                .loss_notes
+                                                        }
+                                                    />
+                                                </div>
+                                            </div>
 
                                             <div className="grid gap-4 sm:grid-cols-2">
                                                 <div className="space-y-2">
@@ -625,10 +924,10 @@ export default function ShowManufacturingOrder({
                                     {qty(order.output_quantity)}{' '}
                                     {order.planned_uom?.code}
                                     {order.output_units
-                                        ? ` · ${order.output_units.toLocaleString()} units`
+                                        ? ` · ${order.output_units.toLocaleString()} good units`
                                         : ''}
                                     {order.yield_percentage
-                                        ? ` · ${Number(order.yield_percentage)}% yield`
+                                        ? ` · ${Number(order.yield_percentage)}% bulk yield`
                                         : ''}
                                 </>
                             ) : (
@@ -711,6 +1010,24 @@ export default function ShowManufacturingOrder({
                     />
                 )}
 
+                {order.product && (
+                    <section className="bg-card rounded-xl border p-5">
+                        <h2 className="font-semibold">
+                            Artwork for this batch
+                        </h2>
+                        <p className="text-muted-foreground text-sm">
+                            {artworks.some((a) => a.status === 'approved')
+                                ? 'The pack must match the approved version. Anything still awaiting approval is marked.'
+                                : 'No approved artwork is on file for this product. Packaging should wait for one.'}
+                        </p>
+                        <ArtworkGallery
+                            artworks={artworks}
+                            className="mt-3"
+                            emptyText="No artwork uploaded for this product yet."
+                        />
+                    </section>
+                )}
+
                 {documents.length > 0 && (
                     <section className="bg-card rounded-xl border p-5">
                         <h2 className="font-semibold">Controlled documents</h2>
@@ -762,6 +1079,10 @@ export default function ShowManufacturingOrder({
                         details={thirdParty}
                         canTerms={can.terms}
                     />
+                )}
+
+                {order.status === 'completed' && (
+                    <ReconciliationPanel order={order} />
                 )}
 
                 {analytics && (

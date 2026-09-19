@@ -46,8 +46,10 @@ export const ARTWORK_STATUS_VARIANT: Record<ArtworkStatus, Variant> = {
 
 export const ARTWORK_KIND_LABEL: Record<string, string> = {
     label: 'Label',
-    carton: 'Carton',
+    tube: 'Tube',
     bottle: 'Bottle',
+    carton: 'Carton',
+    pouch: 'Pouch / sachet',
     other: 'Other',
 };
 

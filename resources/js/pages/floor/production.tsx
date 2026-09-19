@@ -1,10 +1,12 @@
 import { Head, router } from '@inertiajs/react';
 import { Gauge } from 'lucide-react';
 import { useState } from 'react';
+import { ArtworkGallery } from '@/components/contract/artwork-gallery';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { stage as stageRoute } from '@/routes/manufacturing';
+import type { ArtworkRow } from '@/types';
 
 type Order = {
     id: number;
@@ -13,6 +15,7 @@ type Order = {
     stage: string | null;
     stage_label: string | null;
     progress: number;
+    artworks: ArtworkRow[];
 };
 
 type Stage = { value: string; label: string; order: number };
@@ -107,6 +110,20 @@ export default function FloorProduction({
                                 </button>
                             ))}
                         </div>
+
+                        {order && (
+                            <section className="bg-card space-y-2 rounded-2xl border p-4">
+                                <p className="text-sm font-semibold">
+                                    {order.number}: how the pack must look
+                                </p>
+                                <ArtworkGallery
+                                    artworks={order.artworks}
+                                    compact
+                                    className="px-0 py-0"
+                                    emptyText="No approved artwork on file for this product. Check with the office before packing."
+                                />
+                            </section>
+                        )}
 
                         {order && can.record && (
                             <section className="bg-card space-y-4 rounded-2xl border p-4">

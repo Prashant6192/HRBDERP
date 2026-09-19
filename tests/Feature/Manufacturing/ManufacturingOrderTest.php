@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Tests\Feature\Manufacturing;
 
 use App\Domain\Access\Enums\RoleName;
+use App\Domain\Contract\Enums\ArtworkStatus;
+use App\Domain\Contract\Models\ClientArtwork;
 use App\Domain\Formulation\Models\Formula;
 use App\Domain\Formulation\Services\FormulaService;
 use App\Domain\Inventory\Enums\InventoryTransactionType;
@@ -33,6 +35,9 @@ use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\UomSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use Inertia\Testing\AssertableInertia;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -261,6 +266,116 @@ class ManufacturingOrderTest extends TestCase
         $this->assertTrue($this->balances->onHand($this->bottle, $this->pmStore)->isEqualTo('1000'));
         $this->assertSame(0, StockReservation::active()->count());
         $this->assertSame('1000.000000', $order->lines->firstWhere('item_id', $this->bottle->id)->consumed_quantity);
+    }
+
+    #[Test]
+    public function the_batch_account_records_bulk_loss_packing_rejects_and_samples(): void
+    {
+        $this->stockTheStores();
+        $plan = $this->plan('100');
+        $order = $this->orders->start($this->orders->approve($this->orders->createFromPlan($plan, $this->productionManager->id), $this->factoryManager->id), $this->productionManager->id);
+        $order->forceFill(['planned_units' => 1000])->save();
+
+        // 100 kg planned, 99 kg made; 990 filled, 2% rejected, 10 samples.
+        $order = $this->orders->complete($order, $this->productionManager->id, [
+            'output_quantity' => '99',
+            'filled_units' => 990,
+            'rejected_units' => 20,
+            'sample_units' => 10,
+            'bulk_leftover_quantity' => '0.5',
+            'loss_notes' => 'Kettle residue; 20 leaky tubes on the sealer.',
+        ]);
+
+        $this->assertSame(990, $order->filled_units);
+        $this->assertSame(20, $order->rejected_units);
+        $this->assertSame(10, $order->sample_units);
+        $this->assertSame(960, $order->output_units, 'Good units = filled − rejected − samples');
+        $this->assertSame('99.000', $order->yield_percentage, 'Bulk yield');
+        $this->assertSame('96.970', $order->packing_yield_percentage, 'Packing yield = good / filled');
+        $this->assertSame('96.000', $order->overall_yield_percentage, 'Overall yield = good / planned units');
+        $this->assertSame('0.500000', $order->bulk_leftover_quantity);
+        $this->assertSame('Kettle residue; 20 leaky tubes on the sealer.', $order->loss_notes);
+
+        // Only the good units reach stock.
+        $this->assertTrue($this->balances->onHand($this->product, $this->quarantine)->isEqualTo('960'));
+    }
+
+    #[Test]
+    public function rejects_and_samples_cannot_exceed_the_units_filled(): void
+    {
+        $this->stockTheStores();
+        $order = $this->orders->start($this->orders->approve($this->orders->createFromPlan($this->plan('100'), $this->productionManager->id), $this->factoryManager->id), $this->productionManager->id);
+
+        $this->expectException(ManufacturingException::class);
+        $this->expectExceptionMessage('cannot exceed the 100 units filled');
+
+        $this->orders->complete($order, $this->productionManager->id, ['output_quantity' => '100', 'filled_units' => 100, 'rejected_units' => 90, 'sample_units' => 20]);
+    }
+
+    #[Test]
+    public function own_brand_artwork_is_filed_on_the_product_and_shown_on_the_batch_and_the_floor(): void
+    {
+        Storage::fake('local');
+        $this->stockTheStores();
+
+        $tube = UploadedFile::fake()->image('tube-v1.png', 400, 900);
+        $brand = User::factory()->create();
+        $brand->assignRole(RoleName::BrandManager->value);
+
+        // The brand team uploads the tube artwork on the product and approves it.
+        $this->actingAs($brand)->post(route('products.artworks.store', $this->product), [
+            'kind' => 'tube', 'title' => 'Tube front', 'version' => 'v1',
+            'status' => 'approved', 'approved_at' => now()->toDateString(), 'approved_by_name' => 'Owner', 'document' => $tube,
+        ])->assertRedirect();
+
+        $artwork = ClientArtwork::query()->sole();
+        $this->assertNull($artwork->client_id, 'Own-brand artwork carries no client');
+        $this->assertSame($this->product->id, $artwork->product_id);
+        $this->assertSame(ArtworkStatus::Approved, $artwork->status);
+        Storage::disk('local')->assertExists($artwork->document_path);
+
+        // A second tube version awaits approval; it is shown but flagged.
+        $this->actingAs($brand)->post(route('products.artworks.store', $this->product), [
+            'kind' => 'tube', 'title' => 'Tube front', 'version' => 'v2',
+        ])->assertRedirect();
+
+        $order = $this->orders->start($this->orders->approve($this->orders->createFromPlan($this->plan('100'), $this->productionManager->id), $this->factoryManager->id), $this->productionManager->id);
+
+        $this->actingAs($this->productionManager)
+            ->get(route('manufacturing.show', $order))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->has('artworks', 2)
+                ->where('artworks.0.status', 'approved')
+                ->where('artworks.0.document.is_image', true)
+                ->where('artworks.1.status', 'pending'));
+
+        // The packing floor sees only the approved version.
+        $this->actingAs($this->productionManager)
+            ->get(route('floor.production'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->has('orders.0.artworks', 1)
+                ->where('orders.0.artworks.0.version', 'v1'));
+
+        // And can open the picture from the batch.
+        $this->actingAs($this->productionManager)
+            ->get(route('artworks.document', $artwork))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/png');
+
+        // Approving v2 supersedes v1 for the same product and kind.
+        $v2 = ClientArtwork::query()->where('version', 'v2')->sole();
+        $this->actingAs($brand)->post(route('products.artworks.status', [$this->product, $v2]), [
+            'status' => 'approved', 'approved_at' => now()->toDateString(),
+        ])->assertRedirect();
+
+        $this->assertSame(ArtworkStatus::Superseded, $artwork->fresh()->status);
+
+        $this->actingAs($this->factoryManager)
+            ->get(route('products.show', $this->product))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->has('artworks', 2)->has('artworkKinds'));
     }
 
     #[Test]

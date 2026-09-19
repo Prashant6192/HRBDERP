@@ -12,11 +12,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * One version of a client's label, carton or bottle artwork, and whether
- * the client has signed it off. Packaging goes ahead on an approved
- * version; the page says so when there is none.
+ * One version of a label, tube, bottle or carton artwork, and whether it
+ * has been signed off. A client's carries the client; the company's own
+ * brand carries none. Packaging goes ahead on an approved version; the
+ * page says so when there is none.
  *
- * @property int $client_id
+ * @property int|null $client_id
  * @property int|null $product_id
  * @property ArtworkStatus $status
  */
@@ -24,7 +25,7 @@ class ClientArtwork extends Model
 {
     use RecordsAuditTrail;
 
-    public const array KINDS = ['label', 'carton', 'bottle', 'other'];
+    public const array KINDS = ['label', 'tube', 'bottle', 'carton', 'pouch', 'other'];
 
     protected $fillable = [
         'client_id', 'product_id', 'kind', 'title', 'version', 'status',

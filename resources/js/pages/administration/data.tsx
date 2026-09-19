@@ -1,5 +1,11 @@
 import { Head, useForm } from '@inertiajs/react';
-import { AlertTriangle, Sparkles, Trash2 } from 'lucide-react';
+import {
+    AlertTriangle,
+    Download,
+    Sparkles,
+    Trash2,
+    Upload,
+} from 'lucide-react';
 import { useMemo } from 'react';
 import InputError from '@/components/input-error';
 import { PageHeader } from '@/components/page-header';
@@ -13,7 +19,15 @@ import { data as dataRoute } from '@/routes/administration';
 import {
     clear as clearRoute,
     demo as demoRoute,
+    download as downloadRoute,
+    restore as restoreRoute,
 } from '@/routes/administration/data';
+
+type Copy = { name: string; size: number; at: string };
+
+function megabytes(bytes: number): string {
+    return `${(bytes / 1024 / 1024).toFixed(bytes >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+}
 
 type Scope = {
     key: string;
@@ -29,12 +43,21 @@ export default function DataAdministration({
     counts,
     company,
     environment,
+    copies,
+    uploadLimit,
 }: {
     scopes: Scope[];
     counts: Record<string, number>;
     company: string;
     environment: string;
+    copies: Copy[];
+    uploadLimit: number;
 }) {
+    const restore = useForm<{ backup: File | null; confirmation: string }>({
+        backup: null,
+        confirmation: '',
+    });
+
     const clear = useForm<{
         scopes: string[];
         restart_numbering: boolean;
@@ -84,8 +107,148 @@ export default function DataAdministration({
             <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
                 <PageHeader
                     title="Data"
-                    description="Clear what testing left behind, or fill the system with a worked example. Reserved for the system administrator."
+                    description="Back the whole ERP up or bring it back, clear what testing left behind, or fill the system with a worked example. Reserved for the system administrator."
                 />
+
+                <div className="grid gap-6 xl:grid-cols-2">
+                    <section className="bg-card flex flex-col rounded-xl border">
+                        <div className="border-b px-6 py-4">
+                            <h2 className="flex items-center gap-2 font-semibold">
+                                <Download className="text-primary size-4" />
+                                Download a backup
+                            </h2>
+                            <p className="text-muted-foreground mt-1 text-sm">
+                                One zip file holding everything: people and
+                                their roles, facilities and stores, materials
+                                and products, formulations, every batch, the
+                                whole stock history, dispatches, approvals, the
+                                audit trail, and every uploaded bill, photo and
+                                artwork. Keep it somewhere safe off this server.
+                                It holds formulations and sign-in details, so
+                                treat it as confidential.
+                            </p>
+                        </div>
+                        <div className="flex flex-1 flex-wrap items-center justify-between gap-3 px-6 py-5">
+                            <p className="text-muted-foreground text-sm">
+                                Takes a few seconds; the download starts when
+                                the file is ready.
+                            </p>
+                            <Button asChild>
+                                <a href={downloadRoute().url}>
+                                    <Download className="size-4" />
+                                    Download backup
+                                </a>
+                            </Button>
+                        </div>
+                    </section>
+
+                    <section className="rounded-xl border border-amber-500/40">
+                        <div className="border-b border-amber-500/40 bg-amber-500/5 px-6 py-4">
+                            <h2 className="flex items-center gap-2 font-semibold">
+                                <Upload className="size-4 text-amber-600" />
+                                Restore from a backup
+                            </h2>
+                            <p className="text-muted-foreground mt-1 text-sm">
+                                Puts everything back exactly as the file holds
+                                it: old entries, employees, stores, stock and
+                                its history, batches and uploads. Whatever was
+                                entered after the backup was taken is removed.
+                                The audit trail only ever grows, and a copy of
+                                what is here now is kept on the server first.
+                                Nothing changes if any part of it fails.
+                            </p>
+                        </div>
+                        <form
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                restore.post(restoreRoute().url, {
+                                    forceFormData: true,
+                                    preserveScroll: true,
+                                    onSuccess: () => restore.reset(),
+                                });
+                            }}
+                            className="space-y-4 px-6 py-5"
+                        >
+                            <div>
+                                <Label htmlFor="restore-file">
+                                    Backup file (.zip from this ERP, up to{' '}
+                                    {megabytes(uploadLimit)})
+                                </Label>
+                                <Input
+                                    id="restore-file"
+                                    type="file"
+                                    accept=".zip,application/zip"
+                                    className="mt-1"
+                                    onChange={(e) =>
+                                        restore.setData(
+                                            'backup',
+                                            e.target.files?.[0] ?? null,
+                                        )
+                                    }
+                                />
+                                <InputError message={restore.errors.backup} />
+                            </div>
+                            <div className="flex flex-wrap items-end gap-3">
+                                <div className="min-w-64 flex-1">
+                                    <Label htmlFor="restore-confirmation">
+                                        Type{' '}
+                                        <span className="font-semibold">
+                                            {company}
+                                        </span>{' '}
+                                        to confirm
+                                    </Label>
+                                    <Input
+                                        id="restore-confirmation"
+                                        className="mt-1"
+                                        value={restore.data.confirmation}
+                                        onChange={(e) =>
+                                            restore.setData(
+                                                'confirmation',
+                                                e.target.value,
+                                            )
+                                        }
+                                        placeholder={company}
+                                    />
+                                    <InputError
+                                        message={restore.errors.confirmation}
+                                    />
+                                </div>
+                                <Button
+                                    type="submit"
+                                    variant="destructive"
+                                    disabled={
+                                        restore.processing ||
+                                        restore.data.backup === null ||
+                                        restore.data.confirmation.trim() !==
+                                            company
+                                    }
+                                >
+                                    <Upload className="size-4" />
+                                    {restore.processing
+                                        ? 'Restoring…'
+                                        : 'Restore everything'}
+                                </Button>
+                            </div>
+                            {copies.length > 0 && (
+                                <p className="text-muted-foreground text-xs">
+                                    Copies kept before earlier restores, on the
+                                    server under storage/app/private/backups:{' '}
+                                    {copies
+                                        .slice(0, 3)
+                                        .map(
+                                            (c) =>
+                                                `${c.name} (${megabytes(c.size)})`,
+                                        )
+                                        .join(', ')}
+                                    {copies.length > 3
+                                        ? ` and ${copies.length - 3} more`
+                                        : ''}
+                                    .
+                                </p>
+                            )}
+                        </form>
+                    </section>
+                </div>
 
                 <section className="bg-card rounded-xl border">
                     <div className="border-b px-6 py-4">

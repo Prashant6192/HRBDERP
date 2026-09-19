@@ -1,15 +1,9 @@
-import { Head, Link, router, useForm } from '@inertiajs/react';
-import {
-    CalendarCheck,
-    CheckCircle2,
-    FileText,
-    Palette,
-    Pencil,
-    Plus,
-    Trash2,
-} from 'lucide-react';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { CalendarCheck, Palette, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { DeleteDialog } from '@/components/confirm-dialog';
+import { ArtworkDialog } from '@/components/contract/artwork-dialog';
+import { ArtworkGallery } from '@/components/contract/artwork-gallery';
 import { DetailItem, Field } from '@/components/form-field';
 import InputError from '@/components/input-error';
 import {
@@ -44,12 +38,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import {
-    ARTWORK_KIND_LABEL,
-    ARTWORK_STATUS_LABEL,
-    ARTWORK_STATUS_VARIANT,
-    money,
-} from '@/lib/contract';
+import { money } from '@/lib/contract';
 import { MO_STATUS_VARIANT, PLAN_STATUS_VARIANT } from '@/lib/planning';
 import { date, QC_LABEL, QC_VARIANT, qty } from '@/lib/stock';
 import { dashboard } from '@/routes';
@@ -62,7 +51,7 @@ import { show as showOrder } from '@/routes/manufacturing';
 import { create as createPlan, show as showPlan } from '@/routes/plans';
 import { show as showProduct } from '@/routes/products';
 import type {
-    ArtworkStatus,
+    ArtworkRow,
     Client,
     ManufacturingOrderStatus,
     ProductionPlanStatus,
@@ -70,22 +59,6 @@ import type {
     ReconciliationRow,
     SelectOption,
 } from '@/types';
-
-type Artwork = {
-    id: number;
-    product_id: number | null;
-    product: string | null;
-    kind: string;
-    title: string;
-    version: string;
-    status: ArtworkStatus;
-    status_label: string;
-    approved_at: string | null;
-    approved_by_name: string | null;
-    recorded_by: string | null;
-    document: { name: string | null; url: string } | null;
-    notes: string | null;
-};
 
 type Spec = {
     id: number;
@@ -138,8 +111,6 @@ type FinishedGood = {
     stores: string[];
 };
 
-const NONE = '__none__';
-
 const emptyParameter = (): QcSpecParameter => ({
     name: '',
     min: '',
@@ -147,271 +118,6 @@ const emptyParameter = (): QcSpecParameter => ({
     target: '',
     unit: '',
 });
-
-function ArtworkDialog({
-    clientId,
-    products,
-    kinds,
-}: {
-    clientId: number;
-    products: (SelectOption & { own: boolean })[];
-    kinds: string[];
-}) {
-    const [open, setOpen] = useState(false);
-    const form = useForm<{
-        product_id: string;
-        kind: string;
-        title: string;
-        version: string;
-        status: string;
-        approved_at: string;
-        approved_by_name: string;
-        document: File | null;
-        notes: string;
-    }>({
-        product_id: '',
-        kind: 'label',
-        title: '',
-        version: 'v1',
-        status: 'pending',
-        approved_at: '',
-        approved_by_name: '',
-        document: null,
-        notes: '',
-    });
-
-    return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <Button size="sm" variant="outline">
-                    <Plus className="size-4" />
-                    Add artwork
-                </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-lg">
-                <form
-                    onSubmit={(e) => {
-                        e.preventDefault();
-                        form.post(artworkRoutes.store(clientId).url, {
-                            forceFormData: true,
-                            preserveScroll: true,
-                            onSuccess: () => {
-                                setOpen(false);
-                                form.reset();
-                            },
-                        });
-                    }}
-                    className="space-y-4"
-                >
-                    <DialogHeader>
-                        <DialogTitle>Record artwork</DialogTitle>
-                        <DialogDescription>
-                            A label, carton or bottle artwork version, and
-                            whether the client has signed it off. Approving a
-                            version supersedes the earlier approved one of the
-                            same kind.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <Field
-                            label="Product"
-                            htmlFor="aw-product"
-                            error={form.errors.product_id}
-                        >
-                            <Select
-                                value={form.data.product_id || NONE}
-                                onValueChange={(v) =>
-                                    form.setData(
-                                        'product_id',
-                                        v === NONE ? '' : v,
-                                    )
-                                }
-                            >
-                                <SelectTrigger
-                                    id="aw-product"
-                                    className="w-full"
-                                >
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value={NONE}>
-                                        All products
-                                    </SelectItem>
-                                    {products.map((p) => (
-                                        <SelectItem
-                                            key={p.value}
-                                            value={String(p.value)}
-                                        >
-                                            {p.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </Field>
-                        <Field
-                            label="Kind"
-                            htmlFor="aw-kind"
-                            error={form.errors.kind}
-                        >
-                            <Select
-                                value={form.data.kind}
-                                onValueChange={(v) => form.setData('kind', v)}
-                            >
-                                <SelectTrigger id="aw-kind" className="w-full">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {kinds.map((k) => (
-                                        <SelectItem key={k} value={k}>
-                                            {ARTWORK_KIND_LABEL[k] ?? k}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </Field>
-                        <Field
-                            label="Title"
-                            htmlFor="aw-title"
-                            required
-                            error={form.errors.title}
-                        >
-                            <Input
-                                id="aw-title"
-                                value={form.data.title}
-                                onChange={(e) =>
-                                    form.setData('title', e.target.value)
-                                }
-                                placeholder="Front label"
-                            />
-                        </Field>
-                        <Field
-                            label="Version"
-                            htmlFor="aw-version"
-                            required
-                            error={form.errors.version}
-                        >
-                            <Input
-                                id="aw-version"
-                                value={form.data.version}
-                                onChange={(e) =>
-                                    form.setData('version', e.target.value)
-                                }
-                            />
-                        </Field>
-                        <Field
-                            label="Status"
-                            htmlFor="aw-status"
-                            error={form.errors.status}
-                        >
-                            <Select
-                                value={form.data.status}
-                                onValueChange={(v) => form.setData('status', v)}
-                            >
-                                <SelectTrigger
-                                    id="aw-status"
-                                    className="w-full"
-                                >
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="pending">
-                                        Awaiting client approval
-                                    </SelectItem>
-                                    <SelectItem value="approved">
-                                        Approved by the client
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </Field>
-                        {form.data.status === 'approved' && (
-                            <>
-                                <Field
-                                    label="Approved on"
-                                    htmlFor="aw-approved-at"
-                                    required
-                                    error={form.errors.approved_at}
-                                >
-                                    <Input
-                                        id="aw-approved-at"
-                                        type="date"
-                                        value={form.data.approved_at}
-                                        onChange={(e) =>
-                                            form.setData(
-                                                'approved_at',
-                                                e.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
-                                <Field
-                                    label="Approved by (client side)"
-                                    htmlFor="aw-approved-by"
-                                    error={form.errors.approved_by_name}
-                                >
-                                    <Input
-                                        id="aw-approved-by"
-                                        value={form.data.approved_by_name}
-                                        onChange={(e) =>
-                                            form.setData(
-                                                'approved_by_name',
-                                                e.target.value,
-                                            )
-                                        }
-                                    />
-                                </Field>
-                            </>
-                        )}
-                        <Field
-                            label="Approval document"
-                            htmlFor="aw-document"
-                            error={form.errors.document}
-                            hint="PDF or image, optional."
-                            className="sm:col-span-2"
-                        >
-                            <Input
-                                id="aw-document"
-                                type="file"
-                                accept="application/pdf,image/jpeg,image/png,image/webp"
-                                onChange={(e) =>
-                                    form.setData(
-                                        'document',
-                                        e.target.files?.[0] ?? null,
-                                    )
-                                }
-                            />
-                        </Field>
-                        <Field
-                            label="Notes"
-                            htmlFor="aw-notes"
-                            error={form.errors.notes}
-                            className="sm:col-span-2"
-                        >
-                            <Input
-                                id="aw-notes"
-                                value={form.data.notes}
-                                onChange={(e) =>
-                                    form.setData('notes', e.target.value)
-                                }
-                            />
-                        </Field>
-                    </div>
-                    <DialogFooter>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => setOpen(false)}
-                        >
-                            Cancel
-                        </Button>
-                        <Button type="submit" disabled={form.processing}>
-                            Save artwork
-                        </Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
-    );
-}
 
 function SpecDialog({
     clientId,
@@ -680,7 +386,7 @@ export default function ShowClient({
         margin: string;
         client_material_value: string;
     };
-    artworks: Artwork[];
+    artworks: ArtworkRow[];
     qcSpecs: Spec[];
     productOptions: (SelectOption & { own: boolean })[];
     artworkKinds: string[];
@@ -691,8 +397,6 @@ export default function ShowClient({
         viewCosting: boolean;
     };
 }) {
-    const post = (url: string, data: Record<string, string> = {}) =>
-        router.post(url, data, { preserveScroll: true });
     const openJobs = orders.filter(
         (o) => o.status !== 'completed' && o.status !== 'cancelled',
     );
@@ -1152,121 +856,30 @@ export default function ShowClient({
                             </div>
                             {can.update && (
                                 <ArtworkDialog
-                                    clientId={client.id}
+                                    action={artworkRoutes.store(client.id).url}
                                     products={productOptions}
                                     kinds={artworkKinds}
+                                    party="client"
                                 />
                             )}
                         </div>
-                        {artworks.length === 0 ? (
-                            <p className="text-muted-foreground px-5 py-6 text-sm">
-                                No artwork on file.
-                            </p>
-                        ) : (
-                            <ul className="divide-y">
-                                {artworks.map((a) => (
-                                    <li
-                                        key={a.id}
-                                        className="flex flex-wrap items-start justify-between gap-3 px-5 py-3"
-                                    >
-                                        <div className="min-w-0">
-                                            <div className="font-medium">
-                                                {a.title}{' '}
-                                                <span className="text-muted-foreground font-mono text-xs">
-                                                    {a.version}
-                                                </span>
-                                            </div>
-                                            <div className="text-muted-foreground text-xs">
-                                                {ARTWORK_KIND_LABEL[a.kind] ??
-                                                    a.kind}
-                                                {a.product
-                                                    ? ` · ${a.product}`
-                                                    : ' · all products'}
-                                                {a.approved_at
-                                                    ? ` · approved ${date(a.approved_at)}${a.approved_by_name ? ` by ${a.approved_by_name}` : ''}`
-                                                    : ''}
-                                            </div>
-                                            {a.document && (
-                                                <a
-                                                    href={a.document.url}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="mt-1 inline-flex items-center gap-1 text-xs underline underline-offset-4"
-                                                >
-                                                    <FileText className="size-3" />
-                                                    {a.document.name ??
-                                                        'Document'}
-                                                </a>
-                                            )}
-                                        </div>
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <StatusBadge
-                                                variant={
-                                                    ARTWORK_STATUS_VARIANT[
-                                                        a.status
-                                                    ]
-                                                }
-                                            >
-                                                {ARTWORK_STATUS_LABEL[a.status]}
-                                            </StatusBadge>
-                                            {can.update &&
-                                                a.status === 'pending' && (
-                                                    <>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={() =>
-                                                                post(
-                                                                    artworkRoutes.status(
-                                                                        {
-                                                                            client: client.id,
-                                                                            artwork:
-                                                                                a.id,
-                                                                        },
-                                                                    ).url,
-                                                                    {
-                                                                        status: 'approved',
-                                                                        approved_at:
-                                                                            new Date()
-                                                                                .toISOString()
-                                                                                .slice(
-                                                                                    0,
-                                                                                    10,
-                                                                                ),
-                                                                    },
-                                                                )
-                                                            }
-                                                        >
-                                                            <CheckCircle2 className="size-4" />
-                                                            Client approved
-                                                        </Button>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            onClick={() =>
-                                                                post(
-                                                                    artworkRoutes.status(
-                                                                        {
-                                                                            client: client.id,
-                                                                            artwork:
-                                                                                a.id,
-                                                                        },
-                                                                    ).url,
-                                                                    {
-                                                                        status: 'rejected',
-                                                                    },
-                                                                )
-                                                            }
-                                                        >
-                                                            Rejected
-                                                        </Button>
-                                                    </>
-                                                )}
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
+                        <ArtworkGallery
+                            artworks={artworks}
+                            canEdit={can.update}
+                            statusUrl={(a) =>
+                                artworkRoutes.status({
+                                    client: client.id,
+                                    artwork: a.id,
+                                }).url
+                            }
+                            destroyUrl={(a) =>
+                                artworkRoutes.destroy({
+                                    client: client.id,
+                                    artwork: a.id,
+                                }).url
+                            }
+                            className="p-5"
+                        />
                     </section>
 
                     <section className="bg-card rounded-xl border">

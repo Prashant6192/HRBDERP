@@ -8,6 +8,7 @@ use App\Domain\Contract\Enums\ManufacturingType;
 use App\Domain\Contract\Models\Client;
 use App\Domain\Contract\Models\ClientArtwork;
 use App\Domain\Contract\Models\ClientQcSpec;
+use App\Domain\Contract\Services\ArtworkService;
 use App\Domain\Contract\Services\ClientMaterialReconciliationService;
 use App\Domain\Contract\Services\ClientProfitabilityService;
 use App\Domain\Contract\Services\JobCostingService;
@@ -188,22 +189,8 @@ class ClientController extends Controller
                 'margin' => $sum('margin'),
                 'client_material_value' => $sum('client_material_value'),
             ],
-            'artworks' => ClientArtwork::query()->where('client_id', $client->id)->with(['product:id,name', 'approvedByUser:id,name'])->orderByDesc('id')->get()
-                ->map(fn (ClientArtwork $a) => [
-                    'id' => $a->id,
-                    'product_id' => $a->product_id,
-                    'product' => $a->product?->name,
-                    'kind' => $a->kind,
-                    'title' => $a->title,
-                    'version' => $a->version,
-                    'status' => $a->status->value,
-                    'status_label' => $a->status->label(),
-                    'approved_at' => $a->approved_at?->toDateString(),
-                    'approved_by_name' => $a->approved_by_name,
-                    'recorded_by' => $a->approvedByUser?->name,
-                    'document' => $a->document_path === null ? null : ['name' => $a->document_name, 'url' => route('clients.artworks.document', [$client, $a])],
-                    'notes' => $a->notes,
-                ])->all(),
+            'artworks' => ClientArtwork::query()->where('client_id', $client->id)->with(['product:id,name', 'client:id,code,name', 'approvedByUser:id,name'])->orderByDesc('id')->get()
+                ->map(fn (ClientArtwork $a) => app(ArtworkService::class)->serialize($a))->all(),
             'qcSpecs' => ClientQcSpec::query()->where('client_id', $client->id)->with('product:id,code,name')->get()
                 ->map(fn (ClientQcSpec $s) => [
                     'id' => $s->id,

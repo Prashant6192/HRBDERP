@@ -85,6 +85,11 @@ Where the build has got to, and what comes next.
 | Department scorecards with OTIF and inventory accuracy, process performance, the ERP assistant                            | Built |
 | Selective data clearing and a worked demo fill, for the system administrator only (Administration → Data)                 | Built |
 | Left menu reduced to destinations: batches on the material page, receiving from the store page                            | Built |
+| Dispatch with mandatory e-invoicing, delivery challan, customers; Rahat Rooh as the own brand                             | Built |
+| Engineering store category; backup download and restore upload for the Super Admin, `erp:backup` / `erp:restore`          | Built |
+| Artwork on own-brand products, shown on the batch page, the floor production screen and the management view               | Built |
+| Batch reconciliation: filled, rejected, samples, bulk left over; bulk, packing and overall yields                         | Built |
+| Management view on a phone at `/m`: making, stock and value, to order, formulas, clients, batches ready, to bill          | Built |
 
 ---
 

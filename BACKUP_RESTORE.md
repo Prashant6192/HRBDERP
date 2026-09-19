@@ -20,6 +20,49 @@ does.
 
 ---
 
+## The ERP's own backup
+
+The simplest backup is the one built in. **Administration → Data → Download
+a backup** (Super Admin only) produces one zip holding every table — people
+and roles, facilities and stores, materials, formulations, stock and its
+whole history, batches, dispatches, approvals, the audit trail — and every
+uploaded bill, photo and artwork, with a `manifest.json` saying when it was
+taken, from which build (the list of migrations) and how many rows per
+table. Keep it off the server. It holds password hashes and formulations:
+encrypt it at rest.
+
+**Restore from a backup** on the same screen puts all of it back, in one
+transaction — nothing changes if any part fails:
+
+- every table is put back to what the file holds; records entered after the
+  backup are removed; new records number on from the restored ones;
+- the audit trail only grows: entries in the backup that are missing are
+  added, what is there stays (the database will not allow otherwise);
+- the person restoring is never removed, so they stay signed in;
+- uploads are written back; existing files are left in place;
+- a copy of what was there is written first, to `storage/app/private/backups/`;
+- a backup from a newer build is refused until the ERP is updated; one from an
+  older build restores, with columns the backup lacks left empty.
+
+The same runs headless — for a nightly cron, and for a restore larger than
+the web server's upload limit:
+
+```bash
+php artisan erp:backup --to=/var/backups/hrbderp      # dated zip in that directory
+php artisan erp:restore /var/backups/hrbderp/hrbd-erp-backup-2026-09-19-0200.zip
+php artisan erp:restore backup.zip --force --no-copy   # unattended, no pre-restore copy
+```
+
+```cron
+0 2 * * * cd /var/www/hrbderp && php artisan erp:backup --to=/var/backups/hrbderp >> /var/log/hrbderp-backup.log 2>&1
+```
+
+This is a **logical** backup: it restores into the same build of the ERP.
+For a point-in-time copy of the database itself, or a restore onto a
+different build, use the database's own tools below. Run both.
+
+---
+
 ## Database
 
 ### What good looks like
@@ -142,6 +185,10 @@ Then check:
 ## Rehearsing the restore
 
 Do this **before** you need it, and roughly every quarter.
+
+The quick rehearsal, ten minutes on a staging copy: download a backup from
+Administration → Data, add a vendor, restore the backup, confirm the vendor
+is gone and a known stock figure is back. The full one:
 
 1. Take last night's backup.
 2. Restore it to a scratch database on a staging machine.

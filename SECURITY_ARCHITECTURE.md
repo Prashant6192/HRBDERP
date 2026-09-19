@@ -250,6 +250,24 @@ Buckets must be **private**. Files are served through authorised download
 routes that check a policy and then stream the object, or through short-lived
 signed URLs. A file must never be reachable by guessing its URL.
 
+### Artwork
+
+Artwork — a client's or the company's own — is stored on the private `local`
+disk under `clients/artworks/` and opened only through `artworks.document`,
+which allows anyone who may see the product, the client or production; the
+client page's own route additionally checks the client. The file is what the
+packing line matches the pack against, so the floor sees it; it is never
+reachable by URL alone.
+
+### Backups
+
+A backup from Administration → Data holds every table, password hashes and
+formulations included, and every upload. It is produced only for the Super
+Admin, over HTTPS, streamed and deleted from the server as it is sent; the
+copies kept before a restore sit under `backups/` on the private disk. Treat
+the file as the most sensitive thing the company has: encrypt it at rest
+wherever it is kept, and keep it off the web server.
+
 ### Supplier bills
 
 A bill uploaded on the goods receipt screen is stored on the private `local`

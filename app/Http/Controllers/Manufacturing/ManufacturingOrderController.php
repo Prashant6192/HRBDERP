@@ -13,6 +13,7 @@ use App\Domain\Contract\Enums\ManufacturingType;
 use App\Domain\Contract\Models\Client;
 use App\Domain\Contract\Models\ClientArtwork;
 use App\Domain\Contract\Models\ClientQcSpec;
+use App\Domain\Contract\Services\ArtworkService;
 use App\Domain\Contract\Services\ClientMaterialReconciliationService;
 use App\Domain\Contract\Services\JobCostingService;
 use App\Domain\Documents\Services\DocumentService;
@@ -182,6 +183,8 @@ class ManufacturingOrderController extends Controller
             'verification' => in_array($order->status, [ManufacturingOrderStatus::Approved, ManufacturingOrderStatus::InProgress], true) ? $this->verification->status($order) : null,
             'scanCode' => ScanCode::order($order->number),
             'documents' => app(DocumentService::class)->currentFor($order->product_id, $order->client_id),
+            // How the pack must look: the approved artwork for this product.
+            'artworks' => app(ArtworkService::class)->forBatch($order),
             'analytics' => $order->status === ManufacturingOrderStatus::Draft || $order->status === ManufacturingOrderStatus::Approved
                 ? null
                 : [
@@ -351,7 +354,10 @@ class ManufacturingOrderController extends Controller
         try {
             $order = $this->orders->complete($order, $request->user()->id, $request->validated());
         } catch (ManufacturingException|RuntimeException $e) {
-            return back()->withErrors(['output_quantity' => $e->getMessage()]);
+            // A fault in the packing account lands on the packing account.
+            $field = str_contains($e->getMessage(), 'units') ? 'filled_units' : 'output_quantity';
+
+            return back()->withErrors([$field => $e->getMessage()]);
         }
 
         $lot = $order->outputLot;

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\MasterData;
 
+use App\Domain\Contract\Models\ClientArtwork;
+use App\Domain\Contract\Services\ArtworkService;
 use App\Domain\MasterData\Enums\ItemType;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\MasterData\Models\PackagingMaterial;
@@ -62,6 +64,9 @@ class ProductController extends ItemController
 
         return [
             'packagingLines' => $lines,
+            // The own-brand artwork every batch of this product is packed to.
+            'artworks' => app(ArtworkService::class)->forProduct($item->id, null)->map(fn (ClientArtwork $a) => app(ArtworkService::class)->serialize($a))->values()->all(),
+            'artworkKinds' => ClientArtwork::KINDS,
             'packagingOptions' => PackagingMaterial::query()->active()->orderBy('name')->get(['id', 'code', 'name'])
                 ->map(static fn (PackagingMaterial $p): array => ['value' => $p->id, 'label' => "{$p->name} ({$p->code})"])
                 ->all(),

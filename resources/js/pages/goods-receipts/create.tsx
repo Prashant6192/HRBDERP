@@ -236,7 +236,7 @@ export default function CreateGoodsReceipt({
             ? ['packaging', 'general']
             : type === 'finished_good' || type === 'semi_finished'
               ? ['finished_goods', 'marketplace', 'general']
-              : ['raw_material', 'general'];
+              : ['raw_material', 'engineering', 'general'];
     const chosenTypes = Array.from(
         new Set(
             form.data.lines

@@ -837,6 +837,25 @@ export type MaterialRequestStatus =
 
 export type StoreKind = 'raw_material' | 'packaging';
 
+/** One artwork version as the pages show it. */
+export type ArtworkRow = {
+    id: number;
+    client_id: number | null;
+    client: string | null;
+    product_id: number | null;
+    product: string | null;
+    kind: string;
+    title: string;
+    version: string;
+    status: ArtworkStatus;
+    status_label: string;
+    approved_at: string | null;
+    approved_by_name: string | null;
+    recorded_by: string | null;
+    document: { name: string | null; url: string; is_image: boolean } | null;
+    notes: string | null;
+};
+
 export type ProductPackagingLine = {
     id: number;
     packaging_material_id: number;
@@ -1022,7 +1041,14 @@ export type ManufacturingOrder = {
     status: ManufacturingOrderStatus;
     output_quantity: string | null;
     output_units: number | null;
+    filled_units?: number | null;
+    rejected_units?: number | null;
+    sample_units?: number | null;
+    bulk_leftover_quantity?: string | null;
     yield_percentage: string | null;
+    packing_yield_percentage?: string | null;
+    overall_yield_percentage?: string | null;
+    loss_notes?: string | null;
     output_lot_id: number | null;
     output_lot?: {
         id: number;

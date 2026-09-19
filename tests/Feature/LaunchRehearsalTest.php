@@ -408,12 +408,20 @@ class LaunchRehearsalTest extends TestCase
         $this->actingAs($this->production)->post(route('manufacturing.start', $order))->assertRedirect()->assertSessionHasNoErrors();
         $this->assertSame('20', $this->available($this->betaine, $this->rm), '15 KG went into the kettle.');
 
+        // The batch account: 100 kg planned gave 98 kg; the line filled
+        // 1,000 bottles, rejected 15 and kept 5 as samples — 980 to stock.
         $this->actingAs($this->production)->post(route('manufacturing.complete', $order), [
-            'output_quantity' => '98', 'output_units' => '980', 'manufactured_at' => now()->toDateString(),
+            'output_quantity' => '98', 'filled_units' => '1000', 'rejected_units' => '15', 'sample_units' => '5',
+            'bulk_leftover_quantity' => '0.4', 'loss_notes' => 'Kettle residue; 15 bottles leaked at the capper.',
+            'manufactured_at' => now()->toDateString(),
         ])->assertRedirect()->assertSessionHasNoErrors();
 
         $order->refresh();
         $this->assertSame(ManufacturingOrderStatus::Completed, $order->status);
+        $this->assertSame(980, $order->output_units, 'Good units = filled − rejected − samples');
+        $this->assertSame('98.000', $order->yield_percentage);
+        $this->assertSame('98.000', $order->packing_yield_percentage);
+        $this->assertSame('98.000', $order->overall_yield_percentage, '980 of the 1,000 planned');
 
         $batch = InventoryLot::query()->where('item_id', $this->cleanse->id)->sole();
         $this->assertSame($this->hrbd->id, $batch->owner_client_id, "The batch is HRBD's from the moment it exists.");
@@ -522,6 +530,39 @@ class LaunchRehearsalTest extends TestCase
 
         $this->actingAs($this->management)->get(route('manufacturing.show', $order))->assertOk();
         $this->actingAs($this->management)->get(route('lots.trace', $batch))->assertOk();
+
+        // And on a phone, on the way to the factory.
+        $this->actingAs($this->management)->get(route('management.index'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->component('management/index')
+                ->where('overview.production.completed_this_month', 1)
+                ->where('overview.formulas.active', 1)
+                ->where('overview.clients.active', 1)
+                ->where('overview.billing.jobs', 0)
+                ->where('overview.batches.ready', 1));
+
+        $this->actingAs($this->management)->get(route('management.production'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->has('recent', 1)->where('recent.0.output_units', 980)->where('recent.0.rejected_units', 15));
+
+        $this->actingAs($this->management)->get(route('management.materials'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('type', 'raw_material')->has('items', 2)->where('items.0.name', 'Cocamidopropyl Betaine'));
+
+        $this->actingAs($this->management)->get(route('management.batches'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->has('batches', 1)->where('batches.0.product', $this->rahatRooh->name)->where('batches.0.on_hand', '150'));
+
+        $this->actingAs($this->management)->get(route('management.billing'))->assertOk();
+        $this->actingAs($this->management)->get(route('management.ordering'))->assertOk();
+        $this->actingAs($this->management)->get(route('management.formulas'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->has('formulas', 1)->where('formulas.0.status', 'active'));
+        $this->actingAs($this->management)->get(route('management.clients'))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page->has('clients', 1)->where('clients.0.completed_jobs', 1));
+
+        $this->actingAs($this->storekeeper)->get(route('management.index'))->assertForbidden();
 
         // The store executive who booked the deliveries cannot reach dispatch
         // or production; the dispatch manager cannot reach the recipe.

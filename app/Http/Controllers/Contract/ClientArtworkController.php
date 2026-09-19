@@ -7,12 +7,12 @@ namespace App\Http\Controllers\Contract;
 use App\Domain\Contract\Enums\ArtworkStatus;
 use App\Domain\Contract\Models\Client;
 use App\Domain\Contract\Models\ClientArtwork;
+use App\Domain\Contract\Services\ArtworkService;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Contract\StoreArtworkRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
@@ -21,51 +21,20 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
  */
 class ClientArtworkController extends Controller
 {
-    public const string DISK = 'local';
+    public const string DISK = ArtworkService::DISK;
+
+    public function __construct(private readonly ArtworkService $artworks) {}
 
     public function store(StoreArtworkRequest $request, Client $client): RedirectResponse
     {
         $this->authorize('update', $client);
 
         $data = $request->validated();
-        $approved = ($data['status'] ?? 'pending') === 'approved';
-        $document = $request->file('document');
+        $artwork = $this->artworks->record($client, isset($data['product_id']) ? (int) $data['product_id'] : null, $data, $request->file('document'), $request->user()->id);
 
-        $path = null;
-
-        if ($document !== null) {
-            $path = 'clients/artworks/'.$client->id.'/'.Str::uuid().'.'.($document->guessExtension() ?: 'bin');
-            Storage::disk(self::DISK)->put($path, (string) file_get_contents($document->getRealPath()));
-        }
-
-        $artwork = ClientArtwork::create([
-            'client_id' => $client->id,
-            'product_id' => $data['product_id'] ?? null,
-            'kind' => $data['kind'],
-            'title' => $data['title'],
-            'version' => $data['version'],
-            'status' => $approved ? ArtworkStatus::Approved : ArtworkStatus::Pending,
-            'approved_at' => $approved ? $data['approved_at'] : null,
-            'approved_by_name' => $approved ? ($data['approved_by_name'] ?? null) : null,
-            'approved_by_user_id' => $approved ? $request->user()->id : null,
-            'document_path' => $path,
-            'document_name' => $document?->getClientOriginalName(),
-            'document_mime' => $document?->getMimeType(),
-            'notes' => $data['notes'] ?? null,
-            'created_by' => $request->user()->id,
-        ]);
-
-        if ($approved) {
-            $this->supersedeOthers($artwork);
-        }
-
-        return back()->withToast('success', "Artwork {$artwork->title} v{$artwork->version} recorded".($approved ? ' as approved.' : '; awaiting the client\'s approval.'));
+        return back()->withToast('success', "Artwork {$artwork->title} v{$artwork->version} recorded".($artwork->status === ArtworkStatus::Approved ? ' as approved.' : '; awaiting the client\'s approval.'));
     }
 
-    /**
-     * Approve, reject or supersede a version. Approving one supersedes the
-     * other approved version of the same kind for the same product.
-     */
     public function status(Request $request, Client $client, ClientArtwork $artwork): RedirectResponse
     {
         $this->authorize('update', $client);
@@ -78,17 +47,7 @@ class ClientArtworkController extends Controller
         ], ['approved_at.required_if' => 'Give the date the client approved it.']);
 
         $status = ArtworkStatus::from($data['status']);
-
-        $artwork->fill([
-            'status' => $status,
-            'approved_at' => $status === ArtworkStatus::Approved ? $data['approved_at'] : $artwork->approved_at,
-            'approved_by_name' => $status === ArtworkStatus::Approved ? ($data['approved_by_name'] ?? $artwork->approved_by_name) : $artwork->approved_by_name,
-            'approved_by_user_id' => $status === ArtworkStatus::Approved ? $request->user()->id : $artwork->approved_by_user_id,
-        ])->save();
-
-        if ($status === ArtworkStatus::Approved) {
-            $this->supersedeOthers($artwork);
-        }
+        $this->artworks->setStatus($artwork, $status, $data['approved_at'] ?? null, $data['approved_by_name'] ?? null, $request->user()->id);
 
         return back()->withToast('success', "{$artwork->title} v{$artwork->version}: {$status->label()}.");
     }
@@ -112,23 +71,8 @@ class ClientArtworkController extends Controller
         $this->authorize('update', $client);
         abort_unless($artwork->client_id === $client->id, 404);
 
-        if ($artwork->document_path !== null) {
-            Storage::disk(self::DISK)->delete($artwork->document_path);
-        }
-
-        $artwork->delete();
+        $this->artworks->remove($artwork);
 
         return back()->withToast('success', 'Artwork removed.');
-    }
-
-    private function supersedeOthers(ClientArtwork $artwork): void
-    {
-        ClientArtwork::query()
-            ->where('client_id', $artwork->client_id)
-            ->where('kind', $artwork->kind)
-            ->where('status', ArtworkStatus::Approved->value)
-            ->where('id', '!=', $artwork->id)
-            ->when($artwork->product_id !== null, fn ($q) => $q->where('product_id', $artwork->product_id), fn ($q) => $q->whereNull('product_id'))
-            ->update(['status' => ArtworkStatus::Superseded->value]);
     }
 }

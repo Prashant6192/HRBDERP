@@ -14,8 +14,9 @@ reordering, a command centre with exception-based management and escalation,
 batch stages and yield, cost variance and client profitability, risk-based
 approvals with maker-checker and signed decisions, recall tracing, controlled
 documents, QR scanning with scan-before-issue at the kettle, stock counts, a
-phone-sized floor mode, department scorecards with OTIF, and an assistant
-that answers questions from the ERP's own data. Costing, dispatch and accounting come next — see
+phone-sized floor mode, a management view on a phone, department scorecards
+with OTIF, and an assistant that answers questions from the ERP's own data.
+The whole ERP backs up to one file and restores from it. Costing, dispatch and accounting come next — see
 [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md).
 
 This file is the way in. Each area has its own document:

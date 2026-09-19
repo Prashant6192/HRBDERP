@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Floor;
 
+use App\Domain\Contract\Services\ArtworkService;
 use App\Domain\Inventory\Enums\StockCountStatus;
 use App\Domain\Inventory\Models\FloorPhoto;
 use App\Domain\Inventory\Models\InventoryLot;
@@ -39,6 +40,7 @@ class FloorController extends Controller
     public function __construct(
         private readonly IssueVerificationService $verification,
         private readonly FacilityAccess $access,
+        private readonly ArtworkService $artworks,
     ) {}
 
     public function index(Request $request): Response
@@ -120,7 +122,16 @@ class FloorController extends Controller
             ->with('product:id,name')
             ->orderBy('started_at')
             ->get()
-            ->map(fn (ManufacturingOrder $o) => ['id' => $o->id, 'number' => $o->number, 'product' => $o->product?->name, 'stage' => $o->current_stage?->value, 'stage_label' => $o->current_stage?->label(), 'progress' => (int) $o->stage_progress])
+            ->map(fn (ManufacturingOrder $o) => [
+                'id' => $o->id,
+                'number' => $o->number,
+                'product' => $o->product?->name,
+                'stage' => $o->current_stage?->value,
+                'stage_label' => $o->current_stage?->label(),
+                'progress' => (int) $o->stage_progress,
+                // The approved pack the line must match.
+                'artworks' => array_values(array_filter($this->artworks->forBatch($o), fn (array $a) => $a['status'] === 'approved')),
+            ])
             ->all();
 
         return Inertia::render('floor/production', [

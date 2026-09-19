@@ -105,7 +105,9 @@ class StoreGoodsReceiptRequest extends FormRequest
     public static function storesFor(ItemType $type): array
     {
         return match ($type) {
-            ItemType::RawMaterial, ItemType::Consumable => [WarehouseType::RawMaterial, WarehouseType::General],
+            ItemType::RawMaterial => [WarehouseType::RawMaterial, WarehouseType::General],
+            // Spares and maintenance consumables live in the engineering store.
+            ItemType::Consumable => [WarehouseType::RawMaterial, WarehouseType::Engineering, WarehouseType::General],
             ItemType::PackagingMaterial => [WarehouseType::Packaging, WarehouseType::General],
             ItemType::FinishedGood, ItemType::SemiFinished => [WarehouseType::FinishedGoods, WarehouseType::Marketplace, WarehouseType::General],
         };

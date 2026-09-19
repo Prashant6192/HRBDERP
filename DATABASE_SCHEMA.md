@@ -150,8 +150,9 @@ zero.
 Editable reference data, seeded by `ReferenceDataSeeder` and safe to re-seed
 (matched by code, only created when missing). A facility type carries the
 `default_capabilities` a new facility of that type starts with. A store
-category carries a `badge` (RM, PM, FG, QUAR…) and a `kind` — a
-`WarehouseType` value, the behaviour workflows rely on — which is fixed once
+category carries a `badge` (RM, PM, FG, QUAR, ENG…) and a `kind` — a
+`WarehouseType` value, the behaviour workflows rely on (`engineering` holds
+spares and maintenance consumables) — which is fixed once
 stores use the category. Both have `is_system` and `is_active`; neither is
 ever deleted from a live system.
 
@@ -386,10 +387,13 @@ formulas cannot be removed.
 
 ### `client_artworks`, `client_qc_specs`
 
-An artwork version per client (and optionally product): `kind` (label,
-carton, bottle, other), `title`, `version`, `status` (pending, approved,
-superseded, rejected), the client's approval date and approver, the approval
-document (private `local` disk under `clients/artworks/`). A QC specification
+An artwork version per client (and optionally product), or for the
+company's own product when `client_id` is null: `kind` (label, tube, bottle,
+carton, pouch, other), `title`, `version`, `status` (pending, approved,
+superseded, rejected), the approval date and approver, the artwork file —
+picture or PDF — on the private `local` disk under `clients/artworks/`
+(`clients/artworks/own/` for the company's). Approving a version supersedes
+the other approved one of the same kind for the same owner and product. A QC specification
 per client and product: `parameters` (`jsonb`: name, min, max, target, unit)
 and notes; unique per pair.
 
@@ -486,9 +490,15 @@ the request), `alert_level`.
 
 An order: `MO-yymm-00001`, plan, formula and version, product, planned quantity
 and units, status (draft, approved, in_progress, completed, cancelled), and the
-result — `output_quantity`, `output_units`, `yield_percentage`,
-`output_lot_id`, `manufactured_at` — with who approved, started and completed
-it. Lines: the material list with `planned_quantity`, `reserved_quantity` and
+result — `output_quantity` (bulk made), `output_units` (good units, the ones
+posted to stock), `output_lot_id`, `manufactured_at` — with who approved,
+started and completed it. The batch account sits beside it: `filled_units`,
+`rejected_units`, `sample_units` (good = filled − rejected − samples, checked
+in the service), `bulk_leftover_quantity` in the planned unit, `loss_notes`,
+and three yields to three decimals — `yield_percentage` (bulk against
+planned), `packing_yield_percentage` (good against filled),
+`overall_yield_percentage` (good against `planned_units`). A check constraint
+keeps the counts non-negative. Lines: the material list with `planned_quantity`, `reserved_quantity` and
 `consumed_quantity` in the stock unit. Reservations and ledger lines reference
 the order polymorphically.
 

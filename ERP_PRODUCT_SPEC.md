@@ -83,7 +83,8 @@ Manufacturing on.
 
 Each facility has stores, one per **store category** (RM, PM, FG, Quarantine,
 Rejected, Production Staging, Packaging Staging, Samples, Returns, Damaged
-Goods, Marketplace, General — an editable master). Stores can be added to a
+Goods, Marketplace, Engineering, General — an editable master). The
+engineering store holds spares and maintenance consumables. Stores can be added to a
 live facility at any time; a store with history is deactivated, never
 deleted. Stock is always attributable to facility → store → location.
 
@@ -233,10 +234,19 @@ Deliveries booked in against a request close its lines as stock lands.
 A manufacturing order is opened from a checked plan. **Approve** holds every
 material in its store, earliest-expiring batches first, all or nothing — if
 anything is short the message names each shortfall. **Start** issues the raw
-materials to the kettle through the ledger. **Complete** records output, units
-packed and yield, uses up the packaging, releases anything left and posts the
-finished batch as a lot, into quarantine for QC. **Cancel** releases what is
-held; what the kettle took stays taken.
+materials to the kettle through the ledger. **Complete** records the whole
+batch account — bulk made against bulk planned; units filled, rejected at
+packing and kept as samples; bulk left unpacked and where the loss went —
+uses up the packaging, releases anything left and posts the **good units**
+(filled less rejected less samples) as the finished batch, into quarantine
+for QC. Three yields are kept: bulk (kettle against plan), packing (kept
+against filled) and overall (good units against the units planned), so that
+500 kg planned for 5,000 tubes ending as 4,851 good tubes is on record line
+by line. **Cancel** releases what is held; what the kettle took stays taken.
+
+Every batch page shows the **artwork** its product is packed to — the
+client's on a third-party job, the company's own otherwise — and the floor
+production screen shows the packing line the same, picture first.
 
 ### Procurement — _partly built_
 
@@ -282,7 +292,9 @@ cost, the client's material valued but not charged, the manufacturing charge,
 other charges, GST, total and margin. The client's material is **reconciled**
 from the ledger (supplied, consumed, wastage, balance). Artwork approvals and
 client QC specifications are kept per client and product, and the dashboard
-carries a third-party section. Dispatch and accounting will pick the client up
+carries a third-party section. Own-brand products carry artwork the same way,
+from the product's page (label, tube, bottle, carton, pouch; picture or PDF;
+versioned, approved, superseded). Dispatch and accounting will pick the client up
 from the finished batch when they are built.
 
 ### Dashboard — _built_
@@ -496,13 +508,32 @@ opening stock, a delivery through QC, a third-party plan and a completed
 batch — so the whole flow can be walked before real data goes in. It creates
 no login accounts: the people on the system are the real ones.
 
+The top of the screen is the **backup**: the whole ERP as one zip — every
+table and every upload, with a manifest — to download and keep off the
+server, and the **restore** that puts all of it back from such a file in one
+transaction: old entries, employees, stores, stock history, uploads; anything
+entered since is removed; the audit trail only grows; the person restoring
+stays; a copy of what was there is kept on the server first. Headless:
+`erp:backup`, `erp:restore`.
+
+### Management view on a phone — _built_
+
+`/m`, for anyone who may see reports: one home screen with one number per
+question — in manufacturing, batches ready, raw material in stock and its
+value, what to order, to be billed, finished goods value, formulas live, 3P
+clients — and a screen behind each, read live from the same tables the floor
+writes to. Nothing is entered there. It installs as an app on a phone the
+way the floor mode does; a packaged app for the stores comes later.
+
 ---
 
 ## Interface
 
 Desktop first, then laptop, tablet and mobile. Factory and warehouse staff need
 to record receipts, transfers and consumption from a tablet on the floor, so
-those actions work at every width.
+those actions work at every width. Two screens are built for the phone alone:
+the floor mode at `/floor` for the people making and moving, and the
+management view at `/m` for the people asking how it is going.
 
 Every list shares one component: search, sort, filter, paginate, choose columns.
 Every figure a user is not entitled to see is absent from the payload, not

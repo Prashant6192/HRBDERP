@@ -7,6 +7,7 @@ use App\Http\Controllers\Administration\DataController;
 use App\Http\Controllers\Administration\RoleController;
 use App\Http\Controllers\Administration\UserController;
 use App\Http\Controllers\Approvals\ApprovalController;
+use App\Http\Controllers\Contract\ArtworkDocumentController;
 use App\Http\Controllers\Contract\ClientArtworkController;
 use App\Http\Controllers\Contract\ClientController;
 use App\Http\Controllers\Contract\ClientProfitabilityController;
@@ -36,8 +37,10 @@ use App\Http\Controllers\Inventory\OpeningStockSheetController;
 use App\Http\Controllers\Inventory\StockController;
 use App\Http\Controllers\Inventory\StockCountController;
 use App\Http\Controllers\Inventory\StockTransferController;
+use App\Http\Controllers\Management\ManagementController;
 use App\Http\Controllers\Manufacturing\ManufacturingOrderController;
 use App\Http\Controllers\MasterData\PackagingMaterialController;
+use App\Http\Controllers\MasterData\ProductArtworkController;
 use App\Http\Controllers\MasterData\ProductController;
 use App\Http\Controllers\MasterData\ProductPackagingController;
 use App\Http\Controllers\MasterData\RawMaterialController;
@@ -88,6 +91,18 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('documents/{document}/download', [DocumentController::class, 'download'])->name('documents.download');
 
     Route::post('ledger/{transaction}/reverse', [LedgerController::class, 'reverse'])->name('ledger.reverse');
+
+    // The management view on a phone.
+    Route::prefix('m')->name('management.')->controller(ManagementController::class)->group(function (): void {
+        Route::get('/', 'index')->name('index');
+        Route::get('production', 'production')->name('production');
+        Route::get('materials', 'materials')->name('materials');
+        Route::get('ordering', 'ordering')->name('ordering');
+        Route::get('formulas', 'formulas')->name('formulas');
+        Route::get('clients', 'clients')->name('clients');
+        Route::get('batches', 'batches')->name('batches');
+        Route::get('billing', 'billing')->name('billing');
+    });
 
     // The mobile floor mode.
     Route::get('floor', [FloorController::class, 'index'])->name('floor.index');
@@ -190,6 +205,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('clients/{client}/artworks/{artwork}/status', [ClientArtworkController::class, 'status'])->name('clients.artworks.status');
     Route::get('clients/{client}/artworks/{artwork}/document', [ClientArtworkController::class, 'document'])->name('clients.artworks.document');
     Route::delete('clients/{client}/artworks/{artwork}', [ClientArtworkController::class, 'destroy'])->name('clients.artworks.destroy');
+    // The file itself, from a batch page or the floor.
+    Route::get('artworks/{artwork}/document', ArtworkDocumentController::class)->name('artworks.document');
     Route::put('clients/{client}/qc-specs/{product}', [ClientQcSpecController::class, 'upsert'])->name('clients.qc-specs.upsert');
     Route::delete('clients/{client}/qc-specs/{spec}', [ClientQcSpecController::class, 'destroy'])->name('clients.qc-specs.destroy');
 
@@ -236,6 +253,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('material-requests/{materialRequest}/cancel', [MaterialRequestController::class, 'cancel'])->name('material-requests.cancel');
 
     Route::post('products/{product}/packaging', [ProductPackagingController::class, 'store'])->name('products.packaging.store');
+    Route::post('products/{product}/artworks', [ProductArtworkController::class, 'store'])->name('products.artworks.store');
+    Route::post('products/{product}/artworks/{artwork}/status', [ProductArtworkController::class, 'status'])->name('products.artworks.status');
+    Route::delete('products/{product}/artworks/{artwork}', [ProductArtworkController::class, 'destroy'])->name('products.artworks.destroy');
     Route::delete('products/{product}/packaging/{line}', [ProductPackagingController::class, 'destroy'])->name('products.packaging.destroy');
 
     // ---- Manufacturing ----------------------------------------------------
@@ -320,6 +340,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('administration/data', [DataController::class, 'index'])->name('administration.data');
     Route::post('administration/data/clear', [DataController::class, 'clear'])->name('administration.data.clear');
     Route::post('administration/data/demo', [DataController::class, 'fillDemo'])->name('administration.data.demo');
+    Route::get('administration/data/download', [DataController::class, 'download'])->name('administration.data.download');
+    Route::post('administration/data/restore', [DataController::class, 'restore'])->name('administration.data.restore');
 
     Route::get('audit', [AuditLogController::class, 'index'])->name('audit.index');
     Route::get('audit/{auditLog}', [AuditLogController::class, 'show'])

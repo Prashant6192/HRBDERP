@@ -43,7 +43,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property ManufacturingOrderStatus $status
  * @property string|null $output_quantity
  * @property int|null $output_units
+ * @property int|null $filled_units
+ * @property int|null $rejected_units
+ * @property int|null $sample_units
+ * @property string|null $bulk_leftover_quantity
  * @property string|null $yield_percentage
+ * @property string|null $packing_yield_percentage
+ * @property string|null $overall_yield_percentage
+ * @property string|null $loss_notes
  * @property int|null $output_lot_id
  * @property CarbonImmutable|null $manufactured_at
  * @property CarbonImmutable|null $started_at
@@ -62,7 +69,8 @@ class ManufacturingOrder extends Model
         'number', 'facility_id', 'production_plan_id', 'formula_id', 'formula_version_id', 'product_id',
         'manufacturing_type', 'client_id', 'client_po_ref', 'required_delivery_at', 'material_source', 'client_supplied_item_ids', 'charges',
         'planned_quantity', 'planned_uom_id', 'planned_units', 'status', 'current_stage', 'stage_progress', 'stage_updated_at',
-        'output_quantity', 'output_units', 'yield_percentage', 'output_lot_id', 'manufactured_at',
+        'output_quantity', 'output_units', 'filled_units', 'rejected_units', 'sample_units', 'bulk_leftover_quantity',
+        'yield_percentage', 'packing_yield_percentage', 'overall_yield_percentage', 'loss_notes', 'output_lot_id', 'manufactured_at',
         'notes', 'created_by', 'approved_by', 'approved_at', 'started_by', 'started_at',
         'completed_by', 'completed_at', 'cancelled_at',
     ];
@@ -81,6 +89,9 @@ class ManufacturingOrder extends Model
             'stage_updated_at' => 'datetime',
             'planned_units' => 'integer',
             'output_units' => 'integer',
+            'filled_units' => 'integer',
+            'rejected_units' => 'integer',
+            'sample_units' => 'integer',
             'manufactured_at' => 'date',
             'approved_at' => 'datetime',
             'started_at' => 'datetime',

@@ -243,6 +243,16 @@ What is scheduled today:
 | -------------- | ------ | -------------------------------------------------------------------------------------------------------- |
 | `erp:escalate` | hourly | Raises exceptions that have stood too long to the roles responsible, once per level; closes cleared ones |
 
+Not scheduled by the application, but worth a cron of its own: a nightly
+`php artisan erp:backup --to=/var/backups/hrbderp` writes the whole ERP —
+every table and every upload — to one dated zip; ship it off the server. See
+[BACKUP_RESTORE.md](BACKUP_RESTORE.md).
+
+The restore upload on Administration → Data is bounded by PHP's
+`upload_max_filesize` and `post_max_size`; the screen says the limit it
+found. Raise both (512M is reasonable) on the host so a real backup fits, or
+restore from the console with `erp:restore` where no limit applies.
+
 Without the cron entry nobody is escalated to; the command centre and the
 exception feed still work, since they read the floor when opened.
 

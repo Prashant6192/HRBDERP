@@ -259,8 +259,9 @@ class ManufacturingOrderService
                 throw new ManufacturingException('The output quantity must be greater than zero.');
             }
 
-            $units = isset($output['output_units']) && $output['output_units'] !== null && $output['output_units'] !== '' ? (int) $output['output_units'] : null;
             $manufacturedAt = isset($output['manufactured_at']) && $output['manufactured_at'] ? CarbonImmutable::parse($output['manufactured_at']) : CarbonImmutable::today();
+            $reconciled = $this->reconcile($order, $outputQuantity, $output);
+            $units = $reconciled['output_units'];
 
             $this->consumeHeld($order, StoreKind::Packaging, $userId);
             $this->reservations->releaseAllFor($order);
@@ -271,17 +272,13 @@ class ManufacturingOrderService
                 $lot = $this->postOutput($order, $outputQuantity, $units, $manufacturedAt, $output['expiry_at'] ?? null, $userId);
             }
 
-            $yield = $outputQuantity->dividedBy($order->plannedQuantity(), 6, RoundingMode::HalfUp)
-                ->multipliedBy(100)->toScale(3, RoundingMode::HalfUp);
-
             $order->fill([
                 'status' => ManufacturingOrderStatus::Completed,
                 'current_stage' => ProductionStage::Completed,
                 'stage_progress' => 100,
                 'stage_updated_at' => now(),
                 'output_quantity' => $outputQuantity->__toString(),
-                'output_units' => $units,
-                'yield_percentage' => $yield->__toString(),
+                ...$reconciled,
                 'output_lot_id' => $lot?->id,
                 'manufactured_at' => $manufacturedAt->toDateString(),
                 'notes' => isset($output['notes']) && $output['notes'] !== null && $output['notes'] !== '' ? trim(($order->notes ?? '')."\n".$output['notes']) : $order->notes,
@@ -325,6 +322,87 @@ class ManufacturingOrderService
 
             return $order->refresh();
         });
+    }
+
+    /**
+     * The batch account, the way a manufacturing head reads it.
+     *
+     * Three yields, each answering a different question:
+     *  - bulk yield: what the kettle gave against what was planned
+     *    (500 kg planned, 495 kg made = 99.0%);
+     *  - packing yield: what the line kept against what it filled
+     *    (4,950 filled, 99 rejected = 98.0%);
+     *  - overall yield: good units against the units the batch was
+     *    planned for (4,851 of 5,000 = 97.0%).
+     *
+     * Good units = filled − rejected − samples, and those are the units
+     * that go to stock. Rejects and samples are on the record; they never
+     * reach the finished goods store.
+     *
+     * @param  array<string, mixed>  $output
+     * @return array<string, mixed>
+     */
+    public function reconcile(ManufacturingOrder $order, BigDecimal $outputQuantity, array $output): array
+    {
+        $int = static fn (string $key): ?int => isset($output[$key]) && $output[$key] !== null && $output[$key] !== '' ? (int) $output[$key] : null;
+
+        $filled = $int('filled_units');
+        $rejected = $int('rejected_units');
+        $samples = $int('sample_units');
+        $good = $int('output_units');
+
+        if ($filled !== null) {
+            $rejected ??= 0;
+            $samples ??= 0;
+
+            if ($rejected + $samples > $filled) {
+                throw new ManufacturingException("Rejected ({$rejected}) and sample ({$samples}) units cannot exceed the {$filled} units filled.");
+            }
+
+            $good = $filled - $rejected - $samples;
+        } elseif ($rejected !== null || $samples !== null) {
+            // Rejects without a filled count: good units were keyed, so
+            // the fill was good + rejected + samples.
+            if ($good === null) {
+                throw new ManufacturingException('Enter the units filled, or the good units, to record rejects and samples.');
+            }
+
+            $rejected ??= 0;
+            $samples ??= 0;
+            $filled = $good + $rejected + $samples;
+        }
+
+        if ($good !== null && $good < 1) {
+            throw new ManufacturingException('No good units are left to post: every filled unit is a reject or a sample.');
+        }
+
+        $leftover = isset($output['bulk_leftover_quantity']) && $output['bulk_leftover_quantity'] !== null && $output['bulk_leftover_quantity'] !== ''
+            ? BigDecimal::of($output['bulk_leftover_quantity'])
+            : null;
+
+        if ($leftover !== null && $leftover->isNegative()) {
+            throw new ManufacturingException('Bulk left over cannot be negative.');
+        }
+
+        if ($leftover !== null && $leftover->isGreaterThan($outputQuantity)) {
+            throw new ManufacturingException('Bulk left over cannot exceed the bulk output.');
+        }
+
+        $pct = static fn (BigDecimal|int $part, BigDecimal|int $whole): ?string => BigDecimal::of($whole)->isPositive()
+            ? BigDecimal::of($part)->dividedBy(BigDecimal::of($whole), 6, RoundingMode::HalfUp)->multipliedBy(100)->toScale(3, RoundingMode::HalfUp)->__toString()
+            : null;
+
+        return [
+            'output_units' => $good,
+            'filled_units' => $filled,
+            'rejected_units' => $filled === null ? null : $rejected,
+            'sample_units' => $filled === null ? null : $samples,
+            'bulk_leftover_quantity' => $leftover?->__toString(),
+            'yield_percentage' => $pct($outputQuantity, $order->plannedQuantity()),
+            'packing_yield_percentage' => $filled !== null && $good !== null ? $pct($good, $filled) : null,
+            'overall_yield_percentage' => $good !== null && ($order->planned_units ?? 0) > 0 ? $pct($good, (int) $order->planned_units) : null,
+            'loss_notes' => isset($output['loss_notes']) && $output['loss_notes'] !== null && trim((string) $output['loss_notes']) !== '' ? trim((string) $output['loss_notes']) : null,
+        ];
     }
 
     // ---- Internals -------------------------------------------------------

@@ -10,6 +10,74 @@ between them.
 
 ## [Unreleased]
 
+### Added — The management view on a phone
+
+- **`/m`**: the factory on a phone for anyone holding `report.view`. One
+  home screen with one number per question — batches in manufacturing,
+  batches ready, raw material in stock and what it is worth, what to order,
+  what is still to be billed, finished goods value, formulas live, 3P
+  clients — and a screen behind each: batches on the floor with stage,
+  awaiting QC and recently completed with their yields; stock by material
+  at batch cost with what is in quarantine; purchase advice most urgent
+  first; every formula, its version and whose it is; every client with jobs
+  open, running and made; every finished batch on the shelf with the
+  artwork it was packed to; completed third-party jobs not yet dispatched
+  at the agreed terms, and consignments written up but not invoiced. A tab
+  bar under the thumb, nothing entered here, the full ERP one tap away. It
+  is reached from the **Management** link in the header, and installs as
+  an app on a phone the way the floor mode does.
+
+### Added — Batch reconciliation: what was planned, what came out, what was kept
+
+- **Complete batch** now takes the whole account instead of one output
+  figure: bulk made against bulk planned, **units filled, rejected at
+  packing and kept as samples**, bulk left unpacked and where the loss went.
+  Good units — filled less rejected less samples — are the units that reach
+  stock; rejects and samples are on the record and never do. Three yields
+  are kept because they answer three questions: **bulk yield** (kettle
+  against plan), **packing yield** (kept against filled) and **overall
+  yield** (good units against the units the batch was planned for). The
+  batch page shows the reconciliation line by line; the management view and
+  the batch card carry the overall yield and the rejects.
+
+### Added — Artwork on every product, and on every batch (packaging)
+
+- **Products → Artwork**: the company's own brands now carry artwork the way
+  a client's already did — label, tube, bottle, carton, pouch — uploaded as
+  a picture or PDF, versioned, approved in-house, superseded when the next
+  version is approved. The **batch page** shows the approved artwork for
+  its product (the client's on a third-party job, the company's own
+  otherwise) and marks anything still awaiting approval; the **floor
+  production screen** shows the packing line the approved pack, picture
+  first, for the batch it is working on; the management view shows it on
+  every batch on the shelf. Artwork opens through one authorised route for
+  anyone who may see the product, the client or production.
+
+### Added — Backup download and restore upload (issue #19)
+
+- **Administration → Data → Download a backup**: the whole ERP as one zip —
+  every table (people and roles, facilities and stores, materials,
+  formulations, stock and its history, batches, dispatches, approvals, the
+  audit trail) and every uploaded bill, photo and artwork — with a manifest
+  of when, from what build and how many rows. **Restore from a backup** puts
+  all of it back exactly as the file holds it, in one transaction: old
+  entries, employees, stores, stock history, uploads; whatever was entered
+  after the backup is removed; new records number on from the restored
+  ones. The audit trail only ever grows — entries in the backup that are
+  missing are added, what is there stays — and the person restoring is
+  never removed, so they stay signed in. A copy of what is there now is
+  kept on the server under `backups/` before anything changes. A backup
+  from a newer build is refused until the ERP is updated. Super Admin only,
+  company name typed to confirm. The same runs headless as `erp:backup` and
+  `erp:restore`, for a nightly cron and a server console.
+
+### Added — Engineering store (issue #18)
+
+- **Engineering Store** is a store category a facility can add (Facility →
+  Stores → kind _Engineering Store_), seeded as `ENG` on deploy. Spares and
+  maintenance consumables are received into it; the goods receipt screen
+  offers it for consumables alongside the raw material and general stores.
+
 ### Added — Dispatch, with the e-invoice on record before anything leaves (issue #17)
 
 - **Dispatch → Dispatches**: finished goods leaving a facility against a

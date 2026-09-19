@@ -250,7 +250,8 @@ class FacilityScreensTest extends TestCase
     public function the_masters_are_editable_but_never_lose_a_category_in_use(): void
     {
         $this->actingAs($this->owner)->get(route('store-categories.index'))->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->component('settings/store-categories')->has('categories', 13));
+            ->assertInertia(fn (Assert $page) => $page->component('settings/store-categories')->has('categories', 14)
+                ->where('categories', fn ($rows) => collect($rows)->contains(fn ($c) => $c['code'] === 'ENG' && $c['kind'] === 'engineering')));
 
         $this->actingAs($this->owner)->post(route('store-categories.store'), [
             'code' => 'COLD', 'name' => 'Cold Room', 'badge' => 'COLD', 'kind' => 'raw_material',
@@ -269,6 +270,22 @@ class FacilityScreensTest extends TestCase
 
         $this->actingAs($this->owner)->get(route('facility-types.index'))->assertOk();
         $this->actingAs($this->delhiOnly)->get(route('store-categories.index'))->assertForbidden();
+    }
+
+    #[Test]
+    public function an_engineering_store_is_a_capability_a_facility_can_add(): void
+    {
+        // Issue #18: the seeded category, and the kind on the store form.
+        $this->assertDatabaseHas('store_categories', ['code' => 'ENG', 'kind' => 'engineering', 'is_system' => true]);
+
+        $this->actingAs($this->owner)->get(route('warehouses.create'))->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('types', fn ($types) => collect($types)->contains(fn ($t) => ($t['value'] ?? null) === 'engineering')));
+
+        $this->actingAs($this->owner)->post(route('warehouses.store'), [
+            'facility_id' => $this->rudrapur->id, 'code' => 'RUD-ENG', 'name' => 'Engineering Store', 'type' => 'engineering', 'is_active' => true,
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('warehouses', ['code' => 'RUD-ENG', 'type' => 'engineering', 'facility_id' => $this->rudrapur->id]);
     }
 
     #[Test]

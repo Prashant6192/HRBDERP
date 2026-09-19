@@ -24,6 +24,8 @@ enum WarehouseType: string
     case Returns = 'returns';
     case Damaged = 'damaged';
     case Marketplace = 'marketplace';
+    // Spares, tools and maintenance consumables: the engineering store.
+    case Engineering = 'engineering';
     case InTransit = 'in_transit';
     case General = 'general';
 
@@ -41,6 +43,7 @@ enum WarehouseType: string
             self::Returns => 'Returns',
             self::Damaged => 'Damaged Goods',
             self::Marketplace => 'Marketplace',
+            self::Engineering => 'Engineering Store',
             self::InTransit => 'In Transit',
             self::General => 'General',
         };
@@ -60,6 +63,7 @@ enum WarehouseType: string
             self::Returns => 'RET',
             self::Damaged => 'DMG',
             self::Marketplace => 'MKT',
+            self::Engineering => 'ENG',
             self::InTransit => 'TRANSIT',
             self::General => 'GEN',
         };

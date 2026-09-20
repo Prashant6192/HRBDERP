@@ -4,6 +4,7 @@ import {
     CalendarPlus,
     ClipboardCheck,
     Clock,
+    Hammer,
     LogIn,
     PackagePlus,
 } from 'lucide-react';
@@ -92,6 +93,8 @@ export function Hero({
         hour12: true,
         timeZone: timezone,
     });
+    const build =
+        typeof __BUILD_STAMP__ === 'string' ? new Date(__BUILD_STAMP__) : null;
 
     return (
         <section className="bg-card relative overflow-hidden rounded-2xl border">
@@ -120,13 +123,25 @@ export function Hero({
                     <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
                         {timeOfDay(now, timezone)}, {firstName}
                     </h1>
-                    {signedIn && (
-                        <p className="text-muted-foreground mt-1 inline-flex items-center gap-1.5 text-xs">
-                            <LogIn className="size-3.5" />
-                            Signed in {signedInFormat.format(signedIn)}
-                            {signedInFrom ? ` from ${signedInFrom}` : ''}
-                        </p>
-                    )}
+                    <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                        {signedIn && (
+                            <span className="inline-flex items-center gap-1.5">
+                                <LogIn className="size-3.5" />
+                                Signed in {signedInFormat.format(signedIn)}
+                                {signedInFrom ? ` from ${signedInFrom}` : ''}
+                            </span>
+                        )}
+                        {build && !Number.isNaN(build.getTime()) && (
+                            <span
+                                className="inline-flex items-center gap-1.5"
+                                title="When this version of the ERP was built"
+                                data-testid="build-stamp"
+                            >
+                                <Hammer className="size-3.5" />
+                                Build {signedInFormat.format(build)}
+                            </span>
+                        )}
+                    </div>
                     {headlines.length > 0 ? (
                         <ul className="mt-3 space-y-1 text-sm">
                             {headlines.map((line, i) => (

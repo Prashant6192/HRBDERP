@@ -7,6 +7,11 @@ import laravel from 'laravel-vite-plugin';
 import { defineConfig, lazyPlugins } from 'vite-plus';
 
 export default defineConfig({
+    // Stamped into the bundle at build time, so the dashboard can say which
+    // build is live — the quickest way to confirm a deployment reached a domain.
+    define: {
+        __BUILD_STAMP__: JSON.stringify(new Date().toISOString()),
+    },
     plugins: lazyPlugins(() => [
         laravel({
             input: ['resources/css/app.css', 'resources/js/app.tsx'],

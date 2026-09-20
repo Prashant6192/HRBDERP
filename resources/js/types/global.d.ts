@@ -27,3 +27,8 @@ declare module '@inertiajs/core' {
         };
     }
 }
+
+declare global {
+    /** The moment the front end was built, stamped in by Vite. */
+    const __BUILD_STAMP__: string;
+}

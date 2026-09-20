@@ -141,3 +141,76 @@
         @apply bg-background text-foreground;
     }
 }
+
+/*
+ * The sign-in shell.
+ *
+ * The front door is always dark, whatever the browser prefers, so it
+ * carries its own navy-tinted palette rather than the near-neutral one
+ * `.dark` uses inside the app.
+ *
+ * Both halves have to be set. Tailwind substitutes `--color-*` where the
+ * utility is compiled, against `:root`, so redefining only `--card` on a
+ * nested element would leave `bg-card` painting the light value; the
+ * `--color-*` aliases below are what the utilities actually read, and the
+ * bare names are for the handful of places that use `var(--card)`
+ * directly. The layout pairs this with `.dark` so `dark:` variants match.
+ */
+.auth-shell {
+    --background: oklch(0.155 0.022 258);
+    --foreground: oklch(0.97 0.005 258);
+    --card: oklch(0.215 0.019 258);
+    --card-foreground: oklch(0.97 0.005 258);
+    --popover: oklch(0.235 0.019 258);
+    --popover-foreground: oklch(0.97 0.005 258);
+    --secondary: oklch(0.27 0.017 258);
+    --secondary-foreground: oklch(0.97 0.005 258);
+    --muted: oklch(0.27 0.017 258);
+    --muted-foreground: oklch(0.72 0.014 258);
+    --accent: oklch(0.31 0.022 258);
+    --accent-foreground: oklch(0.97 0.005 258);
+    --border: oklch(0.32 0.019 258);
+    --input: oklch(0.38 0.021 258);
+    --ring: oklch(0.75 0.16 55);
+    --primary: oklch(0.78 0.155 60);
+    --primary-foreground: oklch(0.21 0.045 55);
+    --destructive: oklch(0.62 0.2 25);
+    --destructive-foreground: oklch(0.72 0.19 25);
+
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+
+    color-scheme: dark;
+}
+
+/*
+ * Fields here are taller and filled, so they read as places to type on a
+ * dark card. Scoped to the shell so the app's own compact inputs are
+ * untouched; the checkbox keeps its own size.
+ */
+.auth-shell input:not([type='checkbox']) {
+    height: 2.75rem;
+    background-color: oklch(0.262 0.018 258);
+}
+
+.auth-shell button[type='submit'] {
+    height: 2.75rem;
+    font-weight: 600;
+}

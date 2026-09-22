@@ -21,9 +21,9 @@ jobs:
       postgres:
         image: postgres:17
         env:
-          POSTGRES_USER: hrbderp
-          POSTGRES_PASSWORD: hrbderp_local_dev
-          POSTGRES_DB: hrbderp
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
         ports:
           - 5432:5432
         options: >-
@@ -53,17 +53,28 @@ jobs:
           node-version: '22'
           cache: npm
 
+      # The application role is created NOSUPERUSER on purpose, because a
+      # superuser bypasses privilege checks entirely. erp:lock-audit-trail
+      # works by revoking UPDATE, DELETE and TRUNCATE from the application's
+      # own role; run as a superuser the REVOKE is accepted and then ignored,
+      # and the append-only trail is append-only in name only. Letting the
+      # postgres image's POSTGRES_USER be the app role would hide that.
+      #
       # phpunit.xml points the suite at its own database; RefreshDatabase
-      # migrates it per run, but the database itself has to exist first.
-      - name: Create the test database
+      # migrates it per run, but the databases have to exist first.
+      - name: Create the application role and databases
         env:
-          PGPASSWORD: hrbderp_local_dev
+          PGPASSWORD: postgres
         run: |
           command -v psql >/dev/null || {
             sudo apt-get update -qq
             sudo apt-get install -y --no-install-recommends postgresql-client
           }
-          psql -h 127.0.0.1 -U hrbderp -d hrbderp -c 'CREATE DATABASE hrbderp_test'
+          psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE hrbderp LOGIN PASSWORD 'hrbderp_local_dev' NOSUPERUSER;
+          CREATE DATABASE hrbderp OWNER hrbderp;
+          CREATE DATABASE hrbderp_test OWNER hrbderp;
+          SQL
 
       - name: Setup Application
         run: composer setup

@@ -13,16 +13,37 @@ jobs:
   ci:
     runs-on: ubuntu-latest
 
+    # The suite runs against a real PostgreSQL, deliberately: the ledger
+    # relies on SELECT ... FOR UPDATE and on NUMERIC precision, neither of
+    # which SQLite reproduces. The credentials match phpunit.xml and
+    # .env.example, so nothing has to be configured twice.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: hrbderp
+          POSTGRES_PASSWORD: hrbderp_local_dev
+          POSTGRES_DB: hrbderp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
+      # 8.4, not 8.3: composer.lock pins Symfony 8.1, which requires
+      # PHP >= 8.4.1. On 8.3 the install fails before a test can run.
       - name: Setup PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           tools: composer:v2
           coverage: none
 
@@ -30,6 +51,19 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
+          cache: npm
+
+      # phpunit.xml points the suite at its own database; RefreshDatabase
+      # migrates it per run, but the database itself has to exist first.
+      - name: Create the test database
+        env:
+          PGPASSWORD: hrbderp_local_dev
+        run: |
+          command -v psql >/dev/null || {
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends postgresql-client
+          }
+          psql -h 127.0.0.1 -U hrbderp -d hrbderp -c 'CREATE DATABASE hrbderp_test'
 
       - name: Setup Application
         run: composer setup

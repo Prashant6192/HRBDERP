@@ -126,6 +126,17 @@ LOG_LEVEL=warning
 
 ERP_FORMULA_ACCESS_TTL_MINUTES=20
 ERP_FORMULA_REQUIRE_PIN=true
+
+# Mail: without this, "Forgot password" emails go nowhere.
+# SMTP from your provider; see DEPLOYMENT.md for Postmark and Resend values.
+MAIL_MAILER=smtp
+MAIL_SCHEME=smtp
+MAIL_HOST=smtp.postmarkapp.com
+MAIL_PORT=587
+MAIL_USERNAME=...
+MAIL_PASSWORD=...
+MAIL_FROM_ADDRESS="erp@yourdomain.com"
+MAIL_FROM_NAME="HRBD ERP"
 ```
 
 `APP_DEBUG` **must** be `false`. With it on, an error page shows the contents of

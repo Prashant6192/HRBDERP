@@ -9,6 +9,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
+use Illuminate\Session\Middleware\AuthenticateSession;
 use Spatie\Permission\Middleware\PermissionMiddleware;
 use Spatie\Permission\Middleware\RoleMiddleware;
 use Spatie\Permission\Middleware\RoleOrPermissionMiddleware;
@@ -22,6 +23,13 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
+        // The application is only reachable through the hosting platform's
+        // load balancer, so trust the headers it adds. Without this, links
+        // built from a request — the one in a password reset email, for
+        // instance — come out as http://, and every IP address the audit
+        // trail records is the balancer's own rather than the person's.
+        $middleware->trustProxies(at: '*');
+
         $middleware->web(append: [
             HandleAppearance::class,
             HandleInertiaRequests::class,
@@ -31,6 +39,14 @@ return Application::configure(basePath: dirname(__DIR__))
             // any session it already has, rather than only blocking the next
             // sign-in.
             EnsureUserIsActive::class,
+
+            // Remembers the password each session signed in with. When the
+            // password changes — reset from an emailed link, or changed in
+            // settings — every other session is signed out on its next
+            // request, so a stolen session dies with the old password. The
+            // session that made the change carries on. Works whatever the
+            // session driver, Redis included.
+            AuthenticateSession::class,
         ]);
 
         // Spatie's permission and role middleware, available to routes as

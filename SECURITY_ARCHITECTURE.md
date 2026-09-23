@@ -19,8 +19,8 @@ password is ever stored, logged, or written to the audit trail.
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | Sign-in          | Email and password, throttled per email and IP                                                                                        |
 | Password storage | bcrypt via Laravel's `hashed` cast                                                                                                    |
-| Password reset   | Signed, expiring tokens                                                                                                               |
-| Session          | Encrypted cookies; regenerated on sign-in                                                                                             |
+| Password reset   | Emailed single-use link, 60 minutes; see [Password reset](#password-reset) below                                                      |
+| Session          | Encrypted cookies; regenerated on sign-in; every other session ends when the password changes                                         |
 | Two-factor       | Fortify's TOTP support, already wired                                                                                                 |
 | Passkeys         | Fortify passkeys, already wired                                                                                                       |
 | SSO              | Not yet configured — the structure supports adding Google Workspace and Microsoft as Socialite drivers without changing authorisation |
@@ -39,6 +39,40 @@ a failing test to explain itself.
 
 Password reset remains open, so an employee who forgets their password does not
 need an administrator.
+
+### Password reset
+
+An employee who forgets their password asks for a link on the sign-in card,
+receives it by email, and chooses a new one. No administrator is involved.
+
+- **The form reveals nothing.** Every well-formed request gets the same reply —
+  "if that address belongs to an account here, a link is on its way" — whether
+  the address is unknown, deactivated, rate-limited or real. The framework's
+  own reply ("we can't find a user with that email address") is replaced, so
+  the form cannot be used to find out who works here.
+- **A deactivated account gets no email**, and a link issued before the account
+  was withdrawn is refused when used. A reset link is never a way back in.
+- **Rate limits.** Three requests per address per fifteen minutes, after which
+  the next ones send nothing but get the same reply, so the limit itself says
+  nothing about the address. Ten requests per network per fifteen minutes,
+  after which the form says to wait, since that limit is the same for
+  everyone. On top of the framework's one request per account per minute.
+- **The link** is single-use and expires after 60 minutes. The email says when
+  and from which browser and IP address it was requested, and that ignoring it
+  changes nothing.
+- **Afterwards,** every other session signed in with the old password is
+  signed out on its next request (`AuthenticateSession`, independent of the
+  session driver), "keep me signed in" cookies stop working, a forced
+  password change is cleared, and the reset is written to the audit trail.
+  Two-factor authentication still applies at the next sign-in.
+- **Sent at once, not queued.** Nothing else in the ERP runs through a queue
+  yet, and a reset email waiting on a worker that was never started would fail
+  without anyone knowing. A mail provider refusing is logged for us and not
+  shown to the visitor, since telling them would say the address exists.
+
+It depends on mail being configured: see the mail settings in
+[DEPLOYMENT.md](DEPLOYMENT.md). With the default `MAIL_MAILER=log`, the email
+is written to the log and nobody receives it.
 
 ### Account state takes effect immediately
 
@@ -321,6 +355,8 @@ Before the system holds real company data:
 - [ ] Laravel Telescope absent
 - [ ] Demo accounts absent — they are seeded only outside production, but confirm
 - [ ] Every account has a real password; `password` appears nowhere
+- [ ] Mail configured and a password reset tried end to end on your own account
+- [ ] Every account's email address is one its owner actually reads
 - [ ] Backups running **and a restore rehearsed** — see [BACKUP_RESTORE.md](BACKUP_RESTORE.md)
 - [ ] Error monitoring receiving events
 - [ ] Queue worker and scheduler running under a supervisor

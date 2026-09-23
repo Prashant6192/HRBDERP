@@ -9,6 +9,7 @@ use App\Domain\Audit\Concerns\RecordsAuditTrail;
 use App\Domain\Identity\Enums\UserStatus;
 use App\Domain\Identity\Models\Department;
 use App\Domain\Warehousing\Models\EmployeeAssignment;
+use App\Notifications\ResetPasswordNotification;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -148,6 +149,21 @@ class User extends Authenticatable implements PasskeyUser
     public function isActive(): bool
     {
         return $this->status->canAuthenticate() && $this->deleted_at === null;
+    }
+
+    /**
+     * The password reset email, branded and saying where the request came
+     * from. A deactivated account gets nothing: a reset link must never be
+     * the way back in for someone whose access was withdrawn. The screen
+     * that asked says the same thing either way, so it reveals nothing.
+     */
+    public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
+    {
+        if (! $this->isActive()) {
+            return;
+        }
+
+        $this->notify(ResetPasswordNotification::forCurrentRequest((string) $token));
     }
 
     /**

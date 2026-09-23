@@ -10,6 +10,37 @@ between them.
 
 ## [Unreleased]
 
+### Added — Forgot password, handled by the employee themselves
+
+- **Forgot password?** on the sign-in card now emails a link that works once,
+  for 60 minutes, to choose a new password. No administrator is involved. The
+  email is the ERP's own: its name, the amber button, when and from which
+  browser and IP address the request came, and that ignoring it changes
+  nothing.
+- **The form reveals nothing.** Every request gets the same reply, whether the
+  address is unknown, deactivated or real, so it cannot be used to find out
+  who has an account. Three requests per address and ten per network every
+  fifteen minutes, on top of one per account per minute.
+- **A deactivated account gets no email,** and a link issued before the
+  account was withdrawn is refused.
+- **Every other session is signed out** when a password changes, whether reset
+  from a link or changed in settings; the session making the change carries
+  on. "Keep me signed in" cookies from before stop working. The reset is
+  written to the audit trail and clears a forced password change.
+- **Real addresses behind the load balancer.** The application now trusts the
+  hosting platform's proxy headers, so the reset link comes out as `https://`
+  and the IP address shown in the email and recorded in the audit trail — for
+  sign-ins too — is the person's, not the balancer's.
+- **Needs mail configured** in the environment: SMTP settings from Postmark,
+  Resend or Google Workspace, and a from-address on a verified domain. See
+  DEPLOYMENT.md. Without them the email goes to the log and nobody receives it.
+
+### Changed — The address opens the sign-in card
+
+- The bare address, `erp.rahatrooh.com`, now goes straight to the sign-in card,
+  or to the dashboard for someone already signed in. The framework's welcome
+  page is gone; this ERP has nothing to show anyone who cannot sign in.
+
 ### Added — The management view on a phone
 
 - **`/m`**: the factory on a phone for anyone holding `report.view`. One

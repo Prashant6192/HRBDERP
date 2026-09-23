@@ -83,8 +83,34 @@ AWS_SECRET_ACCESS_KEY=...
 AWS_DEFAULT_REGION=ap-south-1
 AWS_BUCKET=hrbderp-documents
 
-MAIL_MAILER=postmark
-MAIL_FROM_ADDRESS="erp@yourcompany.com"
+# Mail. Password reset emails cannot arrive without this.
+#
+# Use SMTP: it needs nothing beyond what the application already ships, and
+# every provider offers it. (MAIL_MAILER=postmark or resend would need an
+# extra Composer package that is not installed, and would fail to send.)
+# Postmark or Resend deliver reliably and report bounces; Google Workspace
+# works if the company already uses it. Examples:
+#
+#   Postmark:  MAIL_HOST=smtp.postmarkapp.com  MAIL_PORT=587
+#              MAIL_USERNAME and MAIL_PASSWORD = the server API token
+#   Resend:    MAIL_HOST=smtp.resend.com  MAIL_PORT=587
+#              MAIL_USERNAME=resend  MAIL_PASSWORD = the API key
+#
+# The from-address must be on a domain verified with the provider (the SPF
+# and DKIM records it gives you, added to your DNS), or providers reject it
+# and inboxes bin it.
+MAIL_MAILER=smtp
+MAIL_SCHEME=smtp
+MAIL_HOST=smtp.postmarkapp.com
+MAIL_PORT=587
+MAIL_USERNAME=...
+MAIL_PASSWORD=...
+MAIL_FROM_ADDRESS="erp@rahatrooh.com"
+MAIL_FROM_NAME="HRBD ERP"
+
+# The reset link in the email is built from the address the request came
+# in on, so it follows each environment's own domain. Set APP_URL anyway;
+# anything built outside a request uses it.
 
 ERP_FORMULA_ACCESS_TTL_MINUTES=20
 ERP_FORMULA_REQUIRE_PIN=true

@@ -56,9 +56,13 @@ use App\Http\Controllers\Warehousing\EmployeeAssignmentController;
 use App\Http\Controllers\Warehousing\FacilityController;
 use App\Http\Controllers\Warehousing\FacilityStoreController;
 use App\Http\Controllers\Warehousing\WarehouseController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::inertia('/', 'welcome')->name('home');
+// The address itself is the way in: straight to the sign-in card, or to the
+// dashboard for someone already signed in. There is no public front page;
+// this ERP has nothing to show anyone who cannot sign in.
+Route::get('/', fn (Request $request) => redirect()->route($request->user() ? 'dashboard' : 'login'))->name('home');
 
 /*
 |--------------------------------------------------------------------------

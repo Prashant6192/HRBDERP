@@ -363,11 +363,11 @@ class OnlineOrderController extends Controller
 
         abort_unless(Storage::disk(OnlineOrderService::DISK)->exists($file->path), 404);
 
+        // The framework writes the filename into the header safely.
         return Storage::disk(OnlineOrderService::DISK)->response($file->path, $file->original_name, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="'.addslashes($file->original_name).'"',
             'Cache-Control' => 'private, no-store',
-        ]);
+        ], 'inline');
     }
 
     public function removeFile(Request $request, LabelFile $file): RedirectResponse

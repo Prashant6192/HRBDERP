@@ -27,6 +27,7 @@ class ConsumptionRateService
         InventoryTransactionType::ProductionConsumption->value,
         InventoryTransactionType::Sample->value,
         InventoryTransactionType::SalesDispatch->value,
+        InventoryTransactionType::MarketplaceSale->value,
     ];
 
     /**

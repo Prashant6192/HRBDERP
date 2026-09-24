@@ -28,6 +28,8 @@ enum InventoryTransactionType: string
     case Expiry = 'EXPIRY';
     case Sample = 'SAMPLE';
     case SalesDispatch = 'SALES_DISPATCH';
+    // A parcel packed against a marketplace label.
+    case MarketplaceSale = 'MARKETPLACE_SALE';
     case MarketplaceTransfer = 'MARKETPLACE_TRANSFER';
     case Reversal = 'REVERSAL';
 
@@ -49,6 +51,7 @@ enum InventoryTransactionType: string
             self::Expiry => 'Expired',
             self::Sample => 'Sample',
             self::SalesDispatch => 'Dispatched',
+            self::MarketplaceSale => 'Sold online (packed)',
             self::MarketplaceTransfer => 'Transferred to marketplace',
             self::Reversal => 'Reversal of an earlier posting',
         };
@@ -73,7 +76,8 @@ enum InventoryTransactionType: string
             self::Damage,
             self::Expiry,
             self::Sample,
-            self::SalesDispatch => 'out',
+            self::SalesDispatch,
+            self::MarketplaceSale => 'out',
 
             self::QcRelease,
             self::QcRejection,

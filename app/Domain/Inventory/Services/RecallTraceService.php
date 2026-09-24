@@ -61,7 +61,7 @@ class RecallTraceService
         $dispatched = DB::table('inventory_transaction_lines as l')
             ->join('inventory_transactions as t', 't.id', '=', 'l.inventory_transaction_id')
             ->whereIn('l.lot_id', $lotIds)
-            ->whereIn('t.type', [InventoryTransactionType::SalesDispatch->value, InventoryTransactionType::MarketplaceTransfer->value])
+            ->whereIn('t.type', [InventoryTransactionType::SalesDispatch->value, InventoryTransactionType::MarketplaceSale->value, InventoryTransactionType::MarketplaceTransfer->value])
             ->where('l.quantity', '<', 0)
             ->selectRaw('l.lot_id, SUM(ABS(l.quantity)) AS quantity, MAX(t.transacted_at) AS last_at')
             ->groupBy('l.lot_id')

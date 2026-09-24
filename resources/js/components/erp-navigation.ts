@@ -25,9 +25,12 @@ import {
     PackageX,
     ScrollText,
     ShieldCheck,
+    ShoppingBag,
     ShoppingCart,
     Signature,
     Store,
+    Tag,
+    Tags,
     Truck,
     Users,
     Warehouse,
@@ -35,9 +38,12 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { data as dataAdministration } from '@/routes/administration';
 import { index as auditIndex } from '@/routes/audit';
+import { index as brandsIndex } from '@/routes/brands';
 import { index as clientsIndex } from '@/routes/clients';
 import { index as customersIndex } from '@/routes/customers';
 import { index as dispatchesIndex } from '@/routes/dispatches';
+import { index as listingsIndex } from '@/routes/listings';
+import { index as onlineOrdersIndex } from '@/routes/online-orders';
 import { index as formulasIndex } from '@/routes/formulas';
 import { index as manufacturingIndex } from '@/routes/manufacturing';
 import { index as materialRequestsIndex } from '@/routes/material-requests';
@@ -319,6 +325,24 @@ export const erpNavigation: ErpNavGroup[] = [
                 href: customersIndex().url,
                 icon: Store,
                 permission: 'dispatch.view',
+            },
+            {
+                title: 'Online orders',
+                href: onlineOrdersIndex().url,
+                icon: ShoppingBag,
+                permission: 'marketplace.view',
+            },
+            {
+                title: 'SKU mapping',
+                href: listingsIndex().url,
+                icon: Tags,
+                permission: 'marketplace.manage',
+            },
+            {
+                title: 'Brands',
+                href: brandsIndex().url,
+                icon: Tag,
+                permission: 'marketplace.manage',
             },
         ],
     },

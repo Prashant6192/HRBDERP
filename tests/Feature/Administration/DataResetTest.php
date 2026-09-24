@@ -84,7 +84,7 @@ class DataResetTest extends TestCase
         $this->actingAs($this->admin)->get(route('administration.data'))
             ->assertInertia(fn (AssertableInertia $page) => $page->component('administration/data')
                 ->where('company', 'HRBD')
-                ->has('scopes', 9)
+                ->has('scopes', 10)
                 ->where('counts.stock', 1)
                 ->where('counts.partners', 1));
     }
@@ -137,10 +137,10 @@ class DataResetTest extends TestCase
         $reset = app(DataResetService::class);
 
         $this->assertSame(
-            ['production', 'dispatch', 'purchasing', 'stock', 'formulas', 'materials'],
+            ['production', 'dispatch', 'online_orders', 'purchasing', 'stock', 'formulas', 'materials'],
             $reset->withDependencies(['materials']),
         );
-        $this->assertSame(['production', 'dispatch', 'purchasing', 'stock', 'formulas'], $reset->addedByDependency(['materials']));
+        $this->assertSame(['production', 'dispatch', 'online_orders', 'purchasing', 'stock', 'formulas'], $reset->addedByDependency(['materials']));
 
         // Clearing the batches drags in the deliveries and dispatches that point at them.
         $this->assertSame(['dispatch', 'purchasing', 'stock'], $reset->withDependencies(['stock']));

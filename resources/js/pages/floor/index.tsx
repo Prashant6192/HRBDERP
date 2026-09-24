@@ -6,13 +6,15 @@ import {
     ClipboardList,
     Factory,
     Gauge,
+    PackageCheck,
     PackagePlus,
     ScanLine,
+    Truck,
     type LucideIcon,
 } from 'lucide-react';
 import { create as createReceipt } from '@/routes/goods-receipts';
 import { index as countsIndex } from '@/routes/counts';
-import { issue, production, scan } from '@/routes/floor';
+import { handover, issue, pack, production, scan } from '@/routes/floor';
 import { index as qcIndex } from '@/routes/qc';
 import { index as transfersIndex } from '@/routes/transfers';
 
@@ -78,7 +80,9 @@ export default function FloorHome({
         | 'count'
         | 'transfer'
         | 'production'
-        | 'photo',
+        | 'photo'
+        | 'pack'
+        | 'handover',
         boolean
     >;
 }) {
@@ -144,6 +148,22 @@ export default function FloorHome({
                             icon={Gauge}
                             label="Record production"
                             hint="Stage and progress"
+                        />
+                    )}
+                    {can.pack && (
+                        <Tile
+                            href={pack().url}
+                            icon={PackageCheck}
+                            label="Pack parcels"
+                            hint="Scan each online order's label"
+                        />
+                    )}
+                    {can.handover && (
+                        <Tile
+                            href={handover().url}
+                            icon={Truck}
+                            label="Courier pickup"
+                            hint="Hand packed parcels over"
                         />
                     )}
                     {can.photo && (

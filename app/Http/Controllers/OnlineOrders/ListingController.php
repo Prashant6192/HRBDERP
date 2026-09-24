@@ -1,0 +1,135 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\OnlineOrders;
+
+use App\Domain\Marketplace\Enums\ShipmentStatus;
+use App\Domain\Marketplace\Exceptions\OnlineOrderException;
+use App\Domain\Marketplace\Models\Brand;
+use App\Domain\Marketplace\Models\Marketplace;
+use App\Domain\Marketplace\Models\MarketplaceListing;
+use App\Domain\Marketplace\Models\ShipmentLine;
+use App\Domain\Marketplace\Services\OnlineOrderService;
+use App\Domain\MasterData\Enums\ItemType;
+use App\Domain\MasterData\Models\Item;
+use App\Http\Controllers\Controller;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Inertia\Inertia;
+use Inertia\Response;
+
+/**
+ * Dispatch → SKU mapping: what each marketplace prints for a product, and
+ * which product that is. The labels waiting on a mapping come first.
+ */
+class ListingController extends Controller
+{
+    public function __construct(private readonly OnlineOrderService $orders) {}
+
+    public function index(Request $request): Response
+    {
+        $this->authorize('marketplace.manage');
+
+        $waiting = ShipmentLine::query()
+            ->join('shipments', 'shipments.id', '=', 'shipment_lines.shipment_id')
+            ->join('marketplaces', 'marketplaces.id', '=', 'shipments.marketplace_id')
+            ->join('brands', 'brands.id', '=', 'shipments.brand_id')
+            ->whereIn('shipments.status', ShipmentStatus::awaitingPacking())
+            ->whereNull('shipment_lines.item_id')
+            ->groupBy('shipments.marketplace_id', 'marketplaces.name', 'shipments.brand_id', 'brands.name', 'shipment_lines.seller_sku')
+            ->selectRaw('shipments.marketplace_id, marketplaces.name AS marketplace, shipments.brand_id, brands.name AS brand, shipment_lines.seller_sku, COUNT(DISTINCT shipments.id) AS parcels, MAX(shipment_lines.description) AS description')
+            ->orderByDesc('parcels')
+            ->get()
+            ->map(fn ($r) => [
+                'marketplace_id' => (int) $r->marketplace_id, 'marketplace' => $r->marketplace,
+                'brand_id' => (int) $r->brand_id, 'brand' => $r->brand,
+                'seller_sku' => $r->seller_sku, 'description' => $r->description, 'parcels' => (int) $r->parcels,
+            ])
+            ->all();
+
+        $listings = MarketplaceListing::query()
+            ->with(['marketplace:id,name', 'brand:id,name', 'item:id,code,name'])
+            ->orderBy('marketplace_id')->orderBy('brand_id')->orderBy('seller_sku')
+            ->get()
+            ->map(fn (MarketplaceListing $l) => [
+                'id' => $l->id, 'marketplace' => $l->marketplace?->name, 'marketplace_id' => $l->marketplace_id,
+                'brand' => $l->brand?->name, 'brand_id' => $l->brand_id, 'seller_sku' => $l->seller_sku,
+                'item_id' => $l->item_id, 'item' => $l->item?->name, 'item_code' => $l->item?->code,
+                'units_per_order' => $l->units_per_order, 'is_active' => $l->is_active,
+            ])
+            ->all();
+
+        return Inertia::render('online-orders/listings', [
+            'waiting' => $waiting,
+            'listings' => $listings,
+            'products' => Item::query()->where('type', ItemType::FinishedGood->value)->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name'])
+                ->map(fn (Item $i) => ['value' => (string) $i->id, 'label' => $i->name, 'hint' => $i->code])->all(),
+            'marketplaces' => Marketplace::query()->orderBy('name')->get(['id', 'name'])->map(fn ($m) => ['value' => (string) $m->id, 'label' => $m->name])->all(),
+            'brands' => Brand::query()->orderBy('name')->get(['id', 'name'])->map(fn ($b) => ['value' => (string) $b->id, 'label' => $b->name])->all(),
+        ]);
+    }
+
+    public function store(Request $request): RedirectResponse
+    {
+        $this->authorize('marketplace.manage');
+
+        $data = $request->validate([
+            'marketplace_id' => ['required', 'integer', Rule::exists('marketplaces', 'id')],
+            'brand_id' => ['required', 'integer', Rule::exists('brands', 'id')],
+            'seller_sku' => ['required', 'string', 'max:255'],
+            'item_id' => ['required', 'integer', Rule::exists('items', 'id')],
+            'units_per_order' => ['required', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        try {
+            $listing = $this->orders->mapSku(
+                Marketplace::query()->findOrFail($data['marketplace_id']),
+                Brand::query()->findOrFail($data['brand_id']),
+                $data['seller_sku'],
+                Item::query()->findOrFail($data['item_id']),
+                (int) $data['units_per_order'],
+                $request->user(),
+            );
+        } catch (OnlineOrderException $e) {
+            return back()->withToast('error', $e->getMessage());
+        }
+
+        $listing->load('item:id,name');
+
+        return back()->withToast('success', "\"{$listing->seller_sku}\" is {$listing->item?->name}".($listing->units_per_order > 1 ? " × {$listing->units_per_order}" : '').'. Waiting parcels have been matched.');
+    }
+
+    public function update(Request $request, MarketplaceListing $listing): RedirectResponse
+    {
+        $this->authorize('marketplace.manage');
+
+        $data = $request->validate([
+            'item_id' => ['required', 'integer', Rule::exists('items', 'id')],
+            'units_per_order' => ['required', 'integer', 'min:1', 'max:100'],
+            'is_active' => ['required', 'boolean'],
+        ]);
+
+        if (! $data['is_active']) {
+            $listing->update(['is_active' => false]);
+
+            return back()->withToast('success', "\"{$listing->seller_sku}\" will no longer be matched.");
+        }
+
+        try {
+            $this->orders->mapSku(
+                $listing->marketplace,
+                $listing->brand,
+                $listing->seller_sku,
+                Item::query()->findOrFail($data['item_id']),
+                (int) $data['units_per_order'],
+                $request->user(),
+            );
+        } catch (OnlineOrderException $e) {
+            return back()->withToast('error', $e->getMessage());
+        }
+
+        return back()->withToast('success', "\"{$listing->seller_sku}\" updated.");
+    }
+}

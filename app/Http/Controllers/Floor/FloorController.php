@@ -14,6 +14,7 @@ use App\Domain\Manufacturing\Enums\ManufacturingOrderStatus;
 use App\Domain\Manufacturing\Enums\ProductionStage;
 use App\Domain\Manufacturing\Models\ManufacturingOrder;
 use App\Domain\Manufacturing\Services\IssueVerificationService;
+use App\Domain\Marketplace\Models\Shipment;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\Planning\Enums\StoreKind;
 use App\Domain\Warehousing\Models\Warehouse;
@@ -75,6 +76,8 @@ class FloorController extends Controller
                 'transfer' => $user->can('inventory.transfer') || $user->can('inventory.receive_transfer'),
                 'production' => $user->can('production.consume'),
                 'photo' => $user->can('inventory.view'),
+                'pack' => $user->can('marketplace.pack'),
+                'handover' => $user->can('marketplace.handover'),
             ],
         ]);
     }
@@ -271,6 +274,24 @@ class FloorController extends Controller
                     $user->can('inventory.count') ? ['label' => 'Start a count', 'href' => route('counts.index', ['warehouse' => $found->id])] : null,
                 ])),
             ];
+        }
+
+        // A marketplace label: its AWB, tracking code or order number.
+        if ($parsed['type'] === null && $user->can('marketplace.view')) {
+            $parcel = Shipment::query()->matchingCode($parsed['value'])->with(['marketplace:id,name', 'lines'])->latest('id')->first();
+
+            if ($parcel !== null) {
+                return [
+                    'kind' => 'parcel',
+                    'code' => $code,
+                    'title' => $parcel->reference(),
+                    'subtitle' => "{$parcel->marketplace?->name} · {$parcel->status->label()}",
+                    'actions' => array_values(array_filter([
+                        $user->can('marketplace.pack') && $parcel->status->awaitsPacking() ? ['label' => 'Pack it', 'href' => route('floor.pack')] : null,
+                        ['label' => 'Open the batch', 'href' => route('online-orders.show', $parcel->label_batch_id)],
+                    ])),
+                ];
+            }
         }
 
         return ['kind' => 'unknown', 'code' => $code, 'title' => 'Not recognised', 'subtitle' => "Nothing matches \"{$parsed['value']}\".", 'actions' => []];

@@ -14,6 +14,9 @@ use App\Domain\Inventory\Models\StockTransfer;
 use App\Domain\Manufacturing\Enums\ManufacturingOrderStatus;
 use App\Domain\Manufacturing\Models\ManufacturingOrder;
 use App\Domain\Manufacturing\Services\ProductionStageService;
+use App\Domain\Marketplace\Enums\ShipmentStatus;
+use App\Domain\Marketplace\Models\Shipment;
+use App\Domain\Marketplace\Support\Cutoff;
 use App\Domain\Planning\Enums\MaterialRequestStatus;
 use App\Domain\Planning\Enums\ProductionPlanStatus;
 use App\Domain\Planning\Models\MaterialRequestLine;
@@ -276,7 +279,45 @@ class CommandCentreService
             ->values()
             ->all();
 
-        return ['due' => $due, 'awaiting_dispatch' => $awaiting];
+        return ['due' => $due, 'awaiting_dispatch' => $awaiting, 'online' => $this->onlineOrders($facility, $asOf)];
+    }
+
+    /**
+     * Today's marketplace parcels: how many are still to pack, and whether
+     * the cut-off has gone by with some unpacked.
+     *
+     * @return array{parcels: int, to_pack: int, packed: int, handed_over: int, past_cutoff: bool, cutoff: string, href: string}|null
+     */
+    public function onlineOrders(?Facility $facility, CarbonImmutable $asOf): ?array
+    {
+        $today = Cutoff::today($asOf);
+
+        $counts = Shipment::query()
+            ->join('label_batches', 'label_batches.id', '=', 'shipments.label_batch_id')
+            ->whereDate('label_batches.for_date', $today->toDateString())
+            ->where('shipments.status', '<>', ShipmentStatus::Cancelled->value)
+            ->when($facility, fn ($q) => $q->where('label_batches.facility_id', $facility->id))
+            ->selectRaw('shipments.status, COUNT(*) AS n')
+            ->groupBy('shipments.status')
+            ->toBase()
+            ->pluck('n', 'status')
+            ->map(fn ($n) => (int) $n);
+
+        if ($counts->sum() === 0) {
+            return null;
+        }
+
+        $toPack = $counts->get(ShipmentStatus::Uploaded->value, 0) + $counts->get(ShipmentStatus::Printed->value, 0);
+
+        return [
+            'parcels' => $counts->sum(),
+            'to_pack' => $toPack,
+            'packed' => $counts->get(ShipmentStatus::Packed->value, 0),
+            'handed_over' => $counts->get(ShipmentStatus::HandedOver->value, 0),
+            'past_cutoff' => $toPack > 0 && Cutoff::passed($today, $asOf),
+            'cutoff' => Cutoff::on($today)->format('g:i A'),
+            'href' => route('online-orders.index', array_filter(['date' => $today->toDateString(), 'facility' => $facility?->id])),
+        ];
     }
 
     /**

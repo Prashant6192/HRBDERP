@@ -13,13 +13,13 @@ nothing to show for it. Stock is never reduced. Returns are not recorded.
 - **Meesho "Sub Order Labels" PDF**: A4, one label + tax invoice per page, iText
   producer, **has a text layer**. Per page the text carries: courier name
   (`Delhivery`, `Shadowfax`, `Xpress Bees`, `Valmo`), payment mode (`COD: Check
-  the payable amount on the app` / `Prepaid: Do not collect cash`), AWB
+the payable amount on the app` / `Prepaid: Do not collect cash`), AWB
   (12–16 alphanumerics under the barcode: all digits for Delhivery and
   Xpress Bees, `SF` + digits + `FPL` for Shadowfax), the "Product Details" row
   (`SKU | Size | Qty | Color | Order No.` — e.g. `Medicated oil 300 ml | Free
-  Size | 1 | NA | <18 digits>_<line no>`), then the invoice: `Sold by`, `GSTIN -
-  <seller GSTIN, Delhi 07>`, `Purchase Order No.`, `Invoice No.` (five letters + digits), `Order
-  Date`, `Invoice Date`, description with HSN `300390`, and the final `Total`
+Size | 1 | NA | <18 digits>_<line no>`), then the invoice: `Sold by`, `GSTIN -
+<seller GSTIN, Delhi 07>`, `Purchase Order No.`, `Invoice No.` (five letters + digits), `Order
+Date`, `Invoice Date`, description with HSN `300390`, and the final `Total`
   line with the payable amount. Return address printed on the label is the
   Paper Market depot. The barcode is Code 128.
 - **Myntra label**: letter size, "Microsoft: Print To PDF", **image only, no
@@ -36,14 +36,14 @@ nothing to show for it. Stock is never reduced. Returns are not recorded.
 
 ## The protocol
 
-| Step | Who | Screen | Effect |
-| --- | --- | --- | --- |
-| Upload | E-commerce agency (own restricted login, per brand) | Dispatch → Online orders → New upload | PDF split per page → one **shipment** per label; parsed; SKU matched to product via listings; stock **reserved** in the brand's default FG store; accountant notified (bell + email). Agency presses **"That's all for today"** to close the upload. |
-| Check | ERP | same | Flags: unknown SKU, no product on label, duplicate AWB, **short stock** ("21 × Medicated Oil 300 ml needed, 6 in Paper Market"). |
-| Print | Accounts Manager / Dispatch Manager | Online orders → batch | Print all / by courier / only unprinted. Labels assembled **in the browser** from the stored originals, **sorted by courier**. Each print logged. Shipment → `printed`. |
-| Pack | Store Executive / Dispatch person | Floor mode → Pack | Scan the label barcode (Code 128, already supported by `scanner.tsx`). Shows product name + photo large for confirmation. Shipment → `packed`; **stock leaves the ledger now** (reservation consumed, lot FEFO). |
-| Hand over | same | Floor mode → Hand over | Scan each parcel, or "hand over all packed for {courier}". Prints a **handover sheet** per courier (count + AWBs) for the courier's signature. Shipment → `handed_over`. |
-| Cut-off | ERP scheduler | Dashboard, bell, escalation | At `ERP_ONLINE_ORDERS_CUTOFF` (default `16:00` IST) any shipment `printed` and not `packed` becomes exception `shipments_not_packed` → Dispatch Manager, escalates per the existing ladder. A day cannot be closed while a shipment is `uploaded`/`printed`. |
+| Step      | Who                                                 | Screen                                | Effect                                                                                                                                                                                                                                                       |
+| --------- | --------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Upload    | E-commerce agency (own restricted login, per brand) | Dispatch → Online orders → New upload | PDF split per page → one **shipment** per label; parsed; SKU matched to product via listings; stock **reserved** in the brand's default FG store; accountant notified (bell + email). Agency presses **"That's all for today"** to close the upload.         |
+| Check     | ERP                                                 | same                                  | Flags: unknown SKU, no product on label, duplicate AWB, **short stock** ("21 × Medicated Oil 300 ml needed, 6 in Paper Market").                                                                                                                             |
+| Print     | Accounts Manager / Dispatch Manager                 | Online orders → batch                 | Print all / by courier / only unprinted. Labels assembled **in the browser** from the stored originals, **sorted by courier**. Each print logged. Shipment → `printed`.                                                                                      |
+| Pack      | Store Executive / Dispatch person                   | Floor mode → Pack                     | Scan the label barcode (Code 128, already supported by `scanner.tsx`). Shows product name + photo large for confirmation. Shipment → `packed`; **stock leaves the ledger now** (reservation consumed, lot FEFO).                                             |
+| Hand over | same                                                | Floor mode → Hand over                | Scan each parcel, or "hand over all packed for {courier}". Prints a **handover sheet** per courier (count + AWBs) for the courier's signature. Shipment → `handed_over`.                                                                                     |
+| Cut-off   | ERP scheduler                                       | Dashboard, bell, escalation           | At `ERP_ONLINE_ORDERS_CUTOFF` (default `16:00` IST) any shipment `printed` and not `packed` becomes exception `shipments_not_packed` → Dispatch Manager, escalates per the existing ladder. A day cannot be closed while a shipment is `uploaded`/`printed`. |
 
 Agency sees each order's status (printed / packed / handed over) on its own
 upload list. Nothing else.

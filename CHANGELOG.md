@@ -10,6 +10,73 @@ between them.
 
 ## [Unreleased]
 
+### Added — Online orders: marketplace labels, packed by scan
+
+The Delhi depot's marketplace parcels, from the agency's upload to the
+courier's signature, so a printed label can no longer be forgotten.
+
+- **Dispatch → Online orders.** The e-commerce agency uploads the day's
+  label PDFs for a brand, exactly as Meesho, Flipkart, Amazon or Myntra gave
+  them. Every label becomes a parcel: its AWB, courier, COD or prepaid,
+  amount, order and invoice number, customer's state, and the SKU and
+  quantity it carries. **Meesho and Flipkart labels are read exactly from
+  their text** on the server, at no cost; **Amazon and Myntra send
+  pictures**, so their pages go to the AI reader (the same one that reads
+  supplier bills), which also keeps an Amazon label together with the
+  invoice pages after it. A page nobody could read still becomes a parcel,
+  flagged, to be typed in — it is never silently dropped.
+- **The same file twice is refused; a label already uploaded is skipped**
+  with a warning naming it, so a re-download from the portal cannot double
+  an order. Labels registered to ship from another state than the store
+  they leave (Uttarakhand labels leaving Delhi) are flagged.
+- **SKU mapping, once.** The SKU text a marketplace prints ("Medicated oil
+  300 ml", "Medicated_Oil_500ml_Po2") is mapped to the product once per
+  brand and marketplace — with units per order for a pack of two — and every
+  label after is matched without asking, however its spacing and case come
+  out.
+- **Stock is held from the upload** in the brand's store — Paper Market's
+  finished goods store by default — oldest batch first, first uploaded
+  first served. What the store cannot cover is marked short, with the
+  shortfall product by product, and held as soon as stock arrives
+  (**Check stock again**, or on its own at print and at packing). A brand
+  selling a contract client's goods takes only that client's batches.
+- **"That's all for today"** tells the depot, by bell and by email, that
+  the labels are ready to print.
+- **Print by courier.** All, only what is new, one courier's pile, or one
+  label: the browser puts the pages together from the marketplace's own
+  files — never altered — in courier order. Every print is logged; a reprint
+  is counted.
+- **Floor → Pack parcels.** Put the goods in the box and scan the label.
+  The phone says **PACKED** in green with the product and count in large
+  type, or **STOP** in red with the reason: the order was cancelled, it was
+  already packed (by whom, when), the product is not mapped, there is not
+  enough stock, or it belongs to another facility. A beep for yes, a buzz
+  for no. **The stock leaves the store at that moment**, through the ledger
+  (`MARKETPLACE_SALE`), batch by batch against the parcel — so online sales
+  now feed reorder advice and recall tracing.
+- **Floor → Courier pickup.** Tick or scan what each courier takes and print
+  the numbered handover sheet (`HO-yymm-00001`) for their signature.
+- **Nothing printed is forgotten.** Labels not packed by the cut-off (4 PM
+  by default) are raised as an exception per facility per day, standing
+  until every parcel is packed or cancelled with a reason, escalating from
+  the Dispatch Manager to the Owner and Director after two hours. Parcels
+  that cannot be packed (short, not mapped, no AWB) are raised too. The
+  command centre shows today's online orders.
+- **Cancelling** before packing lets go of what was held; after packing,
+  and before the courier has it, the posting is reversed and the goods go
+  back on the shelf. A parcel with the courier comes back as a return
+  (next release). Packing without a scan is the office's call and records
+  the reason.
+- **Dispatch → Brands** sets where each brand ships from, whose stock it
+  sells, and which agency accounts upload for it. Rahat Rooh and Cleanse
+  Ayurveda are set up, with Meesho, Flipkart, Amazon and Myntra.
+- **E-commerce Agency** role, for the outside agency: uploads and follows
+  its own brands' parcels, and sees nothing else in the ERP — no stock
+  figures, no products, no prices, no other menu. The **Accounts Manager**
+  prints; the **Store Executive** packs and hands over; the **Dispatch
+  Manager** has all of it.
+- `ERP_ONLINE_ORDERS_CUTOFF` (default `16:00`, local time).
+
 ### Added — Forgot password, handled by the employee themselves
 
 - **Forgot password?** on the sign-in card now emails a link that works once,

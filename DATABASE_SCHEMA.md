@@ -627,6 +627,74 @@ The registered company whose invoices goods leave the site under; printed
 as the seller on e-invoices and challans. Falls back to
 `ERP_COMPANY_LEGAL_NAME`, then the company name.
 
+## Online orders
+
+### `brands`, `brand_user`
+
+A brand sold online: `code` (`RR`, `CA`), `name`, `legal_name`, `gstin`,
+`client_id` → `clients` (null: the company's own stock; set: the parcels
+take only that client's batches), `default_warehouse_id` → `warehouses`
+(the finished goods store its parcels leave from; seeded to the Paper
+Market depot's when that depot exists), `is_active`. `brand_user` gives an
+E-commerce Agency account the brands it may upload for.
+
+### `marketplaces`, `marketplace_listings`
+
+`marketplaces`: `code` (`MEESHO`, `FLIPKART`, `AMAZON`, `MYNTRA`), `name`,
+`reader` (`meesho`, `flipkart` — read from the label text — or `ai`),
+`claim_window_hours`, `is_active`. Seeded by the migration and the
+reference data seeder.
+
+`marketplace_listings`: the SKU text a marketplace prints mapped to a
+product — `marketplace_id`, `brand_id`, `seller_sku` as printed, `sku_key`
+(folded for matching; unique with the marketplace and brand), `item_id`,
+`units_per_order` (> 0; 2 for a pack of two), `is_active`.
+
+### `label_batches`, `label_files`, `label_prints`
+
+`label_batches`: one day's labels for one brand on one marketplace from one
+store — `number` (`LB-yymm-00001`), `brand_id`, `marketplace_id`,
+`facility_id`, `warehouse_id`, `for_date`, `status` (open → closed when the
+agency says that is all), `uploaded_by`, `closed_at`, `closed_by`.
+
+`label_files`: the PDFs exactly as uploaded, never rewritten — `path`
+(`online-orders/Y/m/{uuid}.pdf` on the private disk), `original_name`,
+`size`, `pages`, `sha256` (unique: the same file cannot go in twice),
+`read_with` (`meesho`, `flipkart`, `ai`, a combination, or `none`),
+`read_model`, `read_at`, `warnings`.
+
+`label_prints`: each print run — `scope` (all, unprinted, courier, one),
+`courier`, `shipment_count`, `page_count`, `printed_by`.
+
+### `shipments`, `shipment_lines`
+
+`shipments`: one parcel — `label_batch_id`, `label_file_id`, `pages` (jsonb:
+the label page and any invoice pages after it), `marketplace_id`,
+`brand_id`, `warehouse_id`, `awb` (unique per marketplace among parcels not
+cancelled), `alt_code` (a second barcode, Flipkart's tracking id),
+`order_number`, `courier`, `payment_mode` (cod, prepaid, unknown),
+`payable_amount`, `invoice_number`, `invoice_date`, `customer_name`,
+`customer_state`, `seller_gstin`, `status` (uploaded → printed → packed →
+handed_over, or cancelled), `stock_state` (unmapped, short, reserved,
+consumed, released), print, pack (`pack_method` scan or manual, with
+`pack_note`), handover and cancellation stamps, `extraction` (what the
+reader made of the page), `warnings`.
+
+`shipment_lines`: `line_no`, `seller_sku`, `description`, `quantity` (> 0),
+`listing_id`, `item_id` (null until mapped), `units` (quantity × units per
+order, in the product's stock unit).
+
+Stock is held through `stock_reservations` (reservable = the shipment) and
+leaves through `inventory_transactions` of type `MARKETPLACE_SALE`
+referencing the shipment, one line per batch, posted when the parcel is
+packed. Cancelling a packed parcel posts a `REVERSAL`.
+
+### `handover_sheets`
+
+A courier's pickup: `number` (`HO-yymm-00001`), `facility_id`,
+`warehouse_id`, `courier`, `shipment_count`, `received_by_name`,
+`handed_over_by`, `handed_over_at`. Shipments point at their sheet.
+
 ## Still to come
 
 Zone/rack/bin balances (`stock_balances.location_id` and

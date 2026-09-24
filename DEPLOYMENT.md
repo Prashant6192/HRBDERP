@@ -150,6 +150,12 @@ ERP_QC_MAKER_CHECKER=true
 # this zone.
 ERP_TIMEZONE=Asia/Kolkata
 
+# Online orders: marketplace labels printed and not packed by this time
+# (local, 24-hour) are raised as an exception and escalated. Amazon and
+# Myntra labels are pictures and are read by the AI reader, so
+# ANTHROPIC_API_KEY must be set for them; Meesho and Flipkart need nothing.
+ERP_ONLINE_ORDERS_CUTOFF=16:00
+
 # Scan before issue: when true, an approved batch cannot start until every
 # raw material has passed a scan at the kettle. Off by default so a factory
 # can print stickers and labels first.

@@ -457,6 +457,32 @@ everything that ever left, to whom, on which invoice, on which vehicle.
 Each facility bills under its own company: the factory's invoices name the
 manufacturing company, the depot's the brand owner.
 
+### Online orders — _built_
+
+The marketplace parcels leaving the Delhi depot. The agency that runs the
+marketplace accounts uploads each morning's label PDFs for a brand, as the
+marketplace produced them; every label becomes a parcel, read exactly from
+the label's text where the marketplace prints text (Meesho, Flipkart) and
+by the AI reader where it sends pictures (Amazon, Myntra). The SKU text on
+a label is mapped to a product once and remembered. Stock is held for each
+parcel in the brand's store from the upload; what the store cannot cover is
+shown as a shortfall before anyone starts packing.
+
+The depot prints the labels grouped by courier. A parcel is packed by
+scanning its label at the packing table — that is when its stock leaves,
+batch by batch, through the ledger — and the phone says in green or red
+whether to pack it and what goes in it. A cancelled order, a parcel already
+packed, an unmapped product, missing stock: each is stopped with the
+reason. Packed parcels are handed to each courier on a numbered sheet they
+sign. A label printed and not packed by the cut-off stays raised on the
+command centre, and escalates, until it is packed or cancelled with a
+reason.
+
+An outside agency gets its own login with one role — upload and follow its
+own brands' parcels — and sees nothing else in the ERP. Returns and damage
+claims are the next part; order-sheet imports for labels that carry no
+product (Myntra) after that.
+
 ### Accounting and sales — _planned_
 
 Sales orders and allocation from finished stock ahead of dispatch; marketplace

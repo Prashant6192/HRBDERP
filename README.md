@@ -161,6 +161,8 @@ app/
     Contract/        Third-party manufacturing: clients, artwork, QC specs, job costing, reconciliation
     Warehousing/     Facilities, stores, locations, employee assignments
     Inventory/       Ledger, lots, balances, reservations, transfers, opening stock
+    Dispatch/        Consignments against a tax invoice, e-invoicing, customers
+    Marketplace/     Online orders: label reading, parcels, packing by scan, courier handover
   Http/
     Controllers/     Thin; one per module
     Requests/        Validation

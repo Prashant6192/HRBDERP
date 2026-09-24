@@ -1,7 +1,8 @@
 # Spec — Online orders: marketplace labels, packing by scan, returns
 
-Status: agreed plan, not yet built. Build in three pull requests, in the order
-below, each verified on the preview environment before the next starts.
+Status: PR 1 (online orders core) built — see "As built" at the end. PR 2
+(returns and claims) and PR 3 (order-sheet import, COD reconciliation) to
+follow.
 
 Problem being solved: at the Delhi depot (Paper Market), labels for Meesho,
 Flipkart, Amazon and Myntra orders arrive on WhatsApp every morning, get
@@ -10,29 +11,36 @@ nothing to show for it. Stock is never reduced. Returns are not recorded.
 
 ## Facts from the real label samples (24 Sep 2026)
 
-- **Meesho "Sub Order Labels" PDF**: A4, one label + tax invoice per page, iText
-  producer, **has a text layer**. Per page the text carries: courier name
-  (`Delhivery`, `Shadowfax`, `Xpress Bees`, `Valmo`), payment mode (`COD: Check
-the payable amount on the app` / `Prepaid: Do not collect cash`), AWB
-  (12–16 alphanumerics under the barcode: all digits for Delhivery and
-  Xpress Bees, `SF` + digits + `FPL` for Shadowfax), the "Product Details" row
-  (`SKU | Size | Qty | Color | Order No.` — e.g. `Medicated oil 300 ml | Free
-Size | 1 | NA | <18 digits>_<line no>`), then the invoice: `Sold by`, `GSTIN -
-<seller GSTIN, Delhi 07>`, `Purchase Order No.`, `Invoice No.` (five letters + digits), `Order
-Date`, `Invoice Date`, description with HSN `300390`, and the final `Total`
-  line with the payable amount. Return address printed on the label is the
-  Paper Market depot. The barcode is Code 128.
-- **Myntra label**: letter size, "Microsoft: Print To PDF", **image only, no
-  text layer**. Carries courier code (`EK_E2E`), AWB (`MYEC` + 10 digits),
-  `AMOUNT TO BE PAID Rs.<amount>`, `COD`, buyer address, **no product and no
-  quantity**. Return address is the Rudrapur factory.
-- Consequences: a per-marketplace text parser handles Meesho (and, once
-  samples arrive, Flipkart and Amazon); image-only pages go to the existing
-  Claude document reader (`App\Support\Ai\ClaudeDocuments`); a shipment may
-  legitimately have **no product yet** and must not be packable until one is
-  assigned; returns must be receivable at **any facility with `can_return`**.
-- The real samples contain customer names and addresses. **Do not commit
-  them.** Build test fixtures with the same layout and invented data.
+- **Meesho** "Sub Order Labels": A4, one label and tax invoice per page,
+  with a text layer. Each page carries the courier (Delhivery, Shadowfax,
+  Xpress Bees, Valmo — Valmo run together as "ValmoPickup01/10"), COD or
+  prepaid (Valmo sometimes prints only "Check the payable amount on the
+  app", which is COD), the AWB under the barcode (digits; `SF…FPL` for
+  Shadowfax; `VL…` for Valmo), the product row (SKU, size, quantity,
+  colour, sub-order number), and the invoice: seller GSTIN (Delhi, 07),
+  purchase order number, invoice number and date, total. Returns go to
+  Paper Market.
+- **Flipkart**: A4, label on top and tax invoice below, one parcel per page,
+  with a text layer. Courier "E-Kart Logistics", the AWB beside the barcode
+  (`SF…`, `FMP…` or digits), Flipkart's tracking id under a second barcode
+  (sometimes equal to the AWB), `OD…` order id with PREPAID or COD, and a
+  "SKU ID | Description | QTY" table whose description can wrap onto a line
+  holding only a number. Seller GSTIN is Uttarakhand (05).
+- **Amazon**: pictures only, no text. Each parcel is a label page followed
+  by one or two invoice pages; the seller SKU is in parentheses after the
+  ASIN on the invoice. Courier ATSPL (Amazon Shipping). Seller GSTIN 05,
+  returns to Rudrapur.
+- **Myntra**: a picture ("Print to PDF"), no text; AWB `MYEC…`, courier
+  code EK_E2E (Ekart), amount to collect, **no product and no quantity**.
+  Returns to Rudrapur.
+- Consequences: Meesho and Flipkart are read from their text; Amazon and
+  Myntra by the AI reader, which also groups a label with its invoice pages;
+  a parcel may have no product yet and cannot be packed until it has one;
+  Amazon, Flipkart and Myntra labels are registered to ship from Uttarakhand,
+  so an upload leaving Delhi is flagged; returns must be receivable at any
+  facility with `can_return`.
+- The real samples carry customers' names and addresses. **They are never
+  committed.** Tests use fixtures with the same layout and invented data.
 
 ## The protocol
 
@@ -131,3 +139,27 @@ Flipkart, Amazon, Myntra text readers from real portal PDFs; order-sheet
 - Cut-off time and who is escalated to (defaults above).
 - Sample PDFs from Flipkart, Amazon and Myntra downloaded from the seller
   portals, plus one RTO / return label.
+
+## As built (PR 1)
+
+What differs from the plan above, deliberately:
+
+- **A parcel can hold several products**: `shipment_lines` carries the SKU
+  text, quantity, mapped product and units per line (an Amazon order can
+  hold two SKUs).
+- **A parcel is a set of pages** (`shipments.pages`), not one page: an
+  Amazon parcel is its label and the invoice pages after it, printed
+  together.
+- **Flipkart is read from its text in PR 1**, alongside Meesho, from the
+  real samples. Amazon and Myntra go to the AI reader.
+- **Brand ownership**: `brands.client_id` limits a brand's parcels to one
+  contract client's batches (Cleanse Ayurveda if its stock is HRBD's);
+  null is the company's own stock.
+- **Exception rules** are `parcels_not_packed` (per facility per day after
+  the cut-off, standing until every parcel is packed or cancelled) and
+  `parcels_blocked` (short of stock, SKU not mapped, or no AWB). Escalation:
+  Dispatch Manager at once, Owner and Director after two hours.
+- **Who sees what**: an agency account is limited to its brands; everyone
+  else to the facilities they are assigned to, so the depot's accountant
+  and packers must be assigned to the depot.
+- `claim_window_hours` exists on `marketplaces` for PR 2 and is not yet used.

@@ -335,6 +335,29 @@ The transporter's invoice or LR uploaded at the scan is stored on the private
 Anthropic's API only to be read for the transfer it names; a document that
 names another consignment, or that cannot be read, is deleted at once.
 
+### Marketplace labels
+
+Label PDFs carry customers' names and addresses. They are stored on the
+private `local` disk under `online-orders/` exactly as uploaded and served
+only through `online-orders.files.show`, which requires the right to print
+or upload labels **and** that the person may see the batch: an E-commerce
+Agency account only its own brands, everyone else only the facilities they
+are assigned to. The response is `private, no-store`. Printing reassembles
+pages in the browser from that response; nothing is written back to the
+server.
+
+Meesho and Flipkart labels are read on the server from their own text and
+go nowhere else. Amazon and Myntra labels (pictures) are sent to
+Anthropic's API to be read — the file alone, with nothing else from the
+ERP — and the reply is shown as read, never trusted as fact: a parcel whose
+AWB or product could not be read is flagged, and packing checks the label
+against the ERP by scanning it.
+
+The agency's account belongs to an outside party. Its role grants two
+abilities, the menu shows it nothing else, and every route it can reach
+checks the brand. Give it only the brands it runs, and deactivate the
+account when the agency changes.
+
 ---
 
 ## 6. Production checklist

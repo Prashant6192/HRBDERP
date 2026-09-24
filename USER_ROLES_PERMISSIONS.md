@@ -67,14 +67,14 @@ roles to the defaults below.
 
 ### Commercial
 
-| Module        | Key           | Abilities                                                           |
-| ------------- | ------------- | ------------------------------------------------------------------- |
-| Dispatch      | `dispatch`    | `view`, `create`, `edit`, `invoice`, `dispatch`, `cancel`, `export` |
-| Sales         | `sales`       | `view`, `create`, `edit`, `delete`, `export`                        |
-| Marketplace   | `marketplace` | `view`, `import`, `reconcile`, `export`                             |
-| Costing       | `costing`     | `view`, `edit`, `export`                                            |
-| Reports       | `report`      | `view`, `export`                                                    |
-| ERP Assistant | `assistant`   | `view`                                                              |
+| Module        | Key           | Abilities                                                                                |
+| ------------- | ------------- | ---------------------------------------------------------------------------------------- |
+| Dispatch      | `dispatch`    | `view`, `create`, `edit`, `invoice`, `dispatch`, `cancel`, `export`                      |
+| Sales         | `sales`       | `view`, `create`, `edit`, `delete`, `export`                                             |
+| Online orders | `marketplace` | `view`, `upload`, `print`, `pack`, `handover`, `manage`, `import`, `reconcile`, `export` |
+| Costing       | `costing`     | `view`, `edit`, `export`                                                                 |
+| Reports       | `report`      | `view`, `export`                                                                         |
+| ERP Assistant | `assistant`   | `view`                                                                                   |
 
 ### Workflow
 
@@ -132,6 +132,18 @@ history and its papers; the Store Executive, who books deliveries in, has
 no dispatch screen at all. E-invoicing is enforced by the module, not by a
 permission: for a GST-registered buyer nothing leaves until the IRN,
 acknowledgement and signed invoice are on record.
+
+### Online orders
+
+`marketplace.upload` adds a day's label PDFs and cancels a parcel before it
+is packed; `print` prints labels; `pack` packs a parcel by scanning its
+label, which takes its stock out; `handover` records a courier's pickup;
+`manage` maps SKUs, sets up brands, packs without a scan (with a reason)
+and cancels a packed parcel. Who sees which parcels is narrowed twice: an
+**E-commerce Agency** account sees only the brands given to it on the
+Brands screen (and none until it is given one); everyone else sees the
+facilities they are assigned to. **Assign the depot's accountant and
+packers to the depot**, or its labels are not on their screens.
 
 ### Formulations
 
@@ -215,7 +227,7 @@ Unrestricted access, including roles, permissions and settings. Reserved for the
 | Procurement         | `view`, `create`, `edit`, `approve`, `receive`, `receive_manual`, `export`                                                       |
 | Quality Control     | `view`, `create`, `approve`, `reject`, `export`                                                                                  |
 | Sales               | `view`, `create`, `edit`, `delete`, `export`                                                                                     |
-| Marketplace         | `view`, `import`, `reconcile`, `export`                                                                                          |
+| Online orders       | everything                                                                                                                       |
 | Costing             | `view`, `edit`, `export`                                                                                                         |
 | Reports             | `view`, `export`                                                                                                                 |
 | ERP Assistant       | `view`                                                                                                                           |
@@ -247,7 +259,7 @@ Full visibility of the business including formulations, costing and every report
 | Procurement         | `view`, `create`, `edit`, `approve`, `receive`, `receive_manual`, `export`                                                       |
 | Quality Control     | `view`, `create`, `approve`, `reject`, `export`                                                                                  |
 | Sales               | `view`, `create`, `edit`, `delete`, `export`                                                                                     |
-| Marketplace         | `view`, `import`, `reconcile`, `export`                                                                                          |
+| Online orders       | everything                                                                                                                       |
 | Costing             | `view`, `edit`, `export`                                                                                                         |
 | Reports             | `view`, `export`                                                                                                                 |
 | ERP Assistant       | `view`                                                                                                                           |
@@ -277,7 +289,7 @@ Board-level oversight with approval authority across production, procurement and
 | Procurement         | `view`, `approve`, `export`           |
 | Quality Control     | `view`                                |
 | Sales               | `view`, `export`                      |
-| Marketplace         | `view`                                |
+| Online orders       | `view`                                |
 | Costing             | `view`, `export`                      |
 | Reports             | `view`, `export`                      |
 | ERP Assistant       | `view`                                |
@@ -307,7 +319,7 @@ Cross-department visibility and approval authority, without administration right
 | Procurement         | `view`, `approve`, `export`          |
 | Quality Control     | `view`                               |
 | Sales               | `view`                               |
-| Marketplace         | `view`                               |
+| Online orders       | `view`                               |
 | Costing             | `view`                               |
 | Reports             | `view`, `export`                     |
 | ERP Assistant       | `view`                               |
@@ -431,25 +443,25 @@ Approves or rejects material and batch quality, and holds stock from release.
 
 Costing, pricing and financial reporting.
 
-| Module              | Abilities                |
-| ------------------- | ------------------------ |
-| Facilities          | `view`                   |
-| Stores              | `view`                   |
-| Product Master      | `view`                   |
-| Raw Materials       | `view`                   |
-| Packaging Materials | `view`                   |
-| Vendors             | `view`                   |
-| Contract Clients    | `view`                   |
-| Units of Measure    | `view`                   |
-| Inventory           | `view`, `export`         |
-| Production          | `view`                   |
-| Procurement         | `view`, `export`         |
-| Sales               | `view`, `export`         |
-| Marketplace         | `view`                   |
-| Costing             | `view`, `edit`, `export` |
-| Reports             | `view`, `export`         |
-| ERP Assistant       | `view`                   |
-| Approvals           | `view`                   |
+| Module              | Abilities                 |
+| ------------------- | ------------------------- |
+| Facilities          | `view`                    |
+| Stores              | `view`                    |
+| Product Master      | `view`                    |
+| Raw Materials       | `view`                    |
+| Packaging Materials | `view`                    |
+| Vendors             | `view`                    |
+| Contract Clients    | `view`                    |
+| Units of Measure    | `view`                    |
+| Inventory           | `view`, `export`          |
+| Production          | `view`                    |
+| Procurement         | `view`, `export`          |
+| Sales               | `view`, `export`          |
+| Online orders       | `view`, `print`, `export` |
+| Costing             | `view`, `edit`, `export`  |
+| Reports             | `view`, `export`          |
+| ERP Assistant       | `view`                    |
+| Approvals           | `view`                    |
 
 ### Marketing Manager
 
@@ -460,7 +472,7 @@ Brand, product presentation and marketing reporting.
 | Product Master   | `view`, `edit`   |
 | Contract Clients | `view`           |
 | Sales            | `view`, `export` |
-| Marketplace      | `view`           |
+| Online orders    | `view`           |
 | Reports          | `view`, `export` |
 | ERP Assistant    | `use`            |
 
@@ -468,14 +480,14 @@ Brand, product presentation and marketing reporting.
 
 Marketplace listings, imports and reconciliation.
 
-| Module         | Abilities                               |
-| -------------- | --------------------------------------- |
-| Product Master | `view`                                  |
-| Inventory      | `view`                                  |
-| Sales          | `view`, `create`, `edit`, `export`      |
-| Marketplace    | `view`, `import`, `reconcile`, `export` |
-| Reports        | `view`, `export`                        |
-| ERP Assistant  | `use`                                   |
+| Module         | Abilities                          |
+| -------------- | ---------------------------------- |
+| Product Master | `view`                             |
+| Inventory      | `view`                             |
+| Sales          | `view`, `create`, `edit`, `export` |
+| Online orders  | everything                         |
+| Reports        | `view`, `export`                   |
+| ERP Assistant  | `use`                              |
 
 ### Sales Manager
 
@@ -487,7 +499,7 @@ Sales orders, customers and sales reporting.
 | Contract Clients | `view`, `create`, `edit`, `delete`, `export` |
 | Inventory        | `view`                                       |
 | Sales            | `view`, `create`, `edit`, `delete`, `export` |
-| Marketplace      | `view`                                       |
+| Online orders    | `view`                                       |
 | Reports          | `view`, `export`                             |
 | ERP Assistant    | `use`                                        |
 
@@ -506,6 +518,7 @@ else.
 | Units of Measure | `view`                                                              |
 | Inventory        | `view`                                                              |
 | Dispatch         | `view`, `create`, `edit`, `invoice`, `dispatch`, `cancel`, `export` |
+| Online orders    | everything                                                          |
 | Reports          | `view`                                                              |
 | ERP Assistant    | `view`                                                              |
 | Controlled Docs  | `view`                                                              |
@@ -519,7 +532,7 @@ Product master and brand-level reporting.
 | Product Master      | `view`, `create`, `edit`, `export` |
 | Packaging Materials | `view`                             |
 | Sales               | `view`                             |
-| Marketplace         | `view`                             |
+| Online orders       | `view`                             |
 | Reports             | `view`                             |
 | ERP Assistant       | `view`                             |
 
@@ -578,6 +591,7 @@ Receives deliveries, books stock in and prints batch stickers for the stores the
 | Inventory           | `view`, `receive`, `count`, `transfer`, `receive_transfer` |
 | Procurement         | `view`, `create`, `receive`                                |
 | Quality Control     | `view`                                                     |
+| Online orders       | `view`, `pack`, `handover`                                 |
 
 ### Packaging Executive
 
@@ -599,6 +613,17 @@ Runs the kettle: sees approved orders, starts them and records consumption. No a
 | Raw Materials    | `view`            |
 | Units of Measure | `view`            |
 | Production       | `view`, `consume` |
+
+### E-commerce Agency
+
+The outside agency running the marketplace accounts: uploads the day's
+label PDFs for the brands it is given and follows each parcel to the
+courier. Sees nothing else: no stock figures, no products, no prices, no
+other menu.
+
+| Module        | Abilities        |
+| ------------- | ---------------- |
+| Online orders | `view`, `upload` |
 
 ## Changing a role
 
@@ -624,7 +649,10 @@ ladder in `config/erp.php`: QC Manager then Factory Manager for slow QC;
 Purchase Manager then Factory Manager and Director for unfilled material
 requests; Production Manager then Factory Manager for delayed batches and
 production below target; Warehouse Manager for late transfers and
-discrepancies; Purchase Manager and Director for price increases. A person
+discrepancies; Purchase Manager and Director for price increases; the
+Dispatch Manager, then the Owner and Director two hours later, for online
+orders not packed by the cut-off; the Dispatch Manager and E-commerce
+Manager for parcels that cannot be packed. A person
 holding no role in the ladder is never notified.
 
 ## Approvals, maker-checker and documents

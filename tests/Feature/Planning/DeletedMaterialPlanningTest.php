@@ -131,6 +131,21 @@ class DeletedMaterialPlanningTest extends TestCase
     }
 
     #[Test]
+    public function a_batch_is_planned_from_exactly_what_the_screen_sends(): void
+    {
+        // The screen's selects send ids as text.
+        $response = $this->actingAs($this->manager)->post(route('plans.store'), $this->payload([
+            'formula_id' => (string) $this->formula->id,
+            'facility_id' => (string) $this->facility->id,
+            'uom_id' => (string) $this->kg->id,
+            'client_id' => (string) $this->client->id,
+        ]));
+
+        $response->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertSame($this->facility->id, ProductionPlan::sole()->facility_id);
+    }
+
+    #[Test]
     public function a_recipe_that_names_a_deleted_material_says_which_line_instead_of_failing(): void
     {
         $this->fragrance->delete();

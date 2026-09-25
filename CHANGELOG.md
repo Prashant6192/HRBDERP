@@ -10,6 +10,17 @@ between them.
 
 ## [Unreleased]
 
+### Fixed — Opening stock and production plans failing on save
+
+- **Book opening stock** returned a server error (500) for any line with a
+  unit chosen. The screen sends the unit as text and the booking expected a
+  number, so it stopped before saving anything. The line is now booked.
+- **New production plan** failed with "an unexpected fault" whenever a
+  facility was chosen on the screen, for the same reason. The plan is now
+  checked and saved.
+- Stock transfers and dispatch take the unit the same forgiving way, so
+  neither can fail like this. New tests post exactly what the screens send.
+
 ### Added — Online orders: marketplace labels, packed by scan
 
 The Delhi depot's marketplace parcels, from the agency's upload to the

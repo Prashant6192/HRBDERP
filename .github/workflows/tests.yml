@@ -13,16 +13,37 @@ jobs:
   ci:
     runs-on: ubuntu-latest
 
+    # The suite runs against a real PostgreSQL, deliberately: the ledger
+    # relies on SELECT ... FOR UPDATE and on NUMERIC precision, neither of
+    # which SQLite reproduces. The credentials match phpunit.xml and
+    # .env.example, so nothing has to be configured twice.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
+      # 8.4, not 8.3: composer.lock pins Symfony 8.1, which requires
+      # PHP >= 8.4.1. On 8.3 the install fails before a test can run.
       - name: Setup PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           tools: composer:v2
           coverage: none
 
@@ -30,6 +51,30 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
+          cache: npm
+
+      # The application role is created NOSUPERUSER on purpose, because a
+      # superuser bypasses privilege checks entirely. erp:lock-audit-trail
+      # works by revoking UPDATE, DELETE and TRUNCATE from the application's
+      # own role; run as a superuser the REVOKE is accepted and then ignored,
+      # and the append-only trail is append-only in name only. Letting the
+      # postgres image's POSTGRES_USER be the app role would hide that.
+      #
+      # phpunit.xml points the suite at its own database; RefreshDatabase
+      # migrates it per run, but the databases have to exist first.
+      - name: Create the application role and databases
+        env:
+          PGPASSWORD: postgres
+        run: |
+          command -v psql >/dev/null || {
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends postgresql-client
+          }
+          psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE hrbderp LOGIN PASSWORD 'hrbderp_local_dev' NOSUPERUSER;
+          CREATE DATABASE hrbderp OWNER hrbderp;
+          CREATE DATABASE hrbderp_test OWNER hrbderp;
+          SQL
 
       - name: Setup Application
         run: composer setup

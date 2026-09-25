@@ -103,7 +103,7 @@ class StockTransferService
 
             foreach ($lines as $line) {
                 $item = Item::query()->with('stockUom')->findOrFail($line['item_id']);
-                $quantity = $this->toStockUnit($item, BigDecimal::of($line['quantity']), $line['uom_id'] ?? null);
+                $quantity = $this->toStockUnit($item, BigDecimal::of($line['quantity']), isset($line['uom_id']) && $line['uom_id'] !== '' ? (int) $line['uom_id'] : null);
 
                 if (! $quantity->isPositive()) {
                     throw new StockTransferException("The quantity for {$item->name} must be greater than zero.");

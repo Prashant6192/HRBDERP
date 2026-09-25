@@ -46,6 +46,24 @@ use Throwable;
  */
 class OnlineOrderController extends Controller
 {
+    /**
+     * What each tile on the main screen lists: the statuses it covers.
+     * "attention" is worked out separately.
+     *
+     * @var array<string, list<string>>
+     */
+    private const array PARCEL_FILTERS = [
+        'all' => [],
+        'attention' => [],
+        'not_printed' => ['uploaded'],
+        'printed' => ['printed'],
+        'to_pack' => ['uploaded', 'printed'],
+        'packed' => ['packed'],
+        'handed_over' => ['handed_over'],
+        'cancelled' => ['cancelled'],
+        'returned' => ['returned'],
+    ];
+
     public function __construct(
         private readonly OnlineOrderService $orders,
         private readonly BrandAccess $brands,
@@ -65,12 +83,13 @@ class OnlineOrderController extends Controller
             ->when($facilityId, fn (Builder $q) => $q->where('facility_id', $facilityId))
             ->with(['brand:id,name', 'marketplace:id,name', 'facility:id,name', 'warehouse:id,code,name', 'uploader:id,name', 'closer:id,name'])
             ->withCount([
-                'shipments as total' => fn ($q) => $q->where('status', '<>', ShipmentStatus::Cancelled->value),
+                'shipments as total' => fn ($q) => $q->whereNotIn('status', [ShipmentStatus::Cancelled->value, ShipmentStatus::Returned->value]),
                 'shipments as not_printed' => fn ($q) => $q->where('status', ShipmentStatus::Uploaded->value),
                 'shipments as printed' => fn ($q) => $q->where('status', ShipmentStatus::Printed->value),
                 'shipments as packed' => fn ($q) => $q->where('status', ShipmentStatus::Packed->value),
                 'shipments as handed_over' => fn ($q) => $q->where('status', ShipmentStatus::HandedOver->value),
                 'shipments as cancelled' => fn ($q) => $q->where('status', ShipmentStatus::Cancelled->value),
+                'shipments as returned' => fn ($q) => $q->where('status', ShipmentStatus::Returned->value),
                 'shipments as attention' => fn ($q) => $q->whereIn('status', ShipmentStatus::awaitingPacking())
                     ->where(fn ($q) => $q->whereIn('stock_state', [StockState::Unmapped->value, StockState::Short->value])->orWhereNull('awb')),
             ])
@@ -81,7 +100,7 @@ class OnlineOrderController extends Controller
 
         $couriers = Shipment::query()
             ->whereIn('label_batch_id', $batchIds)
-            ->where('status', '<>', ShipmentStatus::Cancelled->value)
+            ->whereNotIn('status', [ShipmentStatus::Cancelled->value, ShipmentStatus::Returned->value])
             ->selectRaw("COALESCE(courier, '') AS courier, status, COUNT(*) AS n")
             ->groupBy('courier', 'status')
             ->toBase()
@@ -110,13 +129,34 @@ class OnlineOrderController extends Controller
             'packed' => (int) $batches->sum('packed'),
             'handed_over' => (int) $batches->sum('handed_over'),
             'cancelled' => (int) $batches->sum('cancelled'),
+            'returned' => (int) $batches->sum('returned'),
             'attention' => (int) $batches->sum('attention'),
         ];
+
+        // The day's parcels across every batch, filtered by what the tiles
+        // and courier cards were clicked for.
+        $show = $request->string('show')->toString();
+        $show = array_key_exists($show, self::PARCEL_FILTERS) ? $show : 'all';
+        $courier = $request->has('courier') ? trim($request->string('courier')->toString()) : null;
+
+        $parcels = Shipment::query()
+            ->whereIn('label_batch_id', $batchIds)
+            ->when($show === 'attention', fn (Builder $q) => $q->whereIn('status', ShipmentStatus::awaitingPacking())
+                ->where(fn ($q) => $q->whereIn('stock_state', [StockState::Unmapped->value, StockState::Short->value])->orWhereNull('awb')))
+            ->when($show !== 'all' && $show !== 'attention', fn (Builder $q) => $q->whereIn('status', self::PARCEL_FILTERS[$show]))
+            ->when($courier !== null, fn (Builder $q) => $courier === '' ? $q->whereNull('courier') : $q->where('courier', $courier))
+            ->with(['lines.item:id,code,name', 'picks.item:id,code,name', 'picks.line:id,seller_sku', 'marketplace:id,name', 'brand:id,name', 'packer:id,name'])
+            ->orderByRaw("COALESCE(courier, '~')")
+            ->orderBy('id')
+            ->limit(1000)
+            ->get()
+            ->map(fn (Shipment $s) => OnlineOrderPresenter::shipment($s, withStock: ! $this->brands->isRestricted($user)))
+            ->all();
 
         $search = trim($request->string('q')->toString());
         $found = $search === '' ? [] : $this->brands->scopeByBrand($user, Shipment::query())
             ->search($search)
-            ->with(['lines.item:id,code,name', 'marketplace:id,name', 'brand:id,name', 'packer:id,name'])
+            ->with(['lines.item:id,code,name', 'picks.item:id,code,name', 'picks.line:id,seller_sku', 'marketplace:id,name', 'brand:id,name', 'packer:id,name'])
             ->latest('id')
             ->limit(25)
             ->get()
@@ -149,11 +189,14 @@ class OnlineOrderController extends Controller
                 'counts' => [
                     'total' => (int) $b->total, 'not_printed' => (int) $b->not_printed, 'printed' => (int) $b->printed,
                     'packed' => (int) $b->packed, 'handed_over' => (int) $b->handed_over, 'cancelled' => (int) $b->cancelled,
-                    'attention' => (int) $b->attention,
+                    'returned' => (int) $b->returned, 'attention' => (int) $b->attention,
                 ],
             ])->all(),
             'totals' => $totals,
             'couriers' => $couriers,
+            'parcels' => $parcels,
+            'show' => $show,
+            'courier' => $courier,
             'sheets' => $sheets,
             'search' => $search,
             'found' => $found,
@@ -254,7 +297,7 @@ class OnlineOrderController extends Controller
         $batch->load(['brand:id,name,client_id', 'marketplace:id,name,reader', 'facility:id,name', 'warehouse:id,code,name', 'uploader:id,name', 'closer:id,name']);
 
         $shipments = $batch->shipments()
-            ->with(['lines.item:id,code,name', 'packer:id,name'])
+            ->with(['lines.item:id,code,name', 'picks.item:id,code,name', 'picks.line:id,seller_sku', 'packer:id,name'])
             ->orderByRaw("COALESCE(courier, '~')")
             ->orderBy('label_file_id')
             ->orderBy('id')
@@ -264,7 +307,7 @@ class OnlineOrderController extends Controller
             ->join('shipments', 'shipments.id', '=', 'shipment_lines.shipment_id')
             ->where('shipments.label_batch_id', $batch->id)
             ->whereIn('shipments.status', ShipmentStatus::awaitingPacking())
-            ->whereNull('shipment_lines.item_id')
+            ->whereNull('shipment_lines.listing_id')
             ->groupBy('shipment_lines.seller_sku')
             ->selectRaw('shipment_lines.seller_sku, COUNT(DISTINCT shipments.id) AS parcels, MAX(shipment_lines.description) AS description')
             ->orderBy('shipment_lines.seller_sku')
@@ -416,11 +459,7 @@ class OnlineOrderController extends Controller
         $user = $request->user();
         $this->assertCanSee($user, $shipment->batch);
 
-        // The agency cancels what the marketplace cancelled, before it is
-        // packed. Unpacking a packed parcel is the office's call.
-        $allowed = $user->can('marketplace.manage')
-            || ($user->can('marketplace.upload') && $shipment->status->awaitsPacking());
-        abort_unless($allowed, 403);
+        abort_unless(self::mayCancel($user, $shipment), 403);
 
         $data = $request->validate(['reason' => ['required', 'string', 'max:255']]);
 
@@ -431,6 +470,47 @@ class OnlineOrderController extends Controller
         }
 
         return back()->withToast('success', "{$shipment->reference()} cancelled.");
+    }
+
+    /**
+     * Find a parcel by any code on its label or order — to cancel it from
+     * the main screen, or to receive it back as a return.
+     */
+    public function lookup(Request $request): JsonResponse
+    {
+        $this->authorize('marketplace.view');
+        $user = $request->user();
+        $code = trim($request->string('code')->toString());
+
+        $shipment = $code === '' ? null : $this->orders->findByCode($code);
+
+        if ($shipment === null || ! $this->visibleBatches($user)->whereKey($shipment->label_batch_id)->exists()) {
+            return response()->json(['message' => "No parcel has the code {$code}. Check the AWB or order number."], 404);
+        }
+
+        return response()->json([
+            'shipment' => OnlineOrderPresenter::shipment($shipment, withStock: ! $this->brands->isRestricted($user)),
+            'can_cancel' => self::mayCancel($user, $shipment),
+        ]);
+    }
+
+    /**
+     * The agency cancels what the marketplace cancelled, before it is
+     * packed. The depot (print or pack) and the office (manage) may cancel
+     * until the courier has it; after that it comes back as a return.
+     */
+    public static function mayCancel(User $user, Shipment $shipment): bool
+    {
+        if ($shipment->status->awaitsPacking()) {
+            return $user->can('marketplace.manage') || $user->can('marketplace.print')
+                || $user->can('marketplace.pack') || $user->can('marketplace.upload');
+        }
+
+        if ($shipment->status === ShipmentStatus::Packed) {
+            return $user->can('marketplace.manage') || $user->can('marketplace.print') || $user->can('marketplace.pack');
+        }
+
+        return false;
     }
 
     /**
@@ -490,6 +570,7 @@ class OnlineOrderController extends Controller
             'pack' => $user->can('marketplace.pack'),
             'handover' => $user->can('marketplace.handover'),
             'manage' => $user->can('marketplace.manage'),
+            'return' => $user->can('marketplace.return'),
             'restricted' => $this->brands->isRestricted($user),
         ];
     }

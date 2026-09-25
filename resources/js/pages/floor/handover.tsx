@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { when } from '@/lib/dispatch';
-import { courierName, type Parcel } from '@/lib/online-orders';
+import { courierName, describeParcel, type Parcel } from '@/lib/online-orders';
 import { cn } from '@/lib/utils';
 import { handover, pack } from '@/routes/floor';
 import { store as storeHandover } from '@/routes/floor/handover';
@@ -233,12 +233,7 @@ export default function CourierHandover({
                                                 </span>
                                                 <span className="text-muted-foreground block truncate text-xs">
                                                     {p.marketplace} ·{' '}
-                                                    {p.lines
-                                                        .map(
-                                                            (l) =>
-                                                                `${l.item ?? l.seller_sku} × ${l.quantity}`,
-                                                        )
-                                                        .join(', ')}
+                                                    {describeParcel(p)}
                                                 </span>
                                             </span>
                                             <span className="text-xs">

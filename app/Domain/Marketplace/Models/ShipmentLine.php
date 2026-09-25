@@ -7,10 +7,12 @@ namespace App\Domain\Marketplace\Models;
 use App\Domain\MasterData\Models\Item;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * One product in a parcel: the SKU text the label printed, how many, and
- * — once mapped — which product and how many of its stock units that is.
+ * One row of the label: the SKU text it printed and how many. Once matched
+ * to a listing it has picks: the products and pieces to take off the
+ * shelf. A plain listing's single product is also kept here, for display.
  *
  * @property int $id
  * @property int $shipment_id
@@ -53,5 +55,13 @@ class ShipmentLine extends Model
     public function item(): BelongsTo
     {
         return $this->belongsTo(Item::class);
+    }
+
+    /**
+     * @return HasMany<ShipmentPick, $this>
+     */
+    public function picks(): HasMany
+    {
+        return $this->hasMany(ShipmentPick::class)->orderBy('id');
     }
 }

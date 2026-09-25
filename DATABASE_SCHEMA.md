@@ -645,10 +645,15 @@ E-commerce Agency account the brands it may upload for.
 `claim_window_hours`, `is_active`. Seeded by the migration and the
 reference data seeder.
 
-`marketplace_listings`: the SKU text a marketplace prints mapped to a
-product — `marketplace_id`, `brand_id`, `seller_sku` as printed, `sku_key`
-(folded for matching; unique with the marketplace and brand), `item_id`,
-`units_per_order` (> 0; 2 for a pack of two), `is_active`.
+`marketplace_listings`: the SKU text a marketplace prints — `marketplace_id`,
+`brand_id`, `seller_sku` as printed, `sku_key` (folded for matching; unique
+with the marketplace and brand), `is_active`, and `item_id` /
+`units_per_order` mirroring its first product.
+
+`marketplace_listing_components`: what one order of a listing holds —
+`listing_id`, `item_id`, `units_per_order` (> 0: pieces of that product;
+2 for a pack of two), `line_no`; unique per listing and product. One row
+for a plain listing, several for a combo.
 
 ### `label_batches`, `label_files`, `label_prints`
 
@@ -675,19 +680,42 @@ cancelled), `alt_code` (a second barcode, Flipkart's tracking id),
 `order_number`, `courier`, `payment_mode` (cod, prepaid, unknown),
 `payable_amount`, `invoice_number`, `invoice_date`, `customer_name`,
 `customer_state`, `seller_gstin`, `status` (uploaded → printed → packed →
-handed_over, or cancelled), `stock_state` (unmapped, short, reserved,
-consumed, released), print, pack (`pack_method` scan or manual, with
-`pack_note`), handover and cancellation stamps, `extraction` (what the
-reader made of the page), `warnings`.
+handed_over; or cancelled; or, after packing, returned), `stock_state`
+(unmapped, short, reserved, consumed, released, returned), print, pack
+(`pack_method` scan or manual, with `pack_note`), handover, cancellation
+and `returned_at` stamps, `extraction` (what the reader made of the page),
+`warnings`.
 
-`shipment_lines`: `line_no`, `seller_sku`, `description`, `quantity` (> 0),
-`listing_id`, `item_id` (null until mapped), `units` (quantity × units per
-order, in the product's stock unit).
+`shipment_lines`: the label's rows — `line_no`, `seller_sku`,
+`description`, `quantity` (> 0), `listing_id` (null until mapped), and for
+a plain listing `item_id` and `units` (quantity × pieces) for display.
 
-Stock is held through `stock_reservations` (reservable = the shipment) and
-leaves through `inventory_transactions` of type `MARKETPLACE_SALE`
-referencing the shipment, one line per batch, posted when the parcel is
-packed. Cancelling a packed parcel posts a `REVERSAL`.
+`shipment_picks`: the parcel's pick list — `shipment_id`,
+`shipment_line_id`, `item_id`, `units` (> 0, in the product's stock unit:
+label quantity × pieces of that product). Written when a line is matched
+to a listing; a combo line gives one pick per product.
+
+Stock is held through `stock_reservations` (reservable = the shipment), one
+per pick, and leaves through `inventory_transactions` of type
+`MARKETPLACE_SALE` referencing the shipment, one line per batch, posted
+when the parcel is packed. Cancelling a packed parcel posts a `REVERSAL`.
+
+### `shipment_returns`, `shipment_return_lines`
+
+`shipment_returns`: a parcel that came back — `number` (`RT-yymm-00001`),
+`shipment_id` (unique: a parcel comes back once), `marketplace_id`,
+`brand_id`, `facility_id` (where it was received), `kind` (rto, customer),
+`return_awb`, `notes`, `wrong_item`, `claim_status` (none, open, won, lost),
+`claim_deadline_at` (received + the marketplace's `claim_window_hours`),
+`claim_reference`, `claim_amount`, `claim_note`, `inventory_transaction_id`
+(the `MARKETPLACE_RETURN` posting), `received_by`, `received_at`.
+
+`shipment_return_lines`: per product — `item_id`, `sent`, `good`,
+`damaged`, `missing` (each ≥ 0, always adding up to `sent`),
+`good_warehouse_id`, `damaged_warehouse_id`. Good goods are posted back into
+a finished goods store and damaged goods into the facility's `damaged`
+store (opened on first use), each into the batches the parcel's stock left
+from.
 
 ### `handover_sheets`
 

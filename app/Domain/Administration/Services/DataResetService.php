@@ -107,6 +107,9 @@ class DataResetService
      * @var list<array{0: string, 1: string}>
      */
     private const array ORDER = [
+        ['shipment_return_lines', 'online_orders'],
+        ['shipment_returns', 'online_orders'],
+        ['shipment_picks', 'online_orders'],
         ['shipment_lines', 'online_orders'],
         ['shipments', 'online_orders'],
         ['handover_sheets', 'online_orders'],
@@ -149,6 +152,7 @@ class DataResetService
         ['formula_ingredients', 'formulas'],
         ['formula_versions', 'formulas'],
         ['formulas', 'formulas'],
+        ['marketplace_listing_components', 'materials'],
         ['marketplace_listings', 'materials'],
         ['store_item_levels', 'materials'],
         ['product_packaging_lines', 'materials'],

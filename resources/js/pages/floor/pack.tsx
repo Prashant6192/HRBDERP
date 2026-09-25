@@ -4,7 +4,13 @@ import { useCallback, useState } from 'react';
 import { Scanner } from '@/components/floor/scanner';
 import { Button } from '@/components/ui/button';
 import { when } from '@/lib/dispatch';
-import { courierName, postJson, type Parcel } from '@/lib/online-orders';
+import {
+    courierName,
+    describeParcel,
+    pieceCount,
+    postJson,
+    type Parcel,
+} from '@/lib/online-orders';
 import { cn } from '@/lib/utils';
 import { handover, index as floorIndex } from '@/routes/floor';
 import { scan as scanRoute } from '@/routes/floor/pack';
@@ -187,43 +193,72 @@ export default function PackParcels({
 
                         {s && (
                             <div className="mt-4 space-y-3">
+                                {s.picks.length > 1 && (
+                                    <p className="rounded-xl bg-amber-500/20 px-3 py-2 text-base font-semibold text-amber-900 dark:text-amber-100">
+                                        {s.picks.length} different products,{' '}
+                                        {pieceCount(s)} pieces in this parcel.
+                                        Put every one in.
+                                    </p>
+                                )}
                                 <div className="space-y-2">
-                                    {s.lines.map((l) => {
-                                        const picture = s.pictures?.find(
-                                            (p) => p.item_id === l.item_id,
-                                        );
+                                    {s.picks.length === 0
+                                        ? s.lines.map((l) => (
+                                              <div
+                                                  key={l.id}
+                                                  className="bg-background rounded-xl border p-3"
+                                              >
+                                                  <p className="text-lg font-semibold">
+                                                      {l.seller_sku} ×{' '}
+                                                      {l.quantity}
+                                                  </p>
+                                              </div>
+                                          ))
+                                        : s.picks.map((pick) => {
+                                              const picture = s.pictures?.find(
+                                                  (p) =>
+                                                      p.item_id ===
+                                                      pick.item_id,
+                                              );
+                                              const pieces = Number(pick.units);
 
-                                        return (
-                                            <div
-                                                key={l.id}
-                                                className="bg-background flex items-center gap-3 rounded-xl border p-3"
-                                            >
-                                                {picture && (
-                                                    <img
-                                                        src={picture.url}
-                                                        alt=""
-                                                        className="size-16 shrink-0 rounded-lg border object-contain"
-                                                    />
-                                                )}
-                                                <div className="min-w-0 flex-1">
-                                                    <p className="text-lg leading-tight font-semibold">
-                                                        {l.item ?? l.seller_sku}
-                                                    </p>
-                                                    {l.item && (
-                                                        <p className="text-muted-foreground truncate text-xs">
-                                                            {l.seller_sku}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                                <p className="text-4xl font-bold tabular-nums">
-                                                    ×{' '}
-                                                    {l.units && l.item
-                                                        ? Number(l.units)
-                                                        : l.quantity}
-                                                </p>
-                                            </div>
-                                        );
-                                    })}
+                                              return (
+                                                  <div
+                                                      key={pick.item_id}
+                                                      className="bg-background flex items-center gap-3 rounded-xl border p-3"
+                                                  >
+                                                      {picture && (
+                                                          <img
+                                                              src={picture.url}
+                                                              alt=""
+                                                              className="size-16 shrink-0 rounded-lg border object-contain"
+                                                          />
+                                                      )}
+                                                      <div className="min-w-0 flex-1">
+                                                          <p className="text-lg leading-tight font-semibold">
+                                                              {pick.item}
+                                                          </p>
+                                                          <p className="text-muted-foreground truncate text-xs">
+                                                              {pick.skus.join(
+                                                                  ', ',
+                                                              )}
+                                                          </p>
+                                                      </div>
+                                                      <div className="text-right">
+                                                          <p className="text-muted-foreground text-xs font-semibold uppercase">
+                                                              Pick
+                                                          </p>
+                                                          <p className="text-4xl leading-none font-bold tabular-nums">
+                                                              {pieces}
+                                                          </p>
+                                                          <p className="text-muted-foreground text-xs">
+                                                              {pieces === 1
+                                                                  ? 'piece'
+                                                                  : 'pieces'}
+                                                          </p>
+                                                      </div>
+                                                  </div>
+                                              );
+                                          })}
                                 </div>
                                 <p className="text-muted-foreground text-sm">
                                     <span className="font-mono">
@@ -260,12 +295,7 @@ export default function PackParcels({
                                         {p.awb}
                                     </span>
                                     <span className="flex-1 truncate">
-                                        {p.lines
-                                            .map(
-                                                (l) =>
-                                                    `${l.item ?? l.seller_sku} × ${l.quantity}`,
-                                            )
-                                            .join(', ')}
+                                        {describeParcel(p)}
                                     </span>
                                     <span className="text-muted-foreground text-xs">
                                         {when(p.packed_at)}

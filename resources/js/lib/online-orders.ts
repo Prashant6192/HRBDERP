@@ -5,11 +5,29 @@ export type ParcelLine = {
     seller_sku: string;
     description: string | null;
     quantity: number;
+    mapped: boolean;
     item_id: number | null;
     item: string | null;
     item_code: string | null;
     units: string | null;
 };
+
+/** One product to take off the shelf for a parcel, in pieces. */
+export type ParcelPick = {
+    item_id: number;
+    item: string | null;
+    item_code: string | null;
+    units: string;
+    skus: string[];
+};
+
+export type ParcelStatus =
+    | 'uploaded'
+    | 'printed'
+    | 'packed'
+    | 'handed_over'
+    | 'cancelled'
+    | 'returned';
 
 export type Parcel = {
     id: number;
@@ -26,7 +44,7 @@ export type Parcel = {
     invoice_number: string | null;
     customer_name: string | null;
     customer_state: string | null;
-    status: 'uploaded' | 'printed' | 'packed' | 'handed_over' | 'cancelled';
+    status: ParcelStatus;
     status_label: string;
     status_tone: DispatchTone;
     stock_state:
@@ -35,6 +53,7 @@ export type Parcel = {
         | 'reserved'
         | 'consumed'
         | 'released'
+        | 'returned'
         | null;
     stock_label: string | null;
     stock_tone: DispatchTone | null;
@@ -46,10 +65,12 @@ export type Parcel = {
     pack_note: string | null;
     handed_over_at: string | null;
     cancel_reason: string | null;
+    returned_at: string | null;
     warnings: string[];
     marketplace: string | null;
     brand: string | null;
     lines: ParcelLine[];
+    picks: ParcelPick[];
     pictures?: { item_id: number; url: string }[];
 };
 
@@ -103,8 +124,45 @@ export function needsAttention(p: Parcel): boolean {
     );
 }
 
+/**
+ * Who may cancel a parcel from the screen. The agency cancels what the
+ * marketplace cancelled before it is packed; the depot (print, pack) and
+ * the office (manage) until the courier has it. After that it is a return.
+ * The server checks the same.
+ */
+export function canCancel(can: Abilities, p: Parcel): boolean {
+    if (p.status === 'uploaded' || p.status === 'printed') {
+        return can.upload || can.print || can.pack || can.manage;
+    }
+
+    if (p.status === 'packed') {
+        return can.print || can.pack || can.manage;
+    }
+
+    return false;
+}
+
 export function courierName(courier: string | null): string {
     return courier ?? 'Courier not read';
+}
+
+/**
+ * What goes in the parcel, in one line: "Rahat Rooh 500 ml × 2 + Satreetha
+ * × 1", or the SKUs as printed while they are not mapped yet.
+ */
+export function describeParcel(p: Parcel): string {
+    if (p.picks.length > 0) {
+        return p.picks
+            .map((pick) => `${pick.item ?? '?'} × ${Number(pick.units)}`)
+            .join(' + ');
+    }
+
+    return p.lines.map((l) => `${l.seller_sku} × ${l.quantity}`).join(', ');
+}
+
+/** Pieces in the whole parcel, across its products. */
+export function pieceCount(p: Parcel): number {
+    return p.picks.reduce((n, pick) => n + Number(pick.units), 0);
 }
 
 /**

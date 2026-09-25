@@ -8,6 +8,7 @@ use App\Domain\Audit\Concerns\RecordsAuditTrail;
 use App\Domain\MasterData\Models\Item;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
 /**
@@ -70,10 +71,29 @@ class MarketplaceListing extends Model
     }
 
     /**
+     * The first product of the listing. For a combo, see components.
+     *
      * @return BelongsTo<Item, $this>
      */
     public function item(): BelongsTo
     {
         return $this->belongsTo(Item::class);
+    }
+
+    /**
+     * The products one order of this listing holds, and the pieces of each.
+     *
+     * @return HasMany<MarketplaceListingComponent, $this>
+     */
+    public function components(): HasMany
+    {
+        return $this->hasMany(MarketplaceListingComponent::class, 'listing_id')->orderBy('line_no');
+    }
+
+    public function isCombo(): bool
+    {
+        $this->loadMissing('components');
+
+        return $this->components->count() > 1;
     }
 }

@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Carbon;
 
@@ -53,6 +54,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $printed_at
  * @property Carbon|null $packed_at
  * @property Carbon|null $handed_over_at
+ * @property Carbon|null $returned_at
  */
 class Shipment extends Model
 {
@@ -64,7 +66,7 @@ class Shipment extends Model
         'invoice_number', 'invoice_date', 'customer_name', 'customer_state', 'seller_gstin',
         'status', 'stock_state',
         'printed_at', 'printed_by', 'print_count', 'packed_at', 'packed_by', 'pack_method', 'pack_note',
-        'handed_over_at', 'handed_over_by', 'handover_sheet_id', 'cancelled_at', 'cancelled_by', 'cancel_reason',
+        'handed_over_at', 'handed_over_by', 'handover_sheet_id', 'cancelled_at', 'cancelled_by', 'cancel_reason', 'returned_at',
         'extraction', 'warnings',
     ];
 
@@ -84,6 +86,7 @@ class Shipment extends Model
             'packed_at' => 'datetime',
             'handed_over_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'returned_at' => 'datetime',
             'extraction' => 'array',
             'warnings' => 'array',
         ];
@@ -151,6 +154,24 @@ class Shipment extends Model
     }
 
     /**
+     * What to take off the shelf for this parcel, product by product.
+     *
+     * @return HasMany<ShipmentPick, $this>
+     */
+    public function picks(): HasMany
+    {
+        return $this->hasMany(ShipmentPick::class)->orderBy('id');
+    }
+
+    /**
+     * @return HasOne<ShipmentReturn, $this>
+     */
+    public function shipmentReturn(): HasOne
+    {
+        return $this->hasOne(ShipmentReturn::class);
+    }
+
+    /**
      * @return BelongsTo<HandoverSheet, $this>
      */
     public function handoverSheet(): BelongsTo
@@ -191,13 +212,16 @@ class Shipment extends Model
     }
 
     /**
-     * Every line has a product to pack.
+     * Every line of the label is matched to a listing, so the parcel has
+     * a pick list to pack from.
      */
     public function isMapped(): bool
     {
-        $this->loadMissing('lines');
+        $this->loadMissing(['lines', 'picks']);
 
-        return $this->lines->isNotEmpty() && $this->lines->every(fn (ShipmentLine $l) => $l->item_id !== null && $l->units !== null);
+        return $this->lines->isNotEmpty()
+            && $this->lines->every(fn (ShipmentLine $l) => $l->listing_id !== null)
+            && $this->picks->isNotEmpty();
     }
 
     /**

@@ -17,6 +17,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import InputError from '@/components/input-error';
+import { ParcelTable } from '@/components/online-orders/parcel-table';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
@@ -38,8 +39,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { TONE_VARIANT, rupees, when } from '@/lib/dispatch';
+import { when } from '@/lib/dispatch';
 import {
+    canCancel,
     courierName,
     needsAttention,
     postJson,
@@ -101,7 +103,8 @@ type Filter =
     | 'unprinted'
     | 'topack'
     | 'packed'
-    | 'cancelled';
+    | 'cancelled'
+    | 'returned';
 
 const READ_WITH: Record<string, string> = {
     meesho: 'Read from the label text',
@@ -413,7 +416,9 @@ export default function OnlineOrderBatch({
     const [cancelling, setCancelling] = useState<Parcel | null>(null);
     const [forcing, setForcing] = useState<Parcel | null>(null);
 
-    const live = shipments.filter((s) => s.status !== 'cancelled');
+    const live = shipments.filter(
+        (s) => s.status !== 'cancelled' && s.status !== 'returned',
+    );
     const counts = {
         all: shipments.length,
         attention: shipments.filter(needsAttention).length,
@@ -425,6 +430,7 @@ export default function OnlineOrderBatch({
             (s) => s.status === 'packed' || s.status === 'handed_over',
         ).length,
         cancelled: shipments.filter((s) => s.status === 'cancelled').length,
+        returned: shipments.filter((s) => s.status === 'returned').length,
     };
 
     const shown = shipments.filter((s) => {
@@ -439,20 +445,12 @@ export default function OnlineOrderBatch({
                 return s.status === 'packed' || s.status === 'handed_over';
             case 'cancelled':
                 return s.status === 'cancelled';
+            case 'returned':
+                return s.status === 'returned';
             default:
                 return true;
         }
     });
-
-    const groups = useMemo(() => {
-        const map = new Map<string, Parcel[]>();
-        shown.forEach((s) => {
-            const key = courierName(s.courier);
-            map.set(key, [...(map.get(key) ?? []), s]);
-        });
-
-        return Array.from(map.entries());
-    }, [shown]);
 
     const couriers = useMemo(
         () =>
@@ -500,7 +498,7 @@ export default function OnlineOrderBatch({
     return (
         <>
             <Head title={`${batch.number} · Online orders`} />
-            <div className="space-y-6">
+            <div className="space-y-6 p-4 sm:p-6">
                 <PageHeader
                     title={`${batch.brand} on ${batch.marketplace}`}
                     description={`${batch.number} · ships from ${batch.facility} · ${batch.store} · ${new Date(`${batch.for_date}T00:00:00`).toLocaleDateString('en-IN', { dateStyle: 'medium' })}`}
@@ -772,6 +770,7 @@ export default function OnlineOrderBatch({
                                 ['topack', 'To pack'],
                                 ['packed', 'Packed'],
                                 ['cancelled', 'Cancelled'],
+                                ['returned', 'Returned'],
                             ] as [Filter, string][]
                         ).map(([key, label]) => (
                             <button
@@ -794,283 +793,68 @@ export default function OnlineOrderBatch({
                         ))}
                     </div>
 
-                    {groups.length === 0 ? (
-                        <p className="text-muted-foreground px-4 py-8 text-center text-sm">
-                            Nothing here.
-                        </p>
-                    ) : (
-                        groups.map(([courier, parcels]) => (
-                            <div key={courier}>
-                                <div className="bg-muted/40 flex items-center justify-between border-b px-4 py-2 text-xs font-semibold tracking-wide uppercase">
-                                    <span>{courier}</span>
-                                    <span className="text-muted-foreground">
-                                        {parcels.length}
-                                    </span>
-                                </div>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-sm">
-                                        <tbody className="divide-y">
-                                            {parcels.map((p) => (
-                                                <tr
-                                                    key={p.id}
-                                                    className={cn(
-                                                        'align-top',
-                                                        needsAttention(p) &&
-                                                            'bg-red-500/5',
-                                                        p.status ===
-                                                            'cancelled' &&
-                                                            'opacity-60',
-                                                    )}
-                                                >
-                                                    <td className="px-4 py-3">
-                                                        <div className="font-mono font-medium">
-                                                            {p.awb ?? (
-                                                                <span className="text-red-700 dark:text-red-300">
-                                                                    No AWB
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <div className="text-muted-foreground font-mono text-xs">
-                                                            {p.order_number ??
-                                                                '—'}
-                                                        </div>
-                                                        <div className="text-muted-foreground text-xs">
-                                                            page{' '}
-                                                            {p.pages.join(', ')}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {p.lines.length ===
-                                                        0 ? (
-                                                            <span className="text-red-700 dark:text-red-300">
-                                                                Product not on
-                                                                label
-                                                            </span>
-                                                        ) : (
-                                                            p.lines.map((l) => (
-                                                                <div key={l.id}>
-                                                                    <span className="font-medium">
-                                                                        {l.item ??
-                                                                            l.seller_sku}
-                                                                    </span>{' '}
-                                                                    ×{' '}
-                                                                    {l.quantity}
-                                                                    {l.item && (
-                                                                        <div className="text-muted-foreground text-xs">
-                                                                            {
-                                                                                l.seller_sku
-                                                                            }
-                                                                            {l.units &&
-                                                                            Number(
-                                                                                l.units,
-                                                                            ) !==
-                                                                                l.quantity
-                                                                                ? ` · ${l.units} units`
-                                                                                : ''}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            ))
-                                                        )}
-                                                        {p.warnings.length >
-                                                            0 &&
-                                                            p.status !==
-                                                                'packed' &&
-                                                            p.status !==
-                                                                'handed_over' && (
-                                                                <div className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                                                                    {p.warnings.join(
-                                                                        ' ',
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                    </td>
-                                                    <td className="px-4 py-3 whitespace-nowrap">
-                                                        <div>
-                                                            {p.payment_label}
-                                                        </div>
-                                                        <div className="text-muted-foreground text-xs">
-                                                            {p.payable_amount
-                                                                ? rupees(
-                                                                      p.payable_amount,
-                                                                  )
-                                                                : ''}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <div className="flex flex-col items-start gap-1">
-                                                            <StatusBadge
-                                                                variant={
-                                                                    TONE_VARIANT[
-                                                                        p
-                                                                            .status_tone
-                                                                    ]
-                                                                }
-                                                            >
-                                                                {p.status_label}
-                                                            </StatusBadge>
-                                                            {p.stock_label &&
-                                                                p.stock_tone &&
-                                                                p.status !==
-                                                                    'cancelled' && (
-                                                                    <StatusBadge
-                                                                        variant={
-                                                                            TONE_VARIANT[
-                                                                                p
-                                                                                    .stock_tone
-                                                                            ]
-                                                                        }
-                                                                    >
-                                                                        {
-                                                                            p.stock_label
-                                                                        }
-                                                                    </StatusBadge>
-                                                                )}
-                                                        </div>
-                                                    </td>
-                                                    <td className="text-muted-foreground px-4 py-3 text-xs">
-                                                        {p.packed_at ? (
-                                                            <>
-                                                                Packed{' '}
-                                                                {when(
-                                                                    p.packed_at,
-                                                                )}
-                                                                <br />
-                                                                by{' '}
-                                                                {p.packed_by ??
-                                                                    '—'}
-                                                                {p.pack_method ===
-                                                                    'manual' && (
-                                                                    <span className="block text-amber-700 dark:text-amber-300">
-                                                                        without
-                                                                        a scan:{' '}
-                                                                        {
-                                                                            p.pack_note
-                                                                        }
-                                                                    </span>
-                                                                )}
-                                                            </>
-                                                        ) : p.cancel_reason ? (
-                                                            <>
-                                                                Cancelled:{' '}
-                                                                {
-                                                                    p.cancel_reason
-                                                                }
-                                                            </>
-                                                        ) : p.print_count >
-                                                          0 ? (
-                                                            <>
-                                                                Printed{' '}
-                                                                {when(
-                                                                    p.printed_at,
-                                                                )}
-                                                                {p.print_count >
-                                                                1
-                                                                    ? ` · ${p.print_count} times`
-                                                                    : ''}
-                                                            </>
-                                                        ) : (
-                                                            'Not printed'
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right whitespace-nowrap">
-                                                        <div className="flex justify-end gap-1">
-                                                            {can.print &&
-                                                                p.status !==
-                                                                    'cancelled' && (
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="icon"
-                                                                        title="Print this label"
-                                                                        aria-label="Print this label"
-                                                                        disabled={
-                                                                            printing
-                                                                        }
-                                                                        onClick={() =>
-                                                                            doPrint(
-                                                                                'one',
-                                                                                {
-                                                                                    shipment_id:
-                                                                                        p.id,
-                                                                                },
-                                                                            )
-                                                                        }
-                                                                    >
-                                                                        <Printer className="size-4" />
-                                                                    </Button>
-                                                                )}
-                                                            {can.correct &&
-                                                                (p.status ===
-                                                                    'uploaded' ||
-                                                                    p.status ===
-                                                                        'printed') && (
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="icon"
-                                                                        title="Correct"
-                                                                        aria-label="Correct"
-                                                                        onClick={() =>
-                                                                            setEditing(
-                                                                                p,
-                                                                            )
-                                                                        }
-                                                                    >
-                                                                        <Pencil className="size-4" />
-                                                                    </Button>
-                                                                )}
-                                                            {can.manage &&
-                                                                (p.status ===
-                                                                    'uploaded' ||
-                                                                    p.status ===
-                                                                        'printed') && (
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="icon"
-                                                                        title="Mark packed without a scan"
-                                                                        aria-label="Mark packed without a scan"
-                                                                        onClick={() =>
-                                                                            setForcing(
-                                                                                p,
-                                                                            )
-                                                                        }
-                                                                    >
-                                                                        <CheckCircle2 className="size-4" />
-                                                                    </Button>
-                                                                )}
-                                                            {((can.upload &&
-                                                                (p.status ===
-                                                                    'uploaded' ||
-                                                                    p.status ===
-                                                                        'printed')) ||
-                                                                (can.manage &&
-                                                                    p.status !==
-                                                                        'cancelled' &&
-                                                                    p.status !==
-                                                                        'handed_over')) && (
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    title="Cancel"
-                                                                    aria-label="Cancel"
-                                                                    onClick={() =>
-                                                                        setCancelling(
-                                                                            p,
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    <Ban className="size-4" />
-                                                                </Button>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        ))
-                    )}
+                    <ParcelTable
+                        parcels={shown}
+                        actions={(p) => (
+                            <>
+                                {can.print &&
+                                    p.status !== 'cancelled' &&
+                                    p.status !== 'returned' && (
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            title="Print this label"
+                                            aria-label="Print this label"
+                                            disabled={printing}
+                                            onClick={() =>
+                                                doPrint('one', {
+                                                    shipment_id: p.id,
+                                                })
+                                            }
+                                        >
+                                            <Printer className="size-4" />
+                                        </Button>
+                                    )}
+                                {can.correct &&
+                                    (p.status === 'uploaded' ||
+                                        p.status === 'printed') && (
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            title="Correct"
+                                            aria-label="Correct"
+                                            onClick={() => setEditing(p)}
+                                        >
+                                            <Pencil className="size-4" />
+                                        </Button>
+                                    )}
+                                {can.manage &&
+                                    (p.status === 'uploaded' ||
+                                        p.status === 'printed') && (
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            title="Mark packed without a scan"
+                                            aria-label="Mark packed without a scan"
+                                            onClick={() => setForcing(p)}
+                                        >
+                                            <CheckCircle2 className="size-4" />
+                                        </Button>
+                                    )}
+                                {canCancel(can, p) && (
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        title="Cancel"
+                                        aria-label="Cancel"
+                                        onClick={() => setCancelling(p)}
+                                    >
+                                        <Ban className="size-4" />
+                                    </Button>
+                                )}
+                            </>
+                        )}
+                    />
                 </section>
 
                 <div className="grid gap-6 lg:grid-cols-2">

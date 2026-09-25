@@ -31,6 +31,7 @@ use App\Domain\Marketplace\Models\Marketplace;
 use App\Domain\Marketplace\Models\MarketplaceListing;
 use App\Domain\Marketplace\Models\Shipment;
 use App\Domain\Marketplace\Models\ShipmentLine;
+use App\Domain\Marketplace\Models\ShipmentPick;
 use App\Domain\MasterData\Enums\ItemType;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\Warehousing\Enums\FacilityCapability;
@@ -269,21 +270,64 @@ class OnlineOrderService
      */
     public function mapSku(Marketplace $marketplace, Brand $brand, string $sellerSku, Item $item, int $unitsPerOrder, User $user): MarketplaceListing
     {
-        if ($item->type !== ItemType::FinishedGood) {
-            throw new OnlineOrderException("{$item->name} is not a finished product. A marketplace SKU maps to a product.");
+        return $this->mapSkuTo($marketplace, $brand, $sellerSku, [['item' => $item, 'units' => $unitsPerOrder]], $user);
+    }
+
+    /**
+     * Say what one order of a marketplace SKU holds: one product ("pack of
+     * 2" is one product, two pieces) or several (a combo). Applied now to
+     * every waiting parcel that carries it, first uploaded first served.
+     *
+     * @param  list<array{item: Item, units: int}>  $components
+     */
+    public function mapSkuTo(Marketplace $marketplace, Brand $brand, string $sellerSku, array $components, User $user): MarketplaceListing
+    {
+        if ($components === []) {
+            throw new OnlineOrderException('Choose the product this SKU is.');
         }
 
-        if ($unitsPerOrder < 1) {
-            throw new OnlineOrderException('Units per order must be at least one.');
+        $seen = [];
+
+        foreach ($components as $component) {
+            $item = $component['item'];
+
+            if ($item->type !== ItemType::FinishedGood) {
+                throw new OnlineOrderException("{$item->name} is not a finished product. A marketplace SKU maps to products.");
+            }
+
+            if ($component['units'] < 1) {
+                throw new OnlineOrderException("Pieces of {$item->name} must be at least one.");
+            }
+
+            if (isset($seen[$item->id])) {
+                throw new OnlineOrderException("{$item->name} is listed twice. Put all its pieces on one line.");
+            }
+
+            $seen[$item->id] = true;
         }
 
         $sellerSku = trim($sellerSku);
         $key = MarketplaceListing::keyFor($sellerSku);
+        $first = $components[0];
 
-        $listing = MarketplaceListing::query()->updateOrCreate(
-            ['marketplace_id' => $marketplace->id, 'brand_id' => $brand->id, 'sku_key' => $key],
-            ['seller_sku' => $sellerSku, 'item_id' => $item->id, 'units_per_order' => $unitsPerOrder, 'is_active' => true, 'created_by' => $user->id],
-        );
+        $listing = DB::transaction(function () use ($marketplace, $brand, $sellerSku, $key, $first, $components, $user): MarketplaceListing {
+            $listing = MarketplaceListing::query()->updateOrCreate(
+                ['marketplace_id' => $marketplace->id, 'brand_id' => $brand->id, 'sku_key' => $key],
+                ['seller_sku' => $sellerSku, 'item_id' => $first['item']->id, 'units_per_order' => $first['units'], 'is_active' => true, 'created_by' => $user->id],
+            );
+
+            $listing->components()->delete();
+
+            foreach ($components as $i => $component) {
+                $listing->components()->create([
+                    'item_id' => $component['item']->id,
+                    'units_per_order' => $component['units'],
+                    'line_no' => $i + 1,
+                ]);
+            }
+
+            return $listing;
+        });
 
         $waiting = Shipment::query()
             ->where('marketplace_id', $marketplace->id)
@@ -301,7 +345,7 @@ class OnlineOrderService
             $this->hold($shipment->refresh());
         }
 
-        return $listing;
+        return $listing->refresh()->load('components.item');
     }
 
     /**
@@ -364,7 +408,7 @@ class OnlineOrderService
             return $shipment->stock_state;
         }
 
-        $shipment->loadMissing(['lines.item.stockUom', 'brand', 'warehouse']);
+        $shipment->loadMissing(['lines', 'picks.item.stockUom', 'brand', 'warehouse']);
 
         if (! $shipment->isMapped()) {
             $this->setStockState($shipment, StockState::Unmapped);
@@ -373,7 +417,7 @@ class OnlineOrderService
         }
 
         $held = $this->reservations->outstandingFor($shipment);
-        $needed = $shipment->lines->reduce(fn (BigDecimal $c, ShipmentLine $l) => $c->plus(BigDecimal::of($l->units)), BigDecimal::zero());
+        $needed = $shipment->picks->reduce(fn (BigDecimal $c, ShipmentPick $p) => $c->plus(BigDecimal::of($p->units)), BigDecimal::zero());
 
         if ($held->isEqualTo($needed) && $held->isPositive()) {
             $this->setStockState($shipment, StockState::Reserved);
@@ -385,13 +429,13 @@ class OnlineOrderService
 
         try {
             DB::transaction(function () use ($shipment): void {
-                foreach ($shipment->lines as $line) {
+                foreach ($shipment->picks as $pick) {
                     $this->reservations->reserve(
                         $shipment,
-                        $line->item,
+                        $pick->item,
                         $shipment->warehouse,
-                        $line->units,
-                        notes: "{$shipment->reference()} ({$line->seller_sku})",
+                        $pick->units,
+                        notes: "{$shipment->reference()} ({$pick->item->name})",
                         ownerClientId: $shipment->brand->client_id,
                     );
                 }
@@ -442,14 +486,13 @@ class OnlineOrderService
      */
     public function shortfall(LabelBatch $batch): array
     {
-        $needed = ShipmentLine::query()
-            ->join('shipments', 'shipments.id', '=', 'shipment_lines.shipment_id')
+        $needed = ShipmentPick::query()
+            ->join('shipments', 'shipments.id', '=', 'shipment_picks.shipment_id')
             ->where('shipments.label_batch_id', $batch->id)
             ->where('shipments.stock_state', StockState::Short->value)
             ->whereIn('shipments.status', ShipmentStatus::awaitingPacking())
-            ->whereNotNull('shipment_lines.item_id')
-            ->groupBy('shipment_lines.item_id')
-            ->selectRaw('shipment_lines.item_id, SUM(shipment_lines.units) AS units')
+            ->groupBy('shipment_picks.item_id')
+            ->selectRaw('shipment_picks.item_id, SUM(shipment_picks.units) AS units')
             ->pluck('units', 'item_id');
 
         if ($needed->isEmpty()) {
@@ -565,7 +608,7 @@ class OnlineOrderService
 
         return Shipment::query()
             ->matchingCode($code)
-            ->with(['lines.item:id,code,name', 'marketplace:id,name', 'brand:id,name', 'warehouse:id,code,name,facility_id', 'packer:id,name'])
+            ->with(['lines.item:id,code,name', 'picks.item:id,code,name', 'picks.line:id,seller_sku', 'marketplace:id,name', 'brand:id,name', 'warehouse:id,code,name,facility_id', 'packer:id,name'])
             ->get()
             // A parcel still waiting beats one already dealt with.
             ->sortBy(fn (Shipment $s) => [$s->status->awaitsPacking() ? 0 : ($s->status === ShipmentStatus::Cancelled ? 2 : 1), -$s->id])
@@ -583,10 +626,14 @@ class OnlineOrderService
         }
 
         return DB::transaction(function () use ($shipment, $user, $method, $note): Shipment {
-            $shipment = Shipment::query()->lockForUpdate()->with(['lines.item.stockUom', 'brand', 'warehouse', 'marketplace'])->findOrFail($shipment->id);
+            $shipment = Shipment::query()->lockForUpdate()->with(['lines', 'picks.item.stockUom', 'brand', 'warehouse', 'marketplace'])->findOrFail($shipment->id);
 
             if ($shipment->status === ShipmentStatus::Cancelled) {
                 throw new OnlineOrderException("Do not pack this parcel: order {$shipment->order_number} was cancelled".($shipment->cancel_reason ? " ({$shipment->cancel_reason})" : '').'.');
+            }
+
+            if ($shipment->status === ShipmentStatus::Returned) {
+                throw new OnlineOrderException('Do not pack this parcel: it already went out and came back as a return.');
             }
 
             if ($shipment->status->isPacked()) {
@@ -598,11 +645,9 @@ class OnlineOrderService
             }
 
             if ($this->hold($shipment) !== StockState::Reserved) {
-                $line = $shipment->lines->first();
-
                 throw new OnlineOrderException(sprintf(
                     'Not enough %s in %s to pack this parcel. Bring stock in first.',
-                    $line?->item?->name ?? 'stock',
+                    $this->shortItems($shipment) ?: 'stock',
                     $shipment->warehouse->name,
                 ));
             }
@@ -620,7 +665,7 @@ class OnlineOrderService
 
             unset($transaction);
 
-            return $shipment->refresh()->load(['lines.item:id,code,name', 'marketplace:id,name', 'brand:id,name', 'packer:id,name']);
+            return $shipment->refresh()->load(['lines.item:id,code,name', 'picks.item:id,code,name', 'picks.line:id,seller_sku', 'marketplace:id,name', 'brand:id,name', 'packer:id,name']);
         });
     }
 
@@ -782,8 +827,9 @@ class OnlineOrderService
     }
 
     /**
-     * Match each line to a product through the brand's listings on this
-     * marketplace, and work out the units to take from the shelf.
+     * Match each line to a listing for the brand on this marketplace, and
+     * write the parcel's pick list: every product of the listing, times the
+     * label's quantity, in stock units.
      */
     private function mapLines(Shipment $shipment): void
     {
@@ -793,20 +839,58 @@ class OnlineOrderService
             ->where('marketplace_id', $shipment->marketplace_id)
             ->where('brand_id', $shipment->brand_id)
             ->where('is_active', true)
+            ->with('components')
             ->get()
             ->keyBy('sku_key');
 
+        $shipment->picks()->delete();
+
         foreach ($shipment->lines as $line) {
             $listing = $listings->get(MarketplaceListing::keyFor($line->seller_sku));
+            $components = $listing?->components ?? collect();
+            $single = $components->count() === 1 ? $components->first() : null;
 
             $line->fill([
                 'listing_id' => $listing?->id,
-                'item_id' => $listing?->item_id,
-                'units' => $listing === null ? null : (string) BigDecimal::of($line->quantity)->multipliedBy($listing->units_per_order),
+                // Shown on screen for a plain listing; a combo shows its picks.
+                'item_id' => $single?->item_id,
+                'units' => $single === null ? null : (string) BigDecimal::of($line->quantity)->multipliedBy($single->units_per_order),
             ])->save();
+
+            foreach ($components as $component) {
+                $shipment->picks()->create([
+                    'shipment_line_id' => $line->id,
+                    'item_id' => $component->item_id,
+                    'units' => (string) BigDecimal::of($line->quantity)->multipliedBy($component->units_per_order),
+                ]);
+            }
         }
 
         $shipment->unsetRelation('lines');
+        $shipment->unsetRelation('picks');
+    }
+
+    /**
+     * The products of a parcel the store cannot cover, by name.
+     */
+    private function shortItems(Shipment $shipment): string
+    {
+        $shipment->loadMissing(['picks.item', 'brand']);
+        $short = [];
+
+        foreach ($shipment->picks->groupBy('item_id') as $picks) {
+            /** @var ShipmentPick $first */
+            $first = $picks->first();
+            $need = $picks->reduce(fn (BigDecimal $c, ShipmentPick $p) => $c->plus(BigDecimal::of($p->units)), BigDecimal::zero());
+            $free = $this->balances->releasableBalances($first->item, [$shipment->warehouse_id], ownerClientId: $shipment->brand->client_id)
+                ->reduce(fn (BigDecimal $c, $b) => $c->plus($b->available()), BigDecimal::zero());
+
+            if ($need->isGreaterThan($free)) {
+                $short[] = $first->item->name;
+            }
+        }
+
+        return implode(' and ', $short);
     }
 
     /**

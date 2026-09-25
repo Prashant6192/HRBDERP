@@ -496,7 +496,7 @@ class CombosCancelAndReturnsTest extends TestCase
         $this->assertSame(ShipmentStatus::Returned, $shipment->refresh()->status);
 
         // The agency may not receive returns.
-        $this->actingAs($this->agency)->get(route('online-orders.returns.create'))->assertForbidden();
+        $this->actingAs($this->agency)->get(route('online-orders.returns.create'))->assertRedirect(route('online-orders.index'));
 
         $this->actingAs($this->dispatcher)->get(route('online-orders.returns.index'))
             ->assertOk()
@@ -542,6 +542,6 @@ class CombosCancelAndReturnsTest extends TestCase
         $this->assertSame(ShipmentStatus::Returned, $shipment->refresh()->status);
 
         // The agency has no floor return screen.
-        $this->actingAs($this->agency)->get(route('floor.return'))->assertForbidden();
+        $this->actingAs($this->agency)->get(route('floor.return'))->assertRedirect(route('online-orders.index'));
     }
 }

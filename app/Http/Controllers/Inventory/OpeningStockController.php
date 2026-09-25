@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Inventory;
 
+use App\Domain\Inventory\Exceptions\InsufficientStockException;
 use App\Domain\Inventory\Exceptions\OpeningStockException;
+use App\Domain\Inventory\Models\InventoryLot;
+use App\Domain\Inventory\Services\OpeningStockCorrectionService;
 use App\Domain\Inventory\Services\OpeningStockService;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\Measurement\Models\Uom;
@@ -26,6 +29,7 @@ class OpeningStockController extends Controller
 {
     public function __construct(
         private readonly OpeningStockService $opening,
+        private readonly OpeningStockCorrectionService $corrections,
         private readonly FacilityAccess $access,
     ) {}
 
@@ -50,6 +54,8 @@ class OpeningStockController extends Controller
             'uoms' => Uom::query()->active()->orderBy('dimension')->orderBy('code')->get(['id', 'code', 'name', 'dimension'])
                 ->map(fn (Uom $u) => ['value' => $u->id, 'label' => $u->code, 'dimension' => $u->dimension->value])->all(),
             'today' => now()->toDateString(),
+            'booked' => $this->corrections->entries($facility, $stores->pluck('value')->all())->all(),
+            'can' => ['correct' => $request->user()->can('correctOpeningStock', $facility)],
         ]);
     }
 
@@ -71,5 +77,62 @@ class OpeningStockController extends Controller
 
         return redirect()->route('stores.show', $store)
             ->withToast('success', "Opening stock booked: {$count} line".($count === 1 ? '' : 's')." posted as {$transaction->number}.");
+    }
+
+    /**
+     * Correct a booked batch: quantity, batch number, dates or rate.
+     */
+    public function update(Request $request, Facility $facility, InventoryLot $lot): RedirectResponse
+    {
+        $this->authorize('correctOpeningStock', $facility);
+
+        $data = $request->validate([
+            'quantity' => ['required', 'numeric', 'gt:0'],
+            'batch_number' => ['nullable', 'string', 'max:64'],
+            'manufactured_at' => ['nullable', 'date'],
+            'expiry_at' => ['nullable', 'date'],
+            'unit_cost' => ['nullable', 'numeric', 'min:0'],
+            'reason' => ['required', 'string', 'min:5', 'max:255'],
+        ]);
+
+        $this->assertInFacility($request, $facility, $lot);
+
+        try {
+            $this->corrections->change($lot, $data, $data['reason'], $request->user());
+        } catch (OpeningStockException|InsufficientStockException $e) {
+            return back()->withErrors(['correction' => $e->getMessage()]);
+        }
+
+        return back()->withToast('success', "Batch {$lot->refresh()->batch_number} corrected.");
+    }
+
+    /**
+     * Take a booked batch back out.
+     */
+    public function destroy(Request $request, Facility $facility, InventoryLot $lot): RedirectResponse
+    {
+        $this->authorize('correctOpeningStock', $facility);
+
+        $data = $request->validate(['reason' => ['required', 'string', 'min:5', 'max:255']]);
+        $this->assertInFacility($request, $facility, $lot);
+
+        try {
+            $posting = $this->corrections->remove($lot, $data['reason'], $request->user());
+        } catch (OpeningStockException|InsufficientStockException $e) {
+            return back()->withErrors(['correction' => $e->getMessage()]);
+        }
+
+        return back()->withToast('success', "Batch {$lot->batch_number} removed from opening stock ({$posting->number}).");
+    }
+
+    /**
+     * The batch must have been booked into a store of this facility that
+     * the user may work in.
+     */
+    private function assertInFacility(Request $request, Facility $facility, InventoryLot $lot): void
+    {
+        $store = $this->corrections->openingStore($lot);
+        abort_if($store === null || (int) $store->facility_id !== (int) $facility->id, 404);
+        $this->access->assertCanWorkIn($request->user(), $store);
     }
 }

@@ -521,7 +521,7 @@ export default function OnlineOrderBatch({
                                     </Link>
                                 </Button>
                             )}
-                            {(can.print || can.manage || can.upload) && (
+                            {(can.print || can.manage) && (
                                 <Button
                                     variant="outline"
                                     onClick={() =>
@@ -882,7 +882,7 @@ export default function OnlineOrderBatch({
                                             {when(f.uploaded_at)}
                                         </div>
                                     </div>
-                                    {(can.upload || can.manage) && (
+                                    {can.manage && (
                                         <ConfirmDialog
                                             trigger={
                                                 <Button

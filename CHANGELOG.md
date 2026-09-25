@@ -10,6 +10,37 @@ between them.
 
 ## [Unreleased]
 
+### Added — Change or remove opening stock booked by mistake
+
+- **Book opening stock** now lists what has been booked at the facility,
+  store by store, with **Change** and **Remove** on each line. Change
+  corrects the quantity, batch number, dates or rate; Remove takes the line
+  back out. A reason is asked for each time.
+- Nothing is overwritten: each correction is its own **Opening stock
+  corrected** (`OPENING_CORRECTION`) posting, so the first figure, the
+  correction, who made it and why all stay in the stock history.
+- Allowed while the batch has not been used, moved or reserved, and while
+  opening stock is open for the facility. Anyone who can book opening stock
+  and reverse postings may do it: the Super Admin, the Owner, the Factory
+  Manager and the Warehouse Manager.
+
+### Changed — The agency only uploads labels
+
+- An **E-commerce Agency** login reaches the online-orders upload screens,
+  its notifications and its own account settings, and nothing else. Any
+  other page, the dashboard and floor mode included, takes it back to
+  online orders; any other action is refused.
+- It can no longer remove an uploaded file, cancel or correct a parcel, or
+  check stock again. Removing an upload that has not been printed is the
+  office's (Dispatch Manager). It no longer sees stock states or the ERP's
+  product names, only the labels as the marketplace printed them.
+
+### Changed — The Warehouse Manager runs the depot's online orders
+
+- The Warehouse Manager can now print labels, pack by scan and hand
+  parcels to the courier, as well as receive returns. SKU mapping, brands
+  and removing uploads stay with the Dispatch Manager.
+
 ### Added — Online orders: combos, a working main screen, cancel by scan, returns
 
 - **The main screen is a working list.** Click a tile (Not printed, Printed

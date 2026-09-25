@@ -260,7 +260,7 @@ export default function OnlineOrdersIndex({
         );
     const pick = (next: Show, courier: string | null = null) =>
         go({ show: next === 'all' ? null : next, courier });
-    const mayCancelAny = can.upload || can.print || can.pack || can.manage;
+    const mayCancelAny = can.print || can.pack || can.manage;
 
     const onSearch = (e: FormEvent) => {
         e.preventDefault();

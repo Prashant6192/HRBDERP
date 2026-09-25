@@ -132,7 +132,7 @@ export function needsAttention(p: Parcel): boolean {
  */
 export function canCancel(can: Abilities, p: Parcel): boolean {
     if (p.status === 'uploaded' || p.status === 'printed') {
-        return can.upload || can.print || can.pack || can.manage;
+        return can.print || can.pack || can.manage;
     }
 
     if (p.status === 'packed') {

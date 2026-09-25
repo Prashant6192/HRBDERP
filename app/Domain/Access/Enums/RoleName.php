@@ -82,7 +82,7 @@ enum RoleName: string
             self::StoreExecutive => 'Receives deliveries, books stock in and prints batch stickers for the stores they are assigned to. No planning or production.',
             self::PackagingExecutive => 'Packs finished batches: sees orders ready to pack, records packaging consumption and completion. Nothing else.',
             self::ProductionOperator => 'Runs the kettle: sees approved orders, starts them and records consumption. No approvals, no planning.',
-            self::EcommerceAgency => 'The outside agency running the marketplace accounts: uploads the day\'s label PDFs for the brands it is given and follows each parcel to the courier. Sees nothing else: no stock, no prices, no products.',
+            self::EcommerceAgency => 'The outside agency running the marketplace accounts: uploads the day\'s label PDFs for the brands it is given and sees what became of them. Cannot remove an upload, cancel or correct a parcel. Sees nothing else: no dashboard, no stock, no prices, no products.',
         };
     }
 
@@ -186,8 +186,11 @@ enum RoleName: string
                 'report.view', 'assistant.view', 'report.export',
                 'approval.view',
                 'document.view',
-                // Receiving online orders that came back into the depot.
-                'marketplace.view', 'marketplace.return',
+                // Running the depot's online orders: print the labels, pack by
+                // scan, hand over to the courier, receive returns. SKU mapping,
+                // brands and uploads stay with the Dispatch Manager.
+                'marketplace.view', 'marketplace.print', 'marketplace.pack',
+                'marketplace.handover', 'marketplace.return',
             ],
 
             self::PurchaseManager => [

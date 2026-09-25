@@ -270,6 +270,13 @@ A reversal posts the opposite of every line of the transaction it points
 at, under type `REVERSAL`. A transaction can be reversed once; a reversal
 cannot be reversed. Neither is ever edited.
 
+A line of opening stock booked by mistake is corrected with its own
+`OPENING_CORRECTION` transaction against the same lot (quantities may be
+negative or positive and need not net to zero), referencing the lot and
+carrying the reason. It is only posted while the lot has no other movement
+and no active reservation; the lot's batch, dates, rate and
+`initial_quantity` are updated with it.
+
 ### `documents`
 
 One row per version of a controlled document: `code` shared by all

@@ -14,6 +14,7 @@ namespace App\Domain\Inventory\Enums;
 enum InventoryTransactionType: string
 {
     case OpeningBalance = 'OPENING_BALANCE';
+    case OpeningCorrection = 'OPENING_CORRECTION';
     case GrnReceipt = 'GRN_RECEIPT';
     case PurchaseReturn = 'PURCHASE_RETURN';
     case QcRelease = 'QC_RELEASE';
@@ -38,6 +39,7 @@ enum InventoryTransactionType: string
     {
         return match ($this) {
             self::OpeningBalance => 'Opening balance',
+            self::OpeningCorrection => 'Opening stock corrected',
             self::GrnReceipt => 'Goods receipt',
             self::PurchaseReturn => 'Purchase return',
             self::QcRelease => 'QC release to store',
@@ -61,7 +63,9 @@ enum InventoryTransactionType: string
 
     /**
      * Which direction lines of this type are allowed to go.
-     * 'in' → positive only, 'out' → negative only, 'both' → transfers.
+     * 'in' → positive only, 'out' → negative only, 'both' → transfers,
+     * which net to zero; 'signed' → either way without netting, for
+     * correcting opening stock before any of it has moved.
      */
     public function direction(): string
     {
@@ -87,6 +91,8 @@ enum InventoryTransactionType: string
             self::StockTransfer,
             self::MarketplaceTransfer,
             self::Reversal => 'both',
+
+            self::OpeningCorrection => 'signed',
         };
     }
 

@@ -19,7 +19,7 @@ import { erpNavigation, type ErpNavItem } from '@/components/erp-navigation';
  */
 export function NavMain() {
     const { isCurrentUrl } = useCurrentUrl();
-    const { can, isSuperAdmin } = usePermissions();
+    const { can, isSuperAdmin, isAgency } = usePermissions();
     const { url } = usePage();
 
     const groups = erpNavigation
@@ -28,6 +28,7 @@ export function NavMain() {
             items: group.items.filter(
                 (item) =>
                     (item.superAdminOnly ? isSuperAdmin : true) &&
+                    !(item.notForAgency && isAgency) &&
                     (!item.permission || can(item.permission)),
             ),
         }))

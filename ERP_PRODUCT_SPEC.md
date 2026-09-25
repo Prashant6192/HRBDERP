@@ -95,7 +95,11 @@ Super Admin, Owner, Director and Management work company-wide.
 A five-step wizard sets a facility up: details, capabilities, the store
 checklist, employees (optional), and whether to book opening stock now.
 **Opening stock** is booked through the ledger as `OPENING_BALANCE` postings
-with a batch per line, and administrators close it once the facility is live. The administrator books the old stock of a whole facility from
+with a batch per line, and administrators close it once the facility is live.
+Until then a line booked by mistake can be changed (quantity, batch, dates,
+rate) or removed from the same screen, as long as none of that batch has
+been used, moved or reserved. The correction is an `OPENING_CORRECTION`
+posting with a reason, so the first figure stays in the history. The administrator books the old stock of a whole facility from
 **Store → Old Stock Entry**: raw materials, packaging and finished goods in
 three sections, by hand or from a filled-in sheet, one posting per store,
 every batch QC passed automatically and usable at once.

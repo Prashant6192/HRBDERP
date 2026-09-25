@@ -4,6 +4,7 @@ use App\Http\Middleware\EnsureFormulaUnlocked;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\KeepAgencyToLabels;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -39,6 +40,10 @@ return Application::configure(basePath: dirname(__DIR__))
             // any session it already has, rather than only blocking the next
             // sign-in.
             EnsureUserIsActive::class,
+
+            // An outside e-commerce agency reaches the label upload screens,
+            // its notifications and its own settings, and nothing else.
+            KeepAgencyToLabels::class,
 
             // Remembers the password each session signed in with. When the
             // password changes — reset from an emailed link, or changed in

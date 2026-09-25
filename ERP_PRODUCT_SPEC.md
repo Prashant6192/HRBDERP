@@ -388,7 +388,8 @@ the approved current version.
 
 **QR and barcode on the floor.** Batch stickers, rack labels and batch
 cards carry QR codes; a phone camera opens the thing scanned in the floor
-mode. **Scan before issue:** at the kettle every drum is scanned against the
+mode. The camera also reads the barcodes on marketplace labels, in any
+browser, including on iPhones. **Scan before issue:** at the kettle every drum is scanned against the
 batch and passes only when it is the right material, released by QC, in
 date, the owner's own stock and the batch the store reserved; anything else
 is blocked with the reason and the attempt is recorded. The factory can

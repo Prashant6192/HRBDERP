@@ -1,6 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
-import { ScanLine, Search } from 'lucide-react';
+import { Camera, ScanLine, Search } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { BarcodeCamera } from '@/components/barcode-camera';
 import {
     RecentReturns,
     ReturnPanel,
@@ -31,6 +32,7 @@ export default function ReceiveReturn({
     recent: RecentReturn[];
 }) {
     const [code, setCode] = useState(presetCode);
+    const [camera, setCamera] = useState(false);
     const codeInput = useRef<HTMLInputElement>(null);
     const { find, finding, problem, found, reset } = useParcelLookup();
 
@@ -44,6 +46,12 @@ export default function ReceiveReturn({
     const onFind = (e: FormEvent) => {
         e.preventDefault();
         void find(code);
+    };
+
+    const scanned = (value: string) => {
+        setCode(value);
+        setCamera(false);
+        void find(value);
     };
 
     const startOver = () => {
@@ -72,12 +80,22 @@ export default function ReceiveReturn({
                                     ref={codeInput}
                                     value={code}
                                     onChange={(e) => setCode(e.target.value)}
-                                    placeholder="Scan the label, or type the AWB or order number"
+                                    placeholder="Scan, or type the AWB or order number"
                                     autoFocus
                                     autoComplete="off"
                                     className="h-12 pl-10 text-base"
                                 />
                             </div>
+                            <Button
+                                type="button"
+                                variant={camera ? 'secondary' : 'outline'}
+                                className="h-12 px-4"
+                                onClick={() => setCamera((on) => !on)}
+                                aria-pressed={camera}
+                            >
+                                <Camera className="size-4" />
+                                <span className="hidden sm:inline">Camera</span>
+                            </Button>
                             <Button
                                 type="submit"
                                 className="h-12 px-5"
@@ -89,6 +107,14 @@ export default function ReceiveReturn({
                                 </span>
                             </Button>
                         </div>
+                        {camera && (
+                            <BarcodeCamera
+                                onCode={scanned}
+                                busy={finding}
+                                onClose={() => setCamera(false)}
+                                className="mx-auto max-w-md"
+                            />
+                        )}
                         {problem && (
                             <p className="rounded-lg border border-red-600/30 bg-red-500/10 p-3 text-sm text-red-800 dark:text-red-200">
                                 {problem}

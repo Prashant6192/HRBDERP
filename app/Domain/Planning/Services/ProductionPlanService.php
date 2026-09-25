@@ -43,7 +43,9 @@ class ProductionPlanService
     public function create(array $attributes, ?int $userId): ProductionPlan
     {
         return DB::transaction(function () use ($attributes, $userId): ProductionPlan {
-            $facility = $this->manufacturingFacility($attributes['facility_id'] ?? null);
+            // The screen sends ids as text; blank means the default facility.
+            $facilityId = $attributes['facility_id'] ?? null;
+            $facility = $this->manufacturingFacility($facilityId === null || $facilityId === '' ? null : (int) $facilityId);
             $formula = Formula::query()->with(['activeVersion.ingredients', 'product.packagingLines', 'client'])->findOrFail($attributes['formula_id']);
 
             if ($formula->isArchived()) {

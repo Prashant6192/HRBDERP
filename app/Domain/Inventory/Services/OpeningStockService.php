@@ -95,7 +95,9 @@ class OpeningStockService
 
             foreach ($lines as $index => $line) {
                 $item = Item::query()->with('stockUom')->findOrFail($line['item_id']);
-                $quantity = $this->toStockUnit($item, BigDecimal::of($line['quantity']), $line['uom_id'] ?? null);
+                // Screens and sheets send ids as text; blank means the stock unit.
+                $uomId = isset($line['uom_id']) && $line['uom_id'] !== '' ? (int) $line['uom_id'] : null;
+                $quantity = $this->toStockUnit($item, BigDecimal::of($line['quantity']), $uomId);
 
                 if (! $quantity->isPositive()) {
                     throw new OpeningStockException('Line '.($index + 1).": the quantity for {$item->name} must be greater than zero.");

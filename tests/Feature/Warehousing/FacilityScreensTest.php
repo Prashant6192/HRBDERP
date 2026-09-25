@@ -192,6 +192,32 @@ class FacilityScreensTest extends TestCase
     }
 
     #[Test]
+    public function opening_stock_is_booked_from_exactly_what_the_screen_sends(): void
+    {
+        // The screen sends every field as text, blanks as empty strings.
+        $pcs = Uom::where('code', 'PCS')->firstOrFail();
+
+        $this->actingAs($this->owner)->post(route('facilities.opening-stock.store', $this->delhi), [
+            'warehouse_id' => (string) $this->delhiFg->id,
+            'as_of' => now()->toDateString(),
+            'remarks' => '',
+            'lines' => [[
+                'item_id' => (string) $this->product->id,
+                'batch_number' => '279',
+                'quantity' => '500',
+                'uom_id' => (string) $pcs->id,
+                'manufactured_at' => now()->subMonth()->toDateString(),
+                'expiry_at' => now()->addYears(3)->toDateString(),
+                'unit_cost' => '710.0000',
+                'remarks' => '',
+            ]],
+        ])->assertSessionHasNoErrors()->assertRedirect(route('stores.show', $this->delhiFg));
+
+        $this->assertSame('500.000000', app(StockBalanceService::class)->onHand($this->product, $this->delhiFg)->__toString());
+        $this->assertDatabaseHas('inventory_lots', ['item_id' => $this->product->id, 'batch_number' => '279']);
+    }
+
+    #[Test]
     public function a_delhi_only_employee_cannot_dispatch_from_rudrapur_but_can_receive_at_delhi(): void
     {
         $lot = InventoryLot::factory()->forItem($this->product)->create(['qc_status' => LotQcStatus::Approved]);

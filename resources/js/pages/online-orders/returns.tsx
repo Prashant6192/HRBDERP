@@ -1,6 +1,6 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { AlertTriangle, Undo2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import InputError from '@/components/input-error';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { TONE_VARIANT, rupees, when } from '@/lib/dispatch';
 import { courierName } from '@/lib/online-orders';
 import { cn } from '@/lib/utils';
+import { dashboard } from '@/routes';
 import {
     index as onlineOrders,
     show as showBatch,
@@ -28,6 +29,18 @@ import {
     index,
 } from '@/routes/online-orders/returns';
 import type { DispatchTone } from '@/types';
+
+type ReturnLine = {
+    item_id: number;
+    item: string | null;
+    item_code: string | null;
+    sent: string;
+    good: string;
+    damaged: string;
+    missing: string;
+    good_store: string | null;
+    damaged_store: string | null;
+};
 
 type ReturnRow = {
     id: number;
@@ -54,17 +67,7 @@ type ReturnRow = {
     claim_reference: string | null;
     claim_amount: string | null;
     claim_note: string | null;
-    lines: {
-        item_id: number;
-        item: string | null;
-        item_code: string | null;
-        sent: string;
-        good: string;
-        damaged: string;
-        missing: string;
-        good_store: string | null;
-        damaged_store: string | null;
-    }[];
+    lines: ReturnLine[];
 };
 
 type Summary = {
@@ -84,6 +87,11 @@ type Filters = {
     from: string;
     to: string;
 };
+
+type Can = { receive: boolean; claim: boolean };
+
+const selectClass =
+    'border-input bg-background h-9 rounded-md border px-3 text-sm shadow-xs';
 
 function ClaimDialog({
     row,
@@ -107,8 +115,8 @@ function ClaimDialog({
                 <DialogHeader>
                     <DialogTitle>Claim for {row.number}</DialogTitle>
                     <DialogDescription>
-                        What the marketplace said about the damaged, missing or
-                        wrong goods.
+                        Record what the marketplace said about the damaged,
+                        missing or wrong goods.
                     </DialogDescription>
                 </DialogHeader>
                 <form
@@ -119,13 +127,13 @@ function ClaimDialog({
                             onSuccess: onClose,
                         });
                     }}
-                    className="space-y-3"
+                    className="space-y-4"
                 >
-                    <div className="space-y-1">
-                        <Label htmlFor="claim_status">Claim</Label>
+                    <div className="space-y-1.5">
+                        <Label htmlFor="claim_status">Claim status</Label>
                         <select
                             id="claim_status"
-                            className="border-input bg-background h-10 w-full rounded-md border px-3 text-sm"
+                            className={cn(selectClass, 'h-10 w-full')}
                             value={form.data.claim_status}
                             onChange={(e) =>
                                 form.setData(
@@ -140,9 +148,10 @@ function ClaimDialog({
                                 </option>
                             ))}
                         </select>
+                        <InputError message={form.errors.claim_status} />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1">
+                        <div className="space-y-1.5">
                             <Label htmlFor="claim_reference">
                                 Claim / ticket no.
                             </Label>
@@ -157,7 +166,7 @@ function ClaimDialog({
                                 }
                             />
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-1.5">
                             <Label htmlFor="claim_amount">Amount (₹)</Label>
                             <Input
                                 id="claim_amount"
@@ -171,7 +180,7 @@ function ClaimDialog({
                             />
                         </div>
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
                         <Label htmlFor="claim_note">Note</Label>
                         <Input
                             id="claim_note"
@@ -180,18 +189,17 @@ function ClaimDialog({
                                 form.setData('claim_note', e.target.value)
                             }
                         />
-                        <InputError message={form.errors.claim_status} />
                     </div>
-                    <DialogFooter>
+                    <DialogFooter className="gap-2">
                         <Button
                             type="button"
                             variant="outline"
                             onClick={onClose}
                         >
-                            Back
+                            Cancel
                         </Button>
                         <Button type="submit" disabled={form.processing}>
-                            Save
+                            Save claim
                         </Button>
                     </DialogFooter>
                 </form>
@@ -200,24 +208,26 @@ function ClaimDialog({
     );
 }
 
-function Tile({
+function Kpi({
     label,
     value,
+    hint,
     tone,
+    onClick,
+    active,
+    className: extra,
 }: {
     label: string;
     value: string | number;
+    hint?: ReactNode;
     tone?: 'danger' | 'warning' | 'success';
+    onClick?: () => void;
+    active?: boolean;
+    className?: string;
 }) {
-    return (
-        <div
-            className={cn(
-                'bg-card rounded-xl border p-4',
-                tone === 'danger' && 'border-red-600/40 bg-red-500/5',
-                tone === 'warning' && 'border-amber-600/40 bg-amber-500/5',
-            )}
-        >
-            <p className="text-muted-foreground text-xs tracking-wide uppercase">
+    const body = (
+        <>
+            <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                 {label}
             </p>
             <p
@@ -231,6 +241,149 @@ function Tile({
             >
                 {value}
             </p>
+            {hint && (
+                <p className="text-muted-foreground mt-0.5 text-xs">{hint}</p>
+            )}
+        </>
+    );
+    const className = cn(
+        'bg-card flex flex-col items-start justify-start rounded-xl border p-4 text-left',
+        extra,
+        onClick && 'hover:border-primary/50 transition-colors',
+        active && 'border-primary ring-primary/30 ring-2',
+    );
+
+    return onClick ? (
+        <button type="button" onClick={onClick} className={className}>
+            {body}
+        </button>
+    ) : (
+        <div className={className}>{body}</div>
+    );
+}
+
+function Qty({
+    n,
+    label,
+    tone,
+}: {
+    n: string;
+    label: string;
+    tone: 'sent' | 'good' | 'damaged' | 'missing';
+}) {
+    return (
+        <span
+            className={cn(
+                'inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium tabular-nums',
+                tone === 'sent' && 'bg-muted text-muted-foreground',
+                tone === 'good' &&
+                    'bg-emerald-500/10 text-emerald-800 dark:text-emerald-200',
+                tone === 'damaged' &&
+                    'bg-red-500/10 text-red-800 dark:text-red-200',
+                tone === 'missing' &&
+                    'bg-amber-500/15 text-amber-900 dark:text-amber-100',
+            )}
+        >
+            {Number(n)} {label}
+        </span>
+    );
+}
+
+function WhatCameBack({ r }: { r: ReturnRow }) {
+    return (
+        <div className="space-y-1.5">
+            {r.lines.map((l) => (
+                <div key={l.item_id}>
+                    <div className="text-sm font-medium">{l.item}</div>
+                    <div className="mt-0.5 flex flex-wrap gap-1">
+                        <Qty n={l.sent} label="sent" tone="sent" />
+                        {Number(l.good) > 0 && (
+                            <Qty n={l.good} label="good" tone="good" />
+                        )}
+                        {Number(l.damaged) > 0 && (
+                            <Qty n={l.damaged} label="damaged" tone="damaged" />
+                        )}
+                        {Number(l.missing) > 0 && (
+                            <Qty
+                                n={l.missing}
+                                label="not received"
+                                tone="missing"
+                            />
+                        )}
+                    </div>
+                </div>
+            ))}
+            {r.wrong_item && (
+                <p className="text-xs font-medium text-red-700 dark:text-red-300">
+                    Wrong item came back
+                </p>
+            )}
+            {r.notes && (
+                <p className="text-muted-foreground text-xs">“{r.notes}”</p>
+            )}
+        </div>
+    );
+}
+
+function ParcelCell({ r }: { r: ReturnRow }) {
+    const code = r.awb ?? r.order_number;
+
+    return (
+        <div className="min-w-0">
+            <div className="font-mono text-sm">
+                {r.batch_id ? (
+                    <Link
+                        href={showBatch(r.batch_id)}
+                        className="underline-offset-4 hover:underline"
+                    >
+                        {code}
+                    </Link>
+                ) : (
+                    code
+                )}
+            </div>
+            <div className="text-muted-foreground text-xs">
+                {[r.brand, r.marketplace, courierName(r.courier)]
+                    .filter(Boolean)
+                    .join(' · ')}
+            </div>
+            {r.return_awb && (
+                <div className="text-muted-foreground font-mono text-xs">
+                    returned as {r.return_awb}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function ClaimCell({ r }: { r: ReturnRow }) {
+    return (
+        <div className="space-y-1">
+            <StatusBadge
+                variant={
+                    TONE_VARIANT[r.claim_overdue ? 'danger' : r.claim_tone]
+                }
+            >
+                {r.claim_overdue ? 'Claim overdue' : r.claim_label}
+            </StatusBadge>
+            {r.claim_deadline_at && r.claim_status === 'open' && (
+                <div
+                    className={cn(
+                        'text-xs',
+                        r.claim_overdue
+                            ? 'font-medium text-red-700 dark:text-red-300'
+                            : 'text-muted-foreground',
+                    )}
+                >
+                    Raise by {when(r.claim_deadline_at)}
+                </div>
+            )}
+            {r.claim_reference && (
+                <div className="text-muted-foreground text-xs">
+                    {r.claim_reference}
+                    {r.claim_amount ? ` · ${rupees(r.claim_amount)}` : ''}
+                </div>
+            )}
         </div>
     );
 }
@@ -248,7 +401,7 @@ export default function Returns({
     filters: Filters;
     marketplaces: { value: string; label: string }[];
     claim_statuses: { value: string; label: string }[];
-    can: { receive: boolean; claim: boolean };
+    can: Can;
 }) {
     const [claiming, setClaiming] = useState<ReturnRow | null>(null);
     const go = (patch: Partial<Filters>) =>
@@ -262,318 +415,344 @@ export default function Returns({
             { preserveState: true, preserveScroll: true },
         );
 
+    const canUpdate = (r: ReturnRow) => can.claim && r.claim_status !== 'none';
+
+    const tabs: [Filters['claim'], string, number | null][] = [
+        ['all', 'All returns', null],
+        ['open', 'Claims to raise', summary.claims_open],
+        ['overdue', 'Overdue', summary.claims_overdue],
+    ];
+
     return (
         <>
             <Head title="Returns · Online orders" />
             <div className="space-y-6 p-4 sm:p-6">
                 <PageHeader
                     title="Returns"
-                    description="Online orders that went out and came back: what was sellable and went back on the shelf, what was damaged and went to the damaged goods store, and the claims to raise on the marketplaces."
+                    description="Parcels that came back. Good pieces go back on the shelf, damaged ones to the damaged goods store, and claims are raised on the marketplace."
                     actions={
-                        <>
-                            <Button variant="outline" asChild>
-                                <Link href={onlineOrders()}>Online orders</Link>
+                        can.receive && (
+                            <Button asChild>
+                                <Link href={receive()}>
+                                    <Undo2 className="size-4" />
+                                    Receive a return
+                                </Link>
                             </Button>
-                            {can.receive && (
-                                <Button asChild>
-                                    <Link href={receive()}>
-                                        <Undo2 className="size-4" />
-                                        Receive a return
-                                    </Link>
-                                </Button>
-                            )}
-                        </>
+                        )
                     }
                 />
 
-                {summary.claims_overdue > 0 && (
-                    <button
-                        type="button"
-                        onClick={() => go({ claim: 'overdue' })}
-                        className="flex w-full items-start gap-3 rounded-xl border border-red-600/30 bg-red-500/10 p-4 text-left text-sm"
-                    >
+                {summary.claims_overdue > 0 && filters.claim !== 'overdue' && (
+                    <div className="flex flex-col gap-3 rounded-xl border border-red-600/30 bg-red-500/10 p-4 text-sm sm:flex-row sm:items-center">
                         <AlertTriangle className="size-5 shrink-0 text-red-600" />
-                        <span>
-                            <b>{summary.claims_overdue} claim(s)</b> are past
-                            the marketplace&rsquo;s deadline and still not
-                            raised. Show them.
-                        </span>
-                    </button>
+                        <p className="flex-1">
+                            <b>
+                                {summary.claims_overdue}{' '}
+                                {summary.claims_overdue === 1
+                                    ? 'claim is'
+                                    : 'claims are'}
+                            </b>{' '}
+                            past the marketplace&rsquo;s deadline and not raised
+                            yet.
+                        </p>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => go({ claim: 'overdue' })}
+                        >
+                            Show overdue claims
+                        </Button>
+                    </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
-                    <Tile label="Returns" value={summary.returns} />
-                    <Tile label="RTO" value={summary.rto} />
-                    <Tile label="Customer" value={summary.customer} />
-                    <Tile
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+                    <Kpi
+                        label="Returns"
+                        value={summary.returns}
+                        hint={`${summary.rto} RTO · ${summary.customer} customer`}
+                    />
+                    <Kpi
                         label="Back on shelf"
                         value={summary.good}
-                        tone="success"
+                        hint="pieces, into their batches"
+                        tone={Number(summary.good) > 0 ? 'success' : undefined}
                     />
-                    <Tile
+                    <Kpi
                         label="Damaged"
                         value={summary.damaged}
+                        hint="pieces, in damaged goods store"
                         tone={
                             Number(summary.damaged) > 0 ? 'danger' : undefined
                         }
                     />
-                    <Tile
+                    <Kpi
                         label="Not received"
                         value={summary.missing}
+                        hint="pieces missing from the packet"
                         tone={
                             Number(summary.missing) > 0 ? 'warning' : undefined
                         }
                     />
-                    <Tile
+                    <Kpi
                         label="Claims to raise"
                         value={summary.claims_open}
-                        tone={summary.claims_open > 0 ? 'warning' : undefined}
+                        hint={
+                            summary.claims_overdue > 0
+                                ? `${summary.claims_overdue} overdue`
+                                : 'none overdue'
+                        }
+                        tone={
+                            summary.claims_overdue > 0
+                                ? 'danger'
+                                : summary.claims_open > 0
+                                  ? 'warning'
+                                  : undefined
+                        }
+                        onClick={() => go({ claim: 'open' })}
+                        active={filters.claim === 'open'}
+                        className="col-span-2 md:col-span-1"
                     />
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                    {(
-                        [
-                            ['all', 'All'],
-                            ['open', 'Claims to raise'],
-                            ['overdue', 'Claims overdue'],
-                        ] as const
-                    ).map(([key, label]) => (
-                        <button
-                            key={key}
-                            type="button"
-                            onClick={() => go({ claim: key })}
-                            className={cn(
-                                'rounded-full border px-3 py-1 text-xs',
-                                filters.claim === key
-                                    ? 'bg-primary text-primary-foreground border-primary'
-                                    : 'hover:bg-muted',
-                            )}
+                <section className="bg-card overflow-hidden rounded-xl border">
+                    <div className="flex flex-col gap-3 border-b p-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div
+                            role="tablist"
+                            aria-label="Show"
+                            className="bg-muted inline-flex w-full rounded-lg p-1 sm:w-auto"
                         >
-                            {label}
-                        </button>
-                    ))}
-                    <select
-                        className="border-input bg-background h-9 rounded-md border px-2 text-sm"
-                        value={filters.marketplace ?? ''}
-                        onChange={(e) =>
-                            go({
-                                marketplace: e.target.value
-                                    ? Number(e.target.value)
-                                    : null,
-                            })
-                        }
-                        aria-label="Marketplace"
-                    >
-                        <option value="">All marketplaces</option>
-                        {marketplaces.map((m) => (
-                            <option key={m.value} value={m.value}>
-                                {m.label}
-                            </option>
-                        ))}
-                    </select>
-                    {filters.claim === 'all' && (
-                        <>
-                            <Input
-                                type="date"
-                                value={filters.from}
-                                onChange={(e) => go({ from: e.target.value })}
-                                className="w-40"
-                                aria-label="From"
-                            />
-                            <span className="text-muted-foreground text-sm">
-                                to
-                            </span>
-                            <Input
-                                type="date"
-                                value={filters.to}
-                                onChange={(e) => go({ to: e.target.value })}
-                                className="w-40"
-                                aria-label="To"
-                            />
-                        </>
-                    )}
-                </div>
+                            {tabs.map(([key, label, count]) => (
+                                <button
+                                    key={key}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={filters.claim === key}
+                                    onClick={() => go({ claim: key })}
+                                    className={cn(
+                                        'flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium whitespace-nowrap sm:flex-none sm:px-3 sm:text-sm',
+                                        filters.claim === key
+                                            ? 'bg-background text-foreground shadow-sm'
+                                            : 'text-muted-foreground hover:text-foreground',
+                                    )}
+                                >
+                                    {label}
+                                    {count !== null && count > 0 && (
+                                        <span
+                                            className={cn(
+                                                'rounded-full px-1.5 text-xs tabular-nums',
+                                                key === 'overdue'
+                                                    ? 'bg-red-600 text-white'
+                                                    : 'bg-amber-500/20 text-amber-900 dark:text-amber-100',
+                                            )}
+                                        >
+                                            {count}
+                                        </span>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
 
-                <section className="bg-card rounded-xl border">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <select
+                                className={cn(selectClass, 'w-full sm:w-auto')}
+                                value={filters.marketplace ?? ''}
+                                onChange={(e) =>
+                                    go({
+                                        marketplace: e.target.value
+                                            ? Number(e.target.value)
+                                            : null,
+                                    })
+                                }
+                                aria-label="Marketplace"
+                            >
+                                <option value="">All marketplaces</option>
+                                {marketplaces.map((m) => (
+                                    <option key={m.value} value={m.value}>
+                                        {m.label}
+                                    </option>
+                                ))}
+                            </select>
+                            {filters.claim === 'all' ? (
+                                <div className="flex w-full items-center gap-2 sm:w-auto">
+                                    <Input
+                                        type="date"
+                                        value={filters.from}
+                                        onChange={(e) =>
+                                            go({ from: e.target.value })
+                                        }
+                                        className="h-9 min-w-0 flex-1 px-2 text-sm sm:w-40 sm:flex-none sm:px-3"
+                                        aria-label="Received from"
+                                    />
+                                    <span className="text-muted-foreground text-sm">
+                                        –
+                                    </span>
+                                    <Input
+                                        type="date"
+                                        value={filters.to}
+                                        onChange={(e) =>
+                                            go({ to: e.target.value })
+                                        }
+                                        className="h-9 min-w-0 flex-1 px-2 text-sm sm:w-40 sm:flex-none sm:px-3"
+                                        aria-label="Received to"
+                                    />
+                                </div>
+                            ) : (
+                                <span className="text-muted-foreground text-xs">
+                                    Every open claim, whatever the date
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
                     {returns.length === 0 ? (
-                        <p className="text-muted-foreground px-4 py-10 text-center text-sm">
-                            No returns here.
-                        </p>
+                        <div className="px-4 py-12 text-center">
+                            <p className="font-medium">No returns here</p>
+                            <p className="text-muted-foreground mt-1 text-sm">
+                                {filters.claim === 'all'
+                                    ? 'Nothing came back in these dates.'
+                                    : 'No claim is waiting to be raised.'}
+                            </p>
+                        </div>
                     ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full min-w-[60rem] text-sm">
-                                <thead className="text-muted-foreground text-left text-xs uppercase">
-                                    <tr className="border-b">
-                                        <th className="px-4 py-2 font-medium">
-                                            Return
-                                        </th>
-                                        <th className="px-4 py-2 font-medium">
-                                            Parcel
-                                        </th>
-                                        <th className="px-4 py-2 font-medium">
-                                            What came back
-                                        </th>
-                                        <th className="px-4 py-2 font-medium">
-                                            Claim
-                                        </th>
-                                        <th className="px-4 py-2" />
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y">
-                                    {returns.map((r) => (
-                                        <tr key={r.id} className="align-top">
-                                            <td className="px-4 py-3">
-                                                <div className="font-mono font-medium">
-                                                    {r.number}
-                                                </div>
-                                                <div className="text-muted-foreground text-xs">
-                                                    {r.kind_label}
-                                                </div>
-                                                <div className="text-muted-foreground text-xs">
-                                                    {when(r.received_at)} ·{' '}
-                                                    {r.received_by ?? '—'}
-                                                </div>
-                                                <div className="text-muted-foreground text-xs">
-                                                    {r.facility}
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <div className="font-mono">
-                                                    {r.batch_id ? (
-                                                        <Link
-                                                            href={showBatch(
-                                                                r.batch_id,
-                                                            )}
-                                                            className="underline-offset-4 hover:underline"
-                                                        >
-                                                            {r.awb ??
-                                                                r.order_number}
-                                                        </Link>
-                                                    ) : (
-                                                        (r.awb ??
-                                                        r.order_number)
-                                                    )}
-                                                </div>
-                                                <div className="text-muted-foreground text-xs">
-                                                    {r.brand} · {r.marketplace}{' '}
-                                                    · {courierName(r.courier)}
-                                                </div>
-                                                {r.return_awb && (
-                                                    <div className="text-muted-foreground font-mono text-xs">
-                                                        came back as{' '}
-                                                        {r.return_awb}
-                                                    </div>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {r.lines.map((l) => (
-                                                    <div key={l.item_id}>
-                                                        <span className="font-medium">
-                                                            {l.item}
+                        <>
+                            <div className="hidden overflow-x-auto md:block">
+                                <table className="w-full text-sm">
+                                    <thead className="text-muted-foreground bg-muted/40 text-left text-xs uppercase">
+                                        <tr className="border-b">
+                                            <th className="min-w-[15rem] px-4 py-2.5 font-medium">
+                                                Return
+                                            </th>
+                                            <th className="px-4 py-2.5 font-medium">
+                                                Parcel
+                                            </th>
+                                            <th className="px-4 py-2.5 font-medium">
+                                                What came back
+                                            </th>
+                                            <th className="px-4 py-2.5 font-medium">
+                                                Claim
+                                            </th>
+                                            {can.claim && (
+                                                <th className="w-px px-4 py-2.5 text-right font-medium">
+                                                    <span className="sr-only">
+                                                        Actions
+                                                    </span>
+                                                </th>
+                                            )}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y">
+                                        {returns.map((r) => (
+                                            <tr
+                                                key={r.id}
+                                                className="hover:bg-muted/30 align-top"
+                                            >
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-2 whitespace-nowrap">
+                                                        <span className="font-mono font-medium">
+                                                            {r.number}
                                                         </span>
-                                                        <span className="text-muted-foreground">
-                                                            {' '}
-                                                            · of{' '}
-                                                            {Number(l.sent)}:
-                                                        </span>{' '}
-                                                        <span className="text-emerald-700 dark:text-emerald-300">
-                                                            {Number(l.good)}{' '}
-                                                            good
-                                                        </span>
-                                                        {Number(l.damaged) >
-                                                            0 && (
-                                                            <span className="text-red-700 dark:text-red-300">
-                                                                ,{' '}
-                                                                {Number(
-                                                                    l.damaged,
-                                                                )}{' '}
-                                                                damaged
-                                                            </span>
-                                                        )}
-                                                        {Number(l.missing) >
-                                                            0 && (
-                                                            <span className="text-amber-700 dark:text-amber-300">
-                                                                ,{' '}
-                                                                {Number(
-                                                                    l.missing,
-                                                                )}{' '}
-                                                                not received
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                                {r.wrong_item && (
-                                                    <div className="text-xs font-medium text-red-700 dark:text-red-300">
-                                                        Wrong item came back
-                                                    </div>
-                                                )}
-                                                {r.notes && (
-                                                    <div className="text-muted-foreground text-xs">
-                                                        {r.notes}
-                                                    </div>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <StatusBadge
-                                                    variant={
-                                                        TONE_VARIANT[
-                                                            r.claim_overdue
-                                                                ? 'danger'
-                                                                : r.claim_tone
-                                                        ]
-                                                    }
-                                                >
-                                                    {r.claim_overdue
-                                                        ? 'Claim overdue'
-                                                        : r.claim_label}
-                                                </StatusBadge>
-                                                {r.claim_deadline_at &&
-                                                    r.claim_status ===
-                                                        'open' && (
-                                                        <div
-                                                            className={cn(
-                                                                'mt-1 text-xs',
-                                                                r.claim_overdue
-                                                                    ? 'text-red-700 dark:text-red-300'
-                                                                    : 'text-muted-foreground',
-                                                            )}
-                                                        >
-                                                            by{' '}
-                                                            {when(
-                                                                r.claim_deadline_at,
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                {r.claim_reference && (
-                                                    <div className="text-muted-foreground text-xs">
-                                                        {r.claim_reference}
-                                                        {r.claim_amount
-                                                            ? ` · ${rupees(r.claim_amount)}`
-                                                            : ''}
-                                                    </div>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-3 text-right">
-                                                {can.claim &&
-                                                    r.claim_status !==
-                                                        'none' && (
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() =>
-                                                                setClaiming(r)
+                                                        <StatusBadge
+                                                            variant={
+                                                                r.kind === 'rto'
+                                                                    ? 'info'
+                                                                    : 'muted'
                                                             }
                                                         >
-                                                            Update claim
-                                                        </Button>
-                                                    )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                                            {r.kind === 'rto'
+                                                                ? 'RTO'
+                                                                : 'Customer'}
+                                                        </StatusBadge>
+                                                    </div>
+                                                    <div className="text-muted-foreground mt-0.5 text-xs">
+                                                        {when(r.received_at)}
+                                                    </div>
+                                                    <div className="text-muted-foreground text-xs">
+                                                        {[
+                                                            r.received_by,
+                                                            r.facility,
+                                                        ]
+                                                            .filter(Boolean)
+                                                            .join(' · ')}
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <ParcelCell r={r} />
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <WhatCameBack r={r} />
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <ClaimCell r={r} />
+                                                </td>
+                                                {can.claim && (
+                                                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                                                        {canUpdate(r) && (
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() =>
+                                                                    setClaiming(
+                                                                        r,
+                                                                    )
+                                                                }
+                                                            >
+                                                                Update claim
+                                                            </Button>
+                                                        )}
+                                                    </td>
+                                                )}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <ul className="divide-y md:hidden">
+                                {returns.map((r) => (
+                                    <li key={r.id} className="space-y-3 p-4">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-mono font-medium">
+                                                        {r.number}
+                                                    </span>
+                                                    <StatusBadge
+                                                        variant={
+                                                            r.kind === 'rto'
+                                                                ? 'info'
+                                                                : 'muted'
+                                                        }
+                                                    >
+                                                        {r.kind === 'rto'
+                                                            ? 'RTO'
+                                                            : 'Customer'}
+                                                    </StatusBadge>
+                                                </div>
+                                                <div className="text-muted-foreground text-xs">
+                                                    {when(r.received_at)}
+                                                    {r.received_by
+                                                        ? ` · ${r.received_by}`
+                                                        : ''}
+                                                </div>
+                                            </div>
+                                            <ClaimCell r={r} />
+                                        </div>
+                                        <ParcelCell r={r} />
+                                        <WhatCameBack r={r} />
+                                        {canUpdate(r) && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="w-full"
+                                                onClick={() => setClaiming(r)}
+                                            >
+                                                Update claim
+                                            </Button>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        </>
                     )}
                 </section>
             </div>
@@ -588,3 +767,11 @@ export default function Returns({
         </>
     );
 }
+
+Returns.layout = {
+    breadcrumbs: [
+        { title: 'Dashboard', href: dashboard() },
+        { title: 'Online orders', href: onlineOrders() },
+        { title: 'Returns', href: index() },
+    ],
+};

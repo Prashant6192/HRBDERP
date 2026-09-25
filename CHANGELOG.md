@@ -47,6 +47,16 @@ between them.
   wrong opens a **claim** with the marketplace's deadline; the returns list
   shows claims to raise, overdue ones in red, and records the outcome. The
   parcel shows **Returned** and is refused at the packing table.
+- **The returns screens are laid out like the rest of the ERP.** A
+  breadcrumb trail replaces the loose back buttons, and each screen has one
+  main action at the top right. The returns list has five summary figures,
+  one filter bar (All returns, Claims to raise, Overdue, marketplace,
+  dates) and a table that becomes cards on a phone. Receiving a return
+  runs in numbered steps and ends in one bar with the totals, **Cancel**
+  and **Receive this return**. On the main screen, **Receive a return**
+  and the returns list sit under one **Returns** menu. On a phone, page
+  breadcrumbs show only the last two steps, and page-header buttons no
+  longer squeeze into a column beside a long description.
 - New permission `marketplace.return`, given to the Store Executive and the
   Warehouse Manager (and to the Dispatch and E-commerce Managers through
   `marketplace.*`).

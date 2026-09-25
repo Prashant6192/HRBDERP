@@ -102,9 +102,28 @@ class ReturnController extends Controller
     public function create(Request $request): Response
     {
         $this->authorize('marketplace.return');
+
+        return Inertia::render('online-orders/receive-return', $this->receiving($request));
+    }
+
+    /**
+     * The same, on the floor phone.
+     */
+    public function floor(Request $request): Response
+    {
+        $this->authorize('marketplace.return');
+
+        return Inertia::render('floor/return', $this->receiving($request));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function receiving(Request $request): array
+    {
         $user = $request->user();
 
-        return Inertia::render('online-orders/receive-return', [
+        return [
             'code' => trim($request->string('code')->toString()),
             'kinds' => ReturnKind::options(),
             'stores' => $this->goodStores($user),
@@ -116,7 +135,7 @@ class ReturnController extends Controller
                 ->get()
                 ->map(fn (ShipmentReturn $r) => $this->present($r))
                 ->all(),
-        ]);
+        ];
     }
 
     /**
@@ -167,6 +186,7 @@ class ReturnController extends Controller
             'wrong_item' => ['boolean'],
             'return_awb' => ['nullable', 'string', 'max:64'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'from' => ['nullable', Rule::in(['floor'])],
         ]);
 
         $shipment = Shipment::query()->findOrFail($data['shipment_id']);
@@ -209,7 +229,7 @@ class ReturnController extends Controller
             ? ' A claim is open'.($return->claim_deadline_at ? ' until '.$return->claim_deadline_at->timezone(Cutoff::timezone())->format('j M, g:i A') : '').'.'
             : '';
 
-        return redirect()->route('online-orders.returns.create')
+        return redirect()->route(($data['from'] ?? null) === 'floor' ? 'floor.return' : 'online-orders.returns.create')
             ->withToast('success', "{$return->number}: {$shipment->reference()} received back.{$claim}");
     }
 

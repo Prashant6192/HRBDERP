@@ -78,6 +78,7 @@ class FloorController extends Controller
                 'photo' => $user->can('inventory.view'),
                 'pack' => $user->can('marketplace.pack'),
                 'handover' => $user->can('marketplace.handover'),
+                'return' => $user->can('marketplace.return'),
             ],
         ]);
     }

@@ -193,3 +193,9 @@ Asked for after the first week on the preview, and built together:
   referencing the return. Anything damaged, not received or wrong opens a
   claim, with `claim_deadline_at` from `marketplaces.claim_window_hours`
   when set. Permission `marketplace.return`.
+- **Receiving a return on a phone.** Floor mode has a **Receive a return**
+  tile (`/floor/return`) for anyone with `marketplace.return`: scan the
+  label with the camera or a handheld scanner, count each product with −
+  and + buttons, and receive it from a bar pinned to the bottom of the
+  screen. It posts to the same place as the desk screen and comes back to
+  the scanner for the next packet.

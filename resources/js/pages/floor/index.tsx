@@ -10,11 +10,19 @@ import {
     PackagePlus,
     ScanLine,
     Truck,
+    Undo2,
     type LucideIcon,
 } from 'lucide-react';
 import { create as createReceipt } from '@/routes/goods-receipts';
 import { index as countsIndex } from '@/routes/counts';
-import { handover, issue, pack, production, scan } from '@/routes/floor';
+import {
+    handover,
+    issue,
+    pack,
+    production,
+    returnMethod as receiveReturn,
+    scan,
+} from '@/routes/floor';
 import { index as qcIndex } from '@/routes/qc';
 import { index as transfersIndex } from '@/routes/transfers';
 
@@ -82,7 +90,8 @@ export default function FloorHome({
         | 'production'
         | 'photo'
         | 'pack'
-        | 'handover',
+        | 'handover'
+        | 'return',
         boolean
     >;
 }) {
@@ -164,6 +173,14 @@ export default function FloorHome({
                             icon={Truck}
                             label="Courier pickup"
                             hint="Hand packed parcels over"
+                        />
+                    )}
+                    {can.return && (
+                        <Tile
+                            href={receiveReturn().url}
+                            icon={Undo2}
+                            label="Receive a return"
+                            hint="Scan a parcel that came back"
                         />
                     )}
                     {can.photo && (

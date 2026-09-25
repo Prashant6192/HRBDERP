@@ -22,10 +22,15 @@ export function Breadcrumbs({
                     <BreadcrumbList>
                         {breadcrumbs.map((item, index) => {
                             const isLast = index === breadcrumbs.length - 1;
+                            // On a phone only the last two steps fit.
+                            const wide =
+                                index < breadcrumbs.length - 2
+                                    ? 'hidden md:inline-flex'
+                                    : undefined;
 
                             return (
                                 <Fragment key={index}>
-                                    <BreadcrumbItem>
+                                    <BreadcrumbItem className={wide}>
                                         {isLast ? (
                                             <BreadcrumbPage>
                                                 {item.title}
@@ -38,7 +43,9 @@ export function Breadcrumbs({
                                             </BreadcrumbLink>
                                         )}
                                     </BreadcrumbItem>
-                                    {!isLast && <BreadcrumbSeparator />}
+                                    {!isLast && (
+                                        <BreadcrumbSeparator className={wide} />
+                                    )}
                                 </Fragment>
                             );
                         })}

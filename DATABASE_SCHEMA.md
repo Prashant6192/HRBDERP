@@ -270,6 +270,13 @@ A reversal posts the opposite of every line of the transaction it points
 at, under type `REVERSAL`. A transaction can be reversed once; a reversal
 cannot be reversed. Neither is ever edited.
 
+A line of opening stock booked by mistake is corrected with its own
+`OPENING_CORRECTION` transaction against the same lot (quantities may be
+negative or positive and need not net to zero), referencing the lot and
+carrying the reason. It is only posted while the lot has no other movement
+and no active reservation; the lot's batch, dates, rate and
+`initial_quantity` are updated with it.
+
 ### `documents`
 
 One row per version of a controlled document: `code` shared by all
@@ -626,6 +633,102 @@ are dispatched.
 The registered company whose invoices goods leave the site under; printed
 as the seller on e-invoices and challans. Falls back to
 `ERP_COMPANY_LEGAL_NAME`, then the company name.
+
+## Online orders
+
+### `brands`, `brand_user`
+
+A brand sold online: `code` (`RR`, `CA`), `name`, `legal_name`, `gstin`,
+`client_id` → `clients` (null: the company's own stock; set: the parcels
+take only that client's batches), `default_warehouse_id` → `warehouses`
+(the finished goods store its parcels leave from; seeded to the Paper
+Market depot's when that depot exists), `is_active`. `brand_user` gives an
+E-commerce Agency account the brands it may upload for.
+
+### `marketplaces`, `marketplace_listings`
+
+`marketplaces`: `code` (`MEESHO`, `FLIPKART`, `AMAZON`, `MYNTRA`), `name`,
+`reader` (`meesho`, `flipkart` — read from the label text — or `ai`),
+`claim_window_hours`, `is_active`. Seeded by the migration and the
+reference data seeder.
+
+`marketplace_listings`: the SKU text a marketplace prints — `marketplace_id`,
+`brand_id`, `seller_sku` as printed, `sku_key` (folded for matching; unique
+with the marketplace and brand), `is_active`, and `item_id` /
+`units_per_order` mirroring its first product.
+
+`marketplace_listing_components`: what one order of a listing holds —
+`listing_id`, `item_id`, `units_per_order` (> 0: pieces of that product;
+2 for a pack of two), `line_no`; unique per listing and product. One row
+for a plain listing, several for a combo.
+
+### `label_batches`, `label_files`, `label_prints`
+
+`label_batches`: one day's labels for one brand on one marketplace from one
+store — `number` (`LB-yymm-00001`), `brand_id`, `marketplace_id`,
+`facility_id`, `warehouse_id`, `for_date`, `status` (open → closed when the
+agency says that is all), `uploaded_by`, `closed_at`, `closed_by`.
+
+`label_files`: the PDFs exactly as uploaded, never rewritten — `path`
+(`online-orders/Y/m/{uuid}.pdf` on the private disk), `original_name`,
+`size`, `pages`, `sha256` (unique: the same file cannot go in twice),
+`read_with` (`meesho`, `flipkart`, `ai`, a combination, or `none`),
+`read_model`, `read_at`, `warnings`.
+
+`label_prints`: each print run — `scope` (all, unprinted, courier, one),
+`courier`, `shipment_count`, `page_count`, `printed_by`.
+
+### `shipments`, `shipment_lines`
+
+`shipments`: one parcel — `label_batch_id`, `label_file_id`, `pages` (jsonb:
+the label page and any invoice pages after it), `marketplace_id`,
+`brand_id`, `warehouse_id`, `awb` (unique per marketplace among parcels not
+cancelled), `alt_code` (a second barcode, Flipkart's tracking id),
+`order_number`, `courier`, `payment_mode` (cod, prepaid, unknown),
+`payable_amount`, `invoice_number`, `invoice_date`, `customer_name`,
+`customer_state`, `seller_gstin`, `status` (uploaded → printed → packed →
+handed_over; or cancelled; or, after packing, returned), `stock_state`
+(unmapped, short, reserved, consumed, released, returned), print, pack
+(`pack_method` scan or manual, with `pack_note`), handover, cancellation
+and `returned_at` stamps, `extraction` (what the reader made of the page),
+`warnings`.
+
+`shipment_lines`: the label's rows — `line_no`, `seller_sku`,
+`description`, `quantity` (> 0), `listing_id` (null until mapped), and for
+a plain listing `item_id` and `units` (quantity × pieces) for display.
+
+`shipment_picks`: the parcel's pick list — `shipment_id`,
+`shipment_line_id`, `item_id`, `units` (> 0, in the product's stock unit:
+label quantity × pieces of that product). Written when a line is matched
+to a listing; a combo line gives one pick per product.
+
+Stock is held through `stock_reservations` (reservable = the shipment), one
+per pick, and leaves through `inventory_transactions` of type
+`MARKETPLACE_SALE` referencing the shipment, one line per batch, posted
+when the parcel is packed. Cancelling a packed parcel posts a `REVERSAL`.
+
+### `shipment_returns`, `shipment_return_lines`
+
+`shipment_returns`: a parcel that came back — `number` (`RT-yymm-00001`),
+`shipment_id` (unique: a parcel comes back once), `marketplace_id`,
+`brand_id`, `facility_id` (where it was received), `kind` (rto, customer),
+`return_awb`, `notes`, `wrong_item`, `claim_status` (none, open, won, lost),
+`claim_deadline_at` (received + the marketplace's `claim_window_hours`),
+`claim_reference`, `claim_amount`, `claim_note`, `inventory_transaction_id`
+(the `MARKETPLACE_RETURN` posting), `received_by`, `received_at`.
+
+`shipment_return_lines`: per product — `item_id`, `sent`, `good`,
+`damaged`, `missing` (each ≥ 0, always adding up to `sent`),
+`good_warehouse_id`, `damaged_warehouse_id`. Good goods are posted back into
+a finished goods store and damaged goods into the facility's `damaged`
+store (opened on first use), each into the batches the parcel's stock left
+from.
+
+### `handover_sheets`
+
+A courier's pickup: `number` (`HO-yymm-00001`), `facility_id`,
+`warehouse_id`, `courier`, `shipment_count`, `received_by_name`,
+`handed_over_by`, `handed_over_at`. Shipments point at their sheet.
 
 ## Still to come
 

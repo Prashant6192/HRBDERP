@@ -2,6 +2,10 @@ import { Head, Link, useForm } from '@inertiajs/react';
 import { Download, FileUp, Plus, Trash2 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Field, FormSection } from '@/components/form-field';
+import {
+    BookedOpeningStock,
+    type BookedLine,
+} from '@/components/inventory/booked-opening-stock';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -58,6 +62,8 @@ export default function OpeningStock({
     items,
     uoms,
     today,
+    booked,
+    can,
 }: {
     facility: {
         id: number;
@@ -71,6 +77,8 @@ export default function OpeningStock({
     items: ItemOption[];
     uoms: (SelectOption & { dimension: string })[];
     today: string;
+    booked: BookedLine[];
+    can: { correct: boolean };
 }) {
     const form = useForm<{
         warehouse_id: string;
@@ -207,7 +215,7 @@ export default function OpeningStock({
             <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
                 <PageHeader
                     title="Book opening stock"
-                    description={`${facility.name}. Each line becomes a batch and one OPENING_BALANCE ledger posting; nothing here can be edited afterwards, only adjusted through the ledger.`}
+                    description={`${facility.name}. Each line becomes a batch and one OPENING_BALANCE ledger posting; a line booked by mistake can be changed or removed below until any of it is used.`}
                 />
 
                 {!facility.opening_stock_enabled && (
@@ -615,6 +623,14 @@ export default function OpeningStock({
                         </Button>
                     </div>
                 </form>
+
+                <BookedOpeningStock
+                    facilityId={facility.id}
+                    booked={booked}
+                    canCorrect={can.correct}
+                    open={facility.opening_stock_enabled}
+                    storeId={form.data.warehouse_id}
+                />
             </div>
         </>
     );

@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Domain\Marketplace\Enums\LabelReaderKind;
+use App\Domain\Marketplace\Models\Brand;
+use App\Domain\Marketplace\Models\Marketplace;
 use App\Domain\Warehousing\Enums\WarehouseType;
+use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Models\FacilityType;
 use App\Domain\Warehousing\Models\StoreCategory;
 use App\Domain\Warehousing\Models\Warehouse;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * The facility types and store categories the ERP ships with.
@@ -80,6 +85,62 @@ class ReferenceDataSeeder extends Seeder
         }
 
         self::ensureTransitStore();
+
+        // An earlier migration runs this seeder before the online-orders
+        // tables exist; that migration seeds them itself.
+        if (Schema::hasTable('brands')) {
+            self::ensureMarketplaces();
+            self::ensureBrands();
+        }
+    }
+
+    /**
+     * The marketplaces the company sells on, and how each one's labels are
+     * read: Meesho and Flipkart print text; Amazon and Myntra send pictures.
+     */
+    public static function ensureMarketplaces(): void
+    {
+        foreach ([
+            ['MEESHO', 'Meesho', LabelReaderKind::Meesho],
+            ['FLIPKART', 'Flipkart', LabelReaderKind::Flipkart],
+            ['AMAZON', 'Amazon', LabelReaderKind::Ai],
+            ['MYNTRA', 'Myntra', LabelReaderKind::Ai],
+        ] as [$code, $name, $reader]) {
+            Marketplace::query()->firstOrCreate(['code' => $code], ['name' => $name, 'reader' => $reader, 'is_active' => true]);
+        }
+    }
+
+    /**
+     * The brands sold online. Their parcels leave from the Paper Market
+     * depot's finished goods store by default, once that depot exists; a
+     * default set on the Brands screen is never overwritten.
+     */
+    public static function ensureBrands(): void
+    {
+        $depotStore = self::paperMarketFinishedGoods();
+
+        foreach ([
+            ['RR', (string) config('erp.company.brand', 'Rahat Rooh')],
+            ['CA', 'Cleanse Ayurveda'],
+        ] as [$code, $name]) {
+            $brand = Brand::query()->firstOrCreate(['code' => $code], ['name' => $name, 'is_active' => true]);
+
+            if ($brand->default_warehouse_id === null && $depotStore !== null) {
+                $brand->forceFill(['default_warehouse_id' => $depotStore->id])->save();
+            }
+        }
+    }
+
+    private static function paperMarketFinishedGoods(): ?Warehouse
+    {
+        $depot = Facility::query()->where('name', 'ilike', '%paper market%')->orderBy('id')->first();
+
+        return $depot === null ? null : Warehouse::query()
+            ->where('facility_id', $depot->id)
+            ->where('type', WarehouseType::FinishedGoods->value)
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->first();
     }
 
     /**

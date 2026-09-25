@@ -25,9 +25,13 @@ import {
     PackageX,
     ScrollText,
     ShieldCheck,
+    ShoppingBag,
     ShoppingCart,
     Signature,
     Store,
+    Tag,
+    Tags,
+    Undo2,
     Truck,
     Users,
     Warehouse,
@@ -35,9 +39,13 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { data as dataAdministration } from '@/routes/administration';
 import { index as auditIndex } from '@/routes/audit';
+import { index as brandsIndex } from '@/routes/brands';
 import { index as clientsIndex } from '@/routes/clients';
 import { index as customersIndex } from '@/routes/customers';
 import { index as dispatchesIndex } from '@/routes/dispatches';
+import { index as listingsIndex } from '@/routes/listings';
+import { index as onlineOrdersIndex } from '@/routes/online-orders';
+import { index as returnsIndex } from '@/routes/online-orders/returns';
 import { index as formulasIndex } from '@/routes/formulas';
 import { index as manufacturingIndex } from '@/routes/manufacturing';
 import { index as materialRequestsIndex } from '@/routes/material-requests';
@@ -77,6 +85,8 @@ export type ErpNavItem = {
     comingSoon?: boolean;
     /** Reserved for the system administrator, whatever permissions others hold. */
     superAdminOnly?: boolean;
+    /** Not for an outside agency, which only uploads labels. */
+    notForAgency?: boolean;
 };
 
 export type ErpNavGroup = {
@@ -102,6 +112,7 @@ export const erpNavigation: ErpNavGroup[] = [
                 title: 'Dashboard',
                 href: dashboard().url,
                 icon: LayoutGrid,
+                notForAgency: true,
             },
             {
                 title: 'Command Centre',
@@ -319,6 +330,30 @@ export const erpNavigation: ErpNavGroup[] = [
                 href: customersIndex().url,
                 icon: Store,
                 permission: 'dispatch.view',
+            },
+            {
+                title: 'Online orders',
+                href: onlineOrdersIndex().url,
+                icon: ShoppingBag,
+                permission: 'marketplace.view',
+            },
+            {
+                title: 'Returns',
+                href: returnsIndex().url,
+                icon: Undo2,
+                permission: 'marketplace.return',
+            },
+            {
+                title: 'SKU mapping',
+                href: listingsIndex().url,
+                icon: Tags,
+                permission: 'marketplace.manage',
+            },
+            {
+                title: 'Brands',
+                href: brandsIndex().url,
+                icon: Tag,
+                permission: 'marketplace.manage',
             },
         ],
     },

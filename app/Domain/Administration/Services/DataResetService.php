@@ -47,6 +47,12 @@ class DataResetService
             'count' => 'dispatches',
             'requires' => [],
         ],
+        'online_orders' => [
+            'label' => 'Online orders',
+            'description' => 'Uploaded marketplace labels, the parcels read from them, print runs and courier handover sheets. Brands, marketplaces and SKU mappings stay.',
+            'count' => 'shipments',
+            'requires' => [],
+        ],
         'purchasing' => [
             'label' => 'Deliveries and QC',
             'description' => 'Goods receipts with their uploaded bills, and every QC decision taken on them.',
@@ -75,7 +81,7 @@ class DataResetService
             'label' => 'Materials and products',
             'description' => 'Raw materials, packaging, finished goods, their categories, conversions and per-store levels.',
             'count' => 'items',
-            'requires' => ['stock', 'purchasing', 'production', 'formulas'],
+            'requires' => ['stock', 'purchasing', 'production', 'formulas', 'online_orders'],
         ],
         'partners' => [
             'label' => 'Vendors, clients and customers',
@@ -87,7 +93,7 @@ class DataResetService
             'label' => 'Facilities and stores',
             'description' => 'The plants, their stores and racks, and who is assigned where. Rarely wanted: the factory itself does not change because a trial did.',
             'count' => 'warehouses',
-            'requires' => ['stock', 'purchasing', 'production', 'dispatch'],
+            'requires' => ['stock', 'purchasing', 'production', 'dispatch', 'online_orders'],
             'danger' => true,
         ],
     ];
@@ -101,6 +107,15 @@ class DataResetService
      * @var list<array{0: string, 1: string}>
      */
     private const array ORDER = [
+        ['shipment_return_lines', 'online_orders'],
+        ['shipment_returns', 'online_orders'],
+        ['shipment_picks', 'online_orders'],
+        ['shipment_lines', 'online_orders'],
+        ['shipments', 'online_orders'],
+        ['handover_sheets', 'online_orders'],
+        ['label_prints', 'online_orders'],
+        ['label_files', 'online_orders'],
+        ['label_batches', 'online_orders'],
         ['dispatch_attachments', 'dispatch'],
         ['dispatch_lines', 'dispatch'],
         ['dispatches', 'dispatch'],
@@ -137,6 +152,8 @@ class DataResetService
         ['formula_ingredients', 'formulas'],
         ['formula_versions', 'formulas'],
         ['formulas', 'formulas'],
+        ['marketplace_listing_components', 'materials'],
+        ['marketplace_listings', 'materials'],
         ['store_item_levels', 'materials'],
         ['product_packaging_lines', 'materials'],
         ['item_uom_conversions', 'materials'],
@@ -283,6 +300,10 @@ class DataResetService
 
         if (in_array('dispatch', $resolved, true)) {
             $this->forgetDirectory('dispatches');
+        }
+
+        if (in_array('online_orders', $resolved, true)) {
+            $this->forgetDirectory('online-orders');
         }
 
         return $cleared;

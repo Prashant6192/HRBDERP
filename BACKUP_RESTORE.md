@@ -114,7 +114,10 @@ data warrants it.
 
 For local storage, back up `storage/app` alongside the database, at the same
 moment, so the two agree. Batch stickers and material-request PDFs are
-generated on request from the database and are not stored.
+generated on request from the database and are not stored. Marketplace
+label PDFs are kept under `storage/app/private/online-orders/`: they carry
+customers' names and addresses, so the backup holding them is as sensitive
+as the database. Handover sheets are generated on request.
 
 ---
 

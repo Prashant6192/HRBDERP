@@ -82,6 +82,8 @@ final class FactoryException
             'production_below_target' => 'Production below target',
             'material_variance' => 'High material variance',
             'abnormal_wastage' => 'Abnormal wastage',
+            'parcels_not_packed' => 'Online orders not packed',
+            'parcels_blocked' => 'Online orders blocked',
             default => ucfirst(str_replace('_', ' ', $rule)),
         };
     }

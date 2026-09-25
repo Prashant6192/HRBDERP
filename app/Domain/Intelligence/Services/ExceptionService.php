@@ -12,6 +12,11 @@ use App\Domain\Inventory\Enums\StockTransferStatus;
 use App\Domain\Inventory\Models\StockTransfer;
 use App\Domain\Manufacturing\Enums\ManufacturingOrderStatus;
 use App\Domain\Manufacturing\Models\ManufacturingOrder;
+use App\Domain\Marketplace\Enums\ShipmentStatus;
+use App\Domain\Marketplace\Enums\StockState;
+use App\Domain\Marketplace\Models\LabelBatch;
+use App\Domain\Marketplace\Models\Shipment;
+use App\Domain\Marketplace\Support\Cutoff;
 use App\Domain\Planning\Enums\MaterialRequestStatus;
 use App\Domain\Planning\Enums\ProductionPlanStatus;
 use App\Domain\Planning\Models\MaterialRequest;
@@ -61,6 +66,8 @@ class ExceptionService
             ->merge($this->belowTarget($facility, $asOf))
             ->merge($this->materialVariance($facility, $asOf))
             ->merge($this->abnormalWastage($facility, $asOf))
+            ->merge($this->parcelsNotPacked($facility, $asOf))
+            ->merge($this->parcelsBlocked($facility))
             ->sortBy([
                 fn (FactoryException $a, FactoryException $b) => $rank[$a->severity] <=> $rank[$b->severity],
                 fn (FactoryException $a, FactoryException $b) => $a->since->getTimestamp() <=> $b->since->getTimestamp(),
@@ -528,5 +535,104 @@ class ExceptionService
                 metrics: ['wasted' => (string) $wasted, 'consumed' => (string) $consumed, 'percent' => (string) $percent],
             );
         })->filter()->values();
+    }
+
+    /**
+     * Marketplace labels printed (or not even printed) and still not packed
+     * after the day's cut-off: one exception per facility per day, standing
+     * until every parcel is packed or cancelled with a reason.
+     *
+     * @return Collection<int, FactoryException>
+     */
+    private function parcelsNotPacked(?Facility $facility, CarbonImmutable $asOf): Collection
+    {
+        return Shipment::query()
+            ->join('label_batches', 'label_batches.id', '=', 'shipments.label_batch_id')
+            ->join('facilities', 'facilities.id', '=', 'label_batches.facility_id')
+            ->whereIn('shipments.status', ShipmentStatus::awaitingPacking())
+            ->whereDate('label_batches.for_date', '<=', Cutoff::today($asOf)->toDateString())
+            ->when($facility, fn ($q) => $q->where('label_batches.facility_id', $facility->id))
+            ->selectRaw("label_batches.facility_id, facilities.name AS facility, facilities.code AS facility_code, label_batches.for_date::date AS day, COUNT(*) AS parcels, SUM(CASE WHEN shipments.status = 'printed' THEN 1 ELSE 0 END) AS printed")
+            ->groupBy('label_batches.facility_id', 'facilities.name', 'facilities.code', 'label_batches.for_date')
+            ->toBase()
+            ->get()
+            ->filter(fn ($row) => Cutoff::passed((string) $row->day, $asOf))
+            ->groupBy(fn ($row) => $row->facility_id.'|'.$row->day)
+            ->map(function (Collection $rows) use ($asOf): FactoryException {
+                $first = $rows->first();
+                $day = (string) $first->day;
+                $parcels = (int) $rows->sum('parcels');
+                $printed = (int) $rows->sum('printed');
+                $since = Cutoff::on($day);
+
+                return new FactoryException(
+                    rule: 'parcels_not_packed',
+                    subject: "{$first->facility_code}:{$day}",
+                    severity: FactoryException::HIGH,
+                    title: "{$parcels} online order(s) not packed at {$first->facility}",
+                    detail: sprintf(
+                        '%s: %d label(s) printed and not packed, %d not even printed. The cut-off was %s.',
+                        CarbonImmutable::parse($day)->format('j M'),
+                        $printed,
+                        $parcels - $printed,
+                        $since->format('g:i A'),
+                    ),
+                    href: route('online-orders.index', ['date' => $day, 'facility' => $first->facility_id]),
+                    since: $since,
+                    metrics: ['parcels' => $parcels, 'printed' => $printed, 'hours_late' => round($since->diffInMinutes($asOf, true) / 60, 1)],
+                    facilityId: (int) $first->facility_id,
+                );
+            })
+            ->values();
+    }
+
+    /**
+     * Parcels that cannot be packed: the store is short, the label's SKU is
+     * not mapped to a product, or its AWB was never read.
+     *
+     * @return Collection<int, FactoryException>
+     */
+    private function parcelsBlocked(?Facility $facility): Collection
+    {
+        return LabelBatch::query()
+            ->when($facility, fn ($q) => $q->where('facility_id', $facility->id))
+            ->whereHas('shipments', fn ($q) => $this->blocked($q))
+            ->withCount([
+                'shipments as short' => fn ($q) => $this->blocked($q)->where('stock_state', StockState::Short->value),
+                'shipments as unmapped' => fn ($q) => $this->blocked($q)->where('stock_state', StockState::Unmapped->value),
+                'shipments as no_awb' => fn ($q) => $this->blocked($q)->whereNull('awb'),
+            ])
+            ->with(['brand:id,name', 'marketplace:id,name', 'facility:id,name'])
+            ->get()
+            ->map(function (LabelBatch $b): FactoryException {
+                $parts = array_filter([
+                    $b->short > 0 ? "{$b->short} short of stock" : null,
+                    $b->unmapped > 0 ? "{$b->unmapped} with a product not mapped" : null,
+                    $b->no_awb > 0 ? "{$b->no_awb} with no AWB" : null,
+                ]);
+
+                return new FactoryException(
+                    rule: 'parcels_blocked',
+                    subject: $b->number,
+                    severity: FactoryException::MEDIUM,
+                    title: "{$b->brand?->name} {$b->marketplace?->name} parcels cannot be packed",
+                    detail: "{$b->number} at {$b->facility?->name}: ".implode(', ', $parts).'.',
+                    href: route('online-orders.show', $b),
+                    since: CarbonImmutable::instance($b->created_at),
+                    metrics: ['short' => (int) $b->short, 'unmapped' => (int) $b->unmapped, 'no_awb' => (int) $b->no_awb],
+                    facilityId: $b->facility_id,
+                );
+            })
+            ->values();
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder<Shipment>|\Illuminate\Database\Eloquent\Relations\Relation<Shipment, *, *>  $query
+     */
+    private function blocked($query)
+    {
+        return $query
+            ->whereIn('status', ShipmentStatus::awaitingPacking())
+            ->where(fn ($q) => $q->whereIn('stock_state', [StockState::Short->value, StockState::Unmapped->value])->orWhereNull('awb'));
     }
 }

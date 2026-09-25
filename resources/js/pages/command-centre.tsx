@@ -129,7 +129,19 @@ type Snapshot = {
     delayed: Exception[];
     awaiting_qc: AwaitingQc[];
     short: Short[];
-    dispatching: { due: Due[]; awaiting_dispatch: AwaitingDispatch[] };
+    dispatching: {
+        due: Due[];
+        awaiting_dispatch: AwaitingDispatch[];
+        online: {
+            parcels: number;
+            to_pack: number;
+            packed: number;
+            handed_over: number;
+            past_cutoff: boolean;
+            cutoff: string;
+            href: string;
+        } | null;
+    };
     approvals: ApprovalRow[];
     tomorrow: Tomorrow[];
     exceptions: Exception[];
@@ -588,19 +600,65 @@ export default function CommandCentre({
                         title="Dispatching today"
                         count={
                             snapshot.dispatching.due.length +
-                            snapshot.dispatching.awaiting_dispatch.length
+                            snapshot.dispatching.awaiting_dispatch.length +
+                            (snapshot.dispatching.online?.to_pack ?? 0)
                         }
                         tone={
-                            snapshot.dispatching.due.some((d) => d.overdue)
+                            snapshot.dispatching.due.some((d) => d.overdue) ||
+                            snapshot.dispatching.online?.past_cutoff
                                 ? 'danger'
                                 : 'default'
                         }
                     >
                         {snapshot.dispatching.due.length === 0 &&
-                        snapshot.dispatching.awaiting_dispatch.length === 0 ? (
+                        snapshot.dispatching.awaiting_dispatch.length === 0 &&
+                        snapshot.dispatching.online === null ? (
                             <Empty>Nothing due out today.</Empty>
                         ) : (
                             <div className="space-y-1">
+                                {snapshot.dispatching.online && (
+                                    <Row
+                                        href={snapshot.dispatching.online.href}
+                                        tone={
+                                            snapshot.dispatching.online
+                                                .past_cutoff
+                                                ? 'late'
+                                                : undefined
+                                        }
+                                        title={
+                                            <>
+                                                Online orders
+                                                <span className="text-muted-foreground font-normal">
+                                                    {' '}
+                                                    ·{' '}
+                                                    {
+                                                        snapshot.dispatching
+                                                            .online.parcels
+                                                    }{' '}
+                                                    parcels
+                                                </span>
+                                            </>
+                                        }
+                                        meta={`${snapshot.dispatching.online.to_pack} to pack by ${snapshot.dispatching.online.cutoff} · ${snapshot.dispatching.online.packed} packed · ${snapshot.dispatching.online.handed_over} with courier`}
+                                        right={
+                                            snapshot.dispatching.online
+                                                .past_cutoff ? (
+                                                <StatusBadge variant="destructive">
+                                                    Past cut-off
+                                                </StatusBadge>
+                                            ) : snapshot.dispatching.online
+                                                  .to_pack === 0 ? (
+                                                <StatusBadge variant="success">
+                                                    All packed
+                                                </StatusBadge>
+                                            ) : (
+                                                <StatusBadge variant="warning">
+                                                    Packing
+                                                </StatusBadge>
+                                            )
+                                        }
+                                    />
+                                )}
                                 {snapshot.dispatching.due.map((d) => (
                                     <Row
                                         key={d.id}

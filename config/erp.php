@@ -197,6 +197,21 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Online orders
+    |--------------------------------------------------------------------------
+    |
+    | Marketplace labels uploaded each morning. A label printed and not
+    | packed by the cut-off (local time) is raised as an exception, and
+    | stays raised until the parcel is packed or cancelled.
+    |
+    */
+
+    'online_orders' => [
+        'cutoff' => env('ERP_ONLINE_ORDERS_CUTOFF', '16:00'),
+    ],
+
     'exceptions' => [
         // A QC decision pending longer than this is slow (hours).
         'qc_pending_hours' => (int) env('ERP_QC_PENDING_HOURS', 6),
@@ -256,6 +271,15 @@ return [
         ],
         'stock_discrepancy' => [
             ['after_hours' => 0, 'roles' => ['Warehouse Manager', 'Factory Manager']],
+        ],
+        // Labels printed and not packed by the cut-off: the gate first,
+        // then the owners if it is still so two hours later.
+        'parcels_not_packed' => [
+            ['after_hours' => 0, 'roles' => ['Dispatch Manager']],
+            ['after_hours' => 2, 'roles' => ['Owner', 'Director']],
+        ],
+        'parcels_blocked' => [
+            ['after_hours' => 0, 'roles' => ['Dispatch Manager', 'E-commerce Manager']],
         ],
         'price_increase' => [
             ['after_hours' => 0, 'roles' => ['Purchase Manager', 'Director']],

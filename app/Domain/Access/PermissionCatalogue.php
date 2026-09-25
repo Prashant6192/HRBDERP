@@ -157,10 +157,17 @@ final class PermissionCatalogue
             'group' => 'Commercial',
             'abilities' => self::CRUD,
         ],
+        // Online orders: the marketplaces' labels and each parcel's day.
+        // upload: add a day's label PDFs (the agency); print: print them at
+        // the depot; pack: scan a label as its parcel is packed, which takes
+        // the stock out; handover: record the courier's pickup; return:
+        // receive a parcel that came back, good goods to the shelf and
+        // damaged ones to the damaged store; manage: brands, SKU mappings,
+        // packing without a scan, claims.
         'marketplace' => [
-            'label' => 'Marketplace',
+            'label' => 'Online orders',
             'group' => 'Commercial',
-            'abilities' => ['view', 'import', 'reconcile', 'export'],
+            'abilities' => ['view', 'upload', 'print', 'pack', 'handover', 'return', 'manage', 'import', 'reconcile', 'export'],
         ],
         'costing' => [
             'label' => 'Costing',

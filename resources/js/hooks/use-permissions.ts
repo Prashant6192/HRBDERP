@@ -27,5 +27,16 @@ export function usePermissions() {
 
     const isSuperAdmin = auth?.isSuperAdmin === true;
 
-    return { can, canAny, canAll, hasRole, isSuperAdmin, permissions, roles };
+    const isAgency = auth?.agency === true;
+
+    return {
+        can,
+        canAny,
+        canAll,
+        hasRole,
+        isSuperAdmin,
+        isAgency,
+        permissions,
+        roles,
+    };
 }

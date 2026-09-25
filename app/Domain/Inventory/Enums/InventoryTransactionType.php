@@ -14,6 +14,7 @@ namespace App\Domain\Inventory\Enums;
 enum InventoryTransactionType: string
 {
     case OpeningBalance = 'OPENING_BALANCE';
+    case OpeningCorrection = 'OPENING_CORRECTION';
     case GrnReceipt = 'GRN_RECEIPT';
     case PurchaseReturn = 'PURCHASE_RETURN';
     case QcRelease = 'QC_RELEASE';
@@ -28,6 +29,9 @@ enum InventoryTransactionType: string
     case Expiry = 'EXPIRY';
     case Sample = 'SAMPLE';
     case SalesDispatch = 'SALES_DISPATCH';
+    // A parcel packed against a marketplace label.
+    case MarketplaceSale = 'MARKETPLACE_SALE';
+    case MarketplaceReturn = 'MARKETPLACE_RETURN';
     case MarketplaceTransfer = 'MARKETPLACE_TRANSFER';
     case Reversal = 'REVERSAL';
 
@@ -35,6 +39,7 @@ enum InventoryTransactionType: string
     {
         return match ($this) {
             self::OpeningBalance => 'Opening balance',
+            self::OpeningCorrection => 'Opening stock corrected',
             self::GrnReceipt => 'Goods receipt',
             self::PurchaseReturn => 'Purchase return',
             self::QcRelease => 'QC release to store',
@@ -49,6 +54,8 @@ enum InventoryTransactionType: string
             self::Expiry => 'Expired',
             self::Sample => 'Sample',
             self::SalesDispatch => 'Dispatched',
+            self::MarketplaceSale => 'Sold online (packed)',
+            self::MarketplaceReturn => 'Online order returned',
             self::MarketplaceTransfer => 'Transferred to marketplace',
             self::Reversal => 'Reversal of an earlier posting',
         };
@@ -56,7 +63,9 @@ enum InventoryTransactionType: string
 
     /**
      * Which direction lines of this type are allowed to go.
-     * 'in' → positive only, 'out' → negative only, 'both' → transfers.
+     * 'in' → positive only, 'out' → negative only, 'both' → transfers,
+     * which net to zero; 'signed' → either way without netting, for
+     * correcting opening stock before any of it has moved.
      */
     public function direction(): string
     {
@@ -65,7 +74,8 @@ enum InventoryTransactionType: string
             self::GrnReceipt,
             self::ProductionReturn,
             self::ProductionOutput,
-            self::StockAdjustmentIn => 'in',
+            self::StockAdjustmentIn,
+            self::MarketplaceReturn => 'in',
 
             self::PurchaseReturn,
             self::ProductionConsumption,
@@ -73,13 +83,16 @@ enum InventoryTransactionType: string
             self::Damage,
             self::Expiry,
             self::Sample,
-            self::SalesDispatch => 'out',
+            self::SalesDispatch,
+            self::MarketplaceSale => 'out',
 
             self::QcRelease,
             self::QcRejection,
             self::StockTransfer,
             self::MarketplaceTransfer,
             self::Reversal => 'both',
+
+            self::OpeningCorrection => 'signed',
         };
     }
 

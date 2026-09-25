@@ -37,4 +37,13 @@ class FacilityPolicy extends ModulePolicy
     {
         return $user->can('inventory.opening_stock');
     }
+
+    /**
+     * Changing or removing a booked line of opening stock: whoever books
+     * opening stock and may also reverse postings.
+     */
+    public function correctOpeningStock(User $user, Model $model): bool
+    {
+        return $user->can('inventory.opening_stock') && $user->can('inventory.reverse');
+    }
 }

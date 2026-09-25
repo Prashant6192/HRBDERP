@@ -22,6 +22,8 @@ export type Auth = {
      */
     permissions: string[];
     isSuperAdmin: boolean;
+    /** An outside agency that only uploads marketplace labels. */
+    agency?: boolean;
 };
 
 export type Passkey = {

@@ -6,6 +6,8 @@ use App\Domain\Intelligence\Assistant\AssistantBackend;
 use App\Domain\Intelligence\Assistant\ClaudeBackend;
 use App\Domain\Inventory\Contracts\ChallanReader;
 use App\Domain\Inventory\Services\ClaudeChallanReader;
+use App\Domain\Marketplace\Contracts\AiLabelReader;
+use App\Domain\Marketplace\Readers\ClaudeLabelReader;
 use App\Domain\Procurement\Contracts\InvoiceReader;
 use App\Domain\Procurement\Services\BillReader;
 use Carbon\CarbonImmutable;
@@ -28,6 +30,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(InvoiceReader::class, BillReader::class);
         $this->app->bind(ChallanReader::class, ClaudeChallanReader::class);
+        $this->app->bind(AiLabelReader::class, ClaudeLabelReader::class);
         $this->app->bind(AssistantBackend::class, ClaudeBackend::class);
 
         //

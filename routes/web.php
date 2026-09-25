@@ -17,6 +17,7 @@ use App\Http\Controllers\Dispatch\CustomerController;
 use App\Http\Controllers\Dispatch\DispatchController;
 use App\Http\Controllers\Documents\DocumentController;
 use App\Http\Controllers\Floor\FloorController;
+use App\Http\Controllers\Floor\ParcelController;
 use App\Http\Controllers\Formulation\FormulaController;
 use App\Http\Controllers\Formulation\FormulaImportController;
 use App\Http\Controllers\Formulation\FormulaSecurityController;
@@ -45,6 +46,10 @@ use App\Http\Controllers\MasterData\ProductController;
 use App\Http\Controllers\MasterData\ProductPackagingController;
 use App\Http\Controllers\MasterData\RawMaterialController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\OnlineOrders\BrandController;
+use App\Http\Controllers\OnlineOrders\ListingController;
+use App\Http\Controllers\OnlineOrders\OnlineOrderController;
+use App\Http\Controllers\OnlineOrders\ReturnController;
 use App\Http\Controllers\Planning\MaterialRequestController;
 use App\Http\Controllers\Planning\ProductionPlanController;
 use App\Http\Controllers\Procurement\GoodsReceiptController;
@@ -56,9 +61,13 @@ use App\Http\Controllers\Warehousing\EmployeeAssignmentController;
 use App\Http\Controllers\Warehousing\FacilityController;
 use App\Http\Controllers\Warehousing\FacilityStoreController;
 use App\Http\Controllers\Warehousing\WarehouseController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::inertia('/', 'welcome')->name('home');
+// The address itself is the way in: straight to the sign-in card, or to the
+// dashboard for someone already signed in. There is no public front page;
+// this ERP has nothing to show anyone who cannot sign in.
+Route::get('/', fn (Request $request) => redirect()->route($request->user() ? 'dashboard' : 'login'))->name('home');
 
 /*
 |--------------------------------------------------------------------------
@@ -111,6 +120,11 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('floor/issue/{order}', [FloorController::class, 'issue'])->name('floor.issue');
     Route::get('floor/production', [FloorController::class, 'production'])->name('floor.production');
     Route::post('floor/photo', [FloorController::class, 'photo'])->name('floor.photo');
+    Route::get('floor/pack', [ParcelController::class, 'pack'])->name('floor.pack');
+    Route::post('floor/pack', [ParcelController::class, 'scan'])->name('floor.pack.scan');
+    Route::get('floor/handover', [ParcelController::class, 'handover'])->name('floor.handover');
+    Route::post('floor/handover', [ParcelController::class, 'storeHandover'])->name('floor.handover.store');
+    Route::get('floor/return', [ReturnController::class, 'floor'])->name('floor.return');
 
     Route::get('counts', [StockCountController::class, 'index'])->name('counts.index');
     Route::post('counts', [StockCountController::class, 'store'])->name('counts.store');
@@ -133,6 +147,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('facilities/{facility}/employees', [EmployeeAssignmentController::class, 'store'])->name('facilities.employees.store');
     Route::get('facilities/{facility}/opening-stock', [OpeningStockController::class, 'create'])->name('facilities.opening-stock.create');
     Route::post('facilities/{facility}/opening-stock', [OpeningStockController::class, 'store'])->name('facilities.opening-stock.store');
+    Route::patch('facilities/{facility}/opening-stock/{lot}', [OpeningStockController::class, 'update'])->name('facilities.opening-stock.update');
+    Route::delete('facilities/{facility}/opening-stock/{lot}', [OpeningStockController::class, 'destroy'])->name('facilities.opening-stock.destroy');
     // The counting sheet for one store: the template to fill in, and the
     // filled-in sheet matched to the masters before it is booked.
     Route::get('stores/{warehouse}/opening-stock/template', [OpeningStockSheetController::class, 'template'])->name('stores.opening-stock.template');
@@ -197,6 +213,33 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('dispatches/{dispatch}/deliver', [DispatchController::class, 'deliver'])->name('dispatches.deliver');
     Route::post('dispatches/{dispatch}/cancel', [DispatchController::class, 'cancel'])->name('dispatches.cancel');
     Route::resource('customers', CustomerController::class)->except(['show', 'destroy']);
+
+    // Online orders: the marketplaces' labels, from the agency's upload to
+    // the courier's pickup.
+    Route::get('online-orders', [OnlineOrderController::class, 'index'])->name('online-orders.index');
+    Route::get('online-orders/upload', [OnlineOrderController::class, 'create'])->name('online-orders.create');
+    Route::post('online-orders', [OnlineOrderController::class, 'store'])->name('online-orders.store');
+    Route::get('online-orders/sku-mapping', [ListingController::class, 'index'])->name('listings.index');
+    Route::post('online-orders/sku-mapping', [ListingController::class, 'store'])->name('listings.store');
+    Route::patch('online-orders/sku-mapping/{listing}', [ListingController::class, 'update'])->name('listings.update');
+    Route::get('online-orders/brands', [BrandController::class, 'index'])->name('brands.index');
+    Route::patch('online-orders/brands/{brand}', [BrandController::class, 'update'])->name('brands.update');
+    Route::get('online-orders/files/{file}', [OnlineOrderController::class, 'file'])->name('online-orders.files.show');
+    Route::delete('online-orders/files/{file}', [OnlineOrderController::class, 'removeFile'])->name('online-orders.files.destroy');
+    Route::patch('online-orders/parcels/{shipment}', [OnlineOrderController::class, 'correct'])->name('online-orders.parcels.update');
+    Route::get('online-orders/lookup', [OnlineOrderController::class, 'lookup'])->name('online-orders.lookup');
+    Route::get('online-orders/returns', [ReturnController::class, 'index'])->name('online-orders.returns.index');
+    Route::get('online-orders/returns/receive', [ReturnController::class, 'create'])->name('online-orders.returns.create');
+    Route::get('online-orders/returns/lookup', [ReturnController::class, 'lookup'])->name('online-orders.returns.lookup');
+    Route::post('online-orders/returns', [ReturnController::class, 'store'])->name('online-orders.returns.store');
+    Route::patch('online-orders/returns/{return}/claim', [ReturnController::class, 'claim'])->name('online-orders.returns.claim');
+    Route::post('online-orders/parcels/{shipment}/cancel', [OnlineOrderController::class, 'cancel'])->name('online-orders.parcels.cancel');
+    Route::post('online-orders/parcels/{shipment}/pack', [OnlineOrderController::class, 'packManually'])->name('online-orders.parcels.pack');
+    Route::get('online-orders/handover-sheets/{sheet}', [ParcelController::class, 'sheet'])->name('handover-sheets.pdf');
+    Route::get('online-orders/{batch}', [OnlineOrderController::class, 'show'])->whereNumber('batch')->name('online-orders.show');
+    Route::post('online-orders/{batch}/close', [OnlineOrderController::class, 'close'])->name('online-orders.close');
+    Route::post('online-orders/{batch}/hold', [OnlineOrderController::class, 'holdAgain'])->name('online-orders.hold');
+    Route::post('online-orders/{batch}/print', [OnlineOrderController::class, 'print'])->name('online-orders.print');
 
     // Third-party / contract manufacturing clients and what is theirs.
     Route::get('clients/profitability', ClientProfitabilityController::class)->name('clients.profitability');

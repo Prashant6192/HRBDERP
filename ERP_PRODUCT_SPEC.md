@@ -95,7 +95,11 @@ Super Admin, Owner, Director and Management work company-wide.
 A five-step wizard sets a facility up: details, capabilities, the store
 checklist, employees (optional), and whether to book opening stock now.
 **Opening stock** is booked through the ledger as `OPENING_BALANCE` postings
-with a batch per line, and administrators close it once the facility is live. The administrator books the old stock of a whole facility from
+with a batch per line, and administrators close it once the facility is live.
+Until then a line booked by mistake can be changed (quantity, batch, dates,
+rate) or removed from the same screen, as long as none of that batch has
+been used, moved or reserved. The correction is an `OPENING_CORRECTION`
+posting with a reason, so the first figure stays in the history. The administrator books the old stock of a whole facility from
 **Store → Old Stock Entry**: raw materials, packaging and finished goods in
 three sections, by hand or from a filled-in sheet, one posting per store,
 every batch QC passed automatically and usable at once.
@@ -388,7 +392,8 @@ the approved current version.
 
 **QR and barcode on the floor.** Batch stickers, rack labels and batch
 cards carry QR codes; a phone camera opens the thing scanned in the floor
-mode. **Scan before issue:** at the kettle every drum is scanned against the
+mode. The camera also reads the barcodes on marketplace labels, in any
+browser, including on iPhones. **Scan before issue:** at the kettle every drum is scanned against the
 batch and passes only when it is the right material, released by QC, in
 date, the owner's own stock and the batch the store reserved; anything else
 is blocked with the reason and the attempt is recorded. The factory can
@@ -402,7 +407,8 @@ matched system.
 
 **Mobile floor mode.** A one-column, large-target screen for a phone at
 `/floor`, installable to the home screen: scan, issue, record the stage,
-count, photograph. No data is cached offline.
+count, photograph, pack online orders, hand them to the courier and
+receive them back as returns. No data is cached offline.
 
 **Department scorecards and OTIF.** Planning, purchase, stores, QC,
 manufacturing, packaging and dispatch each carry a scorecard read from the
@@ -456,6 +462,44 @@ everything that ever left, to whom, on which invoice, on which vehicle.
 
 Each facility bills under its own company: the factory's invoices name the
 manufacturing company, the depot's the brand owner.
+
+### Online orders — _built_
+
+The marketplace parcels leaving the Delhi depot. The agency that runs the
+marketplace accounts uploads each morning's label PDFs for a brand, as the
+marketplace produced them; every label becomes a parcel, read exactly from
+the label's text where the marketplace prints text (Meesho, Flipkart) and
+by the AI reader where it sends pictures (Amazon, Myntra). The SKU text on
+a label is mapped to a product once and remembered. Stock is held for each
+parcel in the brand's store from the upload; what the store cannot cover is
+shown as a shortfall before anyone starts packing.
+
+The depot prints the labels grouped by courier. A parcel is packed by
+scanning its label at the packing table — that is when its stock leaves,
+batch by batch, through the ledger — and the phone says in green or red
+whether to pack it and what goes in it. A cancelled order, a parcel already
+packed, an unmapped product, missing stock: each is stopped with the
+reason. Packed parcels are handed to each courier on a numbered sheet they
+sign. A label printed and not packed by the cut-off stays raised on the
+command centre, and escalates, until it is packed or cancelled with a
+reason.
+
+A marketplace SKU can be a combo of several products or a pack of two;
+each parcel carries a pick list, product by product, that the stock is
+held and taken against and the packer picks from. The main screen lists the
+day's parcels by status and courier, with a light per courier that turns
+green once its parcels are all packed. An order can be cancelled from the
+main screen by scanning its label until the courier has it.
+
+A parcel that comes back is received against itself: good goods back on the
+shelf in the batch they left from, damaged goods into the facility's
+damaged goods store as dead stock, what did not come back counted as such,
+and a claim with the marketplace's deadline for anything damaged, missing
+or wrong.
+
+An outside agency gets its own login with one role — upload and follow its
+own brands' parcels — and sees nothing else in the ERP. Order-sheet imports
+for labels that carry no product (Myntra) and COD reconciliation come next.
 
 ### Accounting and sales — _planned_
 

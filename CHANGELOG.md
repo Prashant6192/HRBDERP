@@ -10,6 +10,200 @@ between them.
 
 ## [Unreleased]
 
+### Added — Change or remove opening stock booked by mistake
+
+- **Book opening stock** now lists what has been booked at the facility,
+  store by store, with **Change** and **Remove** on each line. Change
+  corrects the quantity, batch number, dates or rate; Remove takes the line
+  back out. A reason is asked for each time.
+- Nothing is overwritten: each correction is its own **Opening stock
+  corrected** (`OPENING_CORRECTION`) posting, so the first figure, the
+  correction, who made it and why all stay in the stock history.
+- Allowed while the batch has not been used, moved or reserved, and while
+  opening stock is open for the facility. Anyone who can book opening stock
+  and reverse postings may do it: the Super Admin, the Owner, the Factory
+  Manager and the Warehouse Manager.
+
+### Changed — The agency only uploads labels
+
+- An **E-commerce Agency** login reaches the online-orders upload screens,
+  its notifications and its own account settings, and nothing else. Any
+  other page, the dashboard and floor mode included, takes it back to
+  online orders; any other action is refused.
+- It can no longer remove an uploaded file, cancel or correct a parcel, or
+  check stock again. Removing an upload that has not been printed is the
+  office's (Dispatch Manager). It no longer sees stock states or the ERP's
+  product names, only the labels as the marketplace printed them.
+
+### Changed — The Warehouse Manager runs the depot's online orders
+
+- The Warehouse Manager can now print labels, pack by scan and hand
+  parcels to the courier, as well as receive returns. SKU mapping, brands
+  and removing uploads stay with the Dispatch Manager.
+
+### Added — Online orders: combos, a working main screen, cancel by scan, returns
+
+- **The main screen is a working list.** Click a tile (Not printed, Printed
+  not packed, Packed, With courier, Need attention) or a courier's figures,
+  and the day's parcels are listed right there, across every batch. The
+  tiles only counted before, which is why the filter seemed not to work.
+- **One table, aligned.** Parcels are listed in one table with a header row
+  per courier, so the columns line up from Shadowfax to Valmo, on the main
+  screen and on each batch. Every online-orders page keeps a margin from
+  the window's edges.
+- **A light per courier.** Each courier's card glows **green** once every
+  parcel for it is packed, stays amber while some wait, and turns red after
+  the cut-off with parcels still waiting.
+- **Combos and packs of two.** A marketplace SKU can hold several products,
+  each with its pieces: "RR 500 ml + Satreetha" is two products; "pack of
+  2" is one product, 2 pieces. Mapped once on **SKU mapping**
+  (**Add another product (combo)**). Each parcel has a **pick list**:
+  stock is held and taken product by product, and the packer's phone says
+  **PICK 2 pieces** for each product, with "2 different products, 3 pieces
+  in this parcel" when there is more than one. A parcel short of one
+  product names it.
+- **Cancel an order from anywhere.** **Cancel an order** on the main
+  screen: scan or type the AWB or order number, see the parcel, pick the
+  reason. The depot (print or pack) and the office may cancel until the
+  courier has it; the agency before packing, as before. A packed parcel's
+  stock goes back on the shelf.
+- **Returns.** **Online orders → Returns → Receive a return**: scan the
+  returning parcel, choose RTO (not delivered) or customer return, and
+  count each product as good or damaged; what is not counted is "not
+  received". Good goods go back on the finished goods shelf **in the batch
+  they left from**; damaged goods go to the facility's **Damaged Goods
+  Store**, opened automatically the first time, where they stay as dead
+  stock until someone decides to write them off. Posted as
+  `MARKETPLACE_RETURN` (`RT-yymm-00001`). Anything damaged, missing or
+  wrong opens a **claim** with the marketplace's deadline; the returns list
+  shows claims to raise, overdue ones in red, and records the outcome. The
+  parcel shows **Returned** and is refused at the packing table.
+- **The returns screens are laid out like the rest of the ERP.** A
+  breadcrumb trail replaces the loose back buttons, and each screen has one
+  main action at the top right. The returns list has five summary figures,
+  one filter bar (All returns, Claims to raise, Overdue, marketplace,
+  dates) and a table that becomes cards on a phone. Receiving a return
+  runs in numbered steps and ends in one bar with the totals, **Cancel**
+  and **Receive this return**. On the main screen, **Receive a return**
+  and the returns list sit under one **Returns** menu. On a phone, page
+  breadcrumbs show only the last two steps, and page-header buttons no
+  longer squeeze into a column beside a long description.
+- **Receive a return on a phone.** Floor mode has a new **Receive a
+  return** tile. Scan the returning packet's label with the camera or a
+  handheld scanner, set the good and damaged pieces with − and + buttons,
+  and press **Receive this return** in the bar pinned to the bottom of the
+  screen. The phone goes straight back to the scanner for the next packet.
+  The desk screen counts with the same − and + buttons.
+- **Scan with the camera, on any phone or laptop.** **Receive a return**
+  on the desk has a **Camera** button beside **Find**. Hold the label's
+  barcode in the box and the parcel opens by itself. The floor phone opens
+  the camera straight away. The camera now reads every barcode printed on
+  marketplace labels (Code 128, Code 39, Data Matrix, PDF417 and more, as
+  well as QR codes) and works on iPhones and in Firefox too. Where the
+  browser has no barcode reader of its own, the ERP's own reader takes
+  over, served from the ERP and not from an outside site. Packing, courier
+  pickup and the floor scanner use the same camera.
+- New permission `marketplace.return`, given to the Store Executive and the
+  Warehouse Manager (and to the Dispatch and E-commerce Managers through
+  `marketplace.*`).
+
+### Added — Online orders: marketplace labels, packed by scan
+
+The Delhi depot's marketplace parcels, from the agency's upload to the
+courier's signature, so a printed label can no longer be forgotten.
+
+- **Dispatch → Online orders.** The e-commerce agency uploads the day's
+  label PDFs for a brand, exactly as Meesho, Flipkart, Amazon or Myntra gave
+  them. Every label becomes a parcel: its AWB, courier, COD or prepaid,
+  amount, order and invoice number, customer's state, and the SKU and
+  quantity it carries. **Meesho and Flipkart labels are read exactly from
+  their text** on the server, at no cost; **Amazon and Myntra send
+  pictures**, so their pages go to the AI reader (the same one that reads
+  supplier bills), which also keeps an Amazon label together with the
+  invoice pages after it. A page nobody could read still becomes a parcel,
+  flagged, to be typed in — it is never silently dropped.
+- **The same file twice is refused; a label already uploaded is skipped**
+  with a warning naming it, so a re-download from the portal cannot double
+  an order. Labels registered to ship from another state than the store
+  they leave (Uttarakhand labels leaving Delhi) are flagged.
+- **SKU mapping, once.** The SKU text a marketplace prints ("Medicated oil
+  300 ml", "Medicated_Oil_500ml_Po2") is mapped to the product once per
+  brand and marketplace — with units per order for a pack of two — and every
+  label after is matched without asking, however its spacing and case come
+  out.
+- **Stock is held from the upload** in the brand's store — Paper Market's
+  finished goods store by default — oldest batch first, first uploaded
+  first served. What the store cannot cover is marked short, with the
+  shortfall product by product, and held as soon as stock arrives
+  (**Check stock again**, or on its own at print and at packing). A brand
+  selling a contract client's goods takes only that client's batches.
+- **"That's all for today"** tells the depot, by bell and by email, that
+  the labels are ready to print.
+- **Print by courier.** All, only what is new, one courier's pile, or one
+  label: the browser puts the pages together from the marketplace's own
+  files — never altered — in courier order. Every print is logged; a reprint
+  is counted.
+- **Floor → Pack parcels.** Put the goods in the box and scan the label.
+  The phone says **PACKED** in green with the product and count in large
+  type, or **STOP** in red with the reason: the order was cancelled, it was
+  already packed (by whom, when), the product is not mapped, there is not
+  enough stock, or it belongs to another facility. A beep for yes, a buzz
+  for no. **The stock leaves the store at that moment**, through the ledger
+  (`MARKETPLACE_SALE`), batch by batch against the parcel — so online sales
+  now feed reorder advice and recall tracing.
+- **Floor → Courier pickup.** Tick or scan what each courier takes and print
+  the numbered handover sheet (`HO-yymm-00001`) for their signature.
+- **Nothing printed is forgotten.** Labels not packed by the cut-off (4 PM
+  by default) are raised as an exception per facility per day, standing
+  until every parcel is packed or cancelled with a reason, escalating from
+  the Dispatch Manager to the Owner and Director after two hours. Parcels
+  that cannot be packed (short, not mapped, no AWB) are raised too. The
+  command centre shows today's online orders.
+- **Cancelling** before packing lets go of what was held; after packing,
+  and before the courier has it, the posting is reversed and the goods go
+  back on the shelf. A parcel with the courier comes back as a return. Packing without a scan is the office's call and records
+  the reason.
+- **Dispatch → Brands** sets where each brand ships from, whose stock it
+  sells, and which agency accounts upload for it. Rahat Rooh and Cleanse
+  Ayurveda are set up, with Meesho, Flipkart, Amazon and Myntra.
+- **E-commerce Agency** role, for the outside agency: uploads and follows
+  its own brands' parcels, and sees nothing else in the ERP — no stock
+  figures, no products, no prices, no other menu. The **Accounts Manager**
+  prints; the **Store Executive** packs and hands over; the **Dispatch
+  Manager** has all of it.
+- `ERP_ONLINE_ORDERS_CUTOFF` (default `16:00`, local time).
+
+### Added — Forgot password, handled by the employee themselves
+
+- **Forgot password?** on the sign-in card now emails a link that works once,
+  for 60 minutes, to choose a new password. No administrator is involved. The
+  email is the ERP's own: its name, the amber button, when and from which
+  browser and IP address the request came, and that ignoring it changes
+  nothing.
+- **The form reveals nothing.** Every request gets the same reply, whether the
+  address is unknown, deactivated or real, so it cannot be used to find out
+  who has an account. Three requests per address and ten per network every
+  fifteen minutes, on top of one per account per minute.
+- **A deactivated account gets no email,** and a link issued before the
+  account was withdrawn is refused.
+- **Every other session is signed out** when a password changes, whether reset
+  from a link or changed in settings; the session making the change carries
+  on. "Keep me signed in" cookies from before stop working. The reset is
+  written to the audit trail and clears a forced password change.
+- **Real addresses behind the load balancer.** The application now trusts the
+  hosting platform's proxy headers, so the reset link comes out as `https://`
+  and the IP address shown in the email and recorded in the audit trail — for
+  sign-ins too — is the person's, not the balancer's.
+- **Needs mail configured** in the environment: SMTP settings from Postmark,
+  Resend or Google Workspace, and a from-address on a verified domain. See
+  DEPLOYMENT.md. Without them the email goes to the log and nobody receives it.
+
+### Changed — The address opens the sign-in card
+
+- The bare address, `erp.rahatrooh.com`, now goes straight to the sign-in card,
+  or to the dashboard for someone already signed in. The framework's welcome
+  page is gone; this ERP has nothing to show anyone who cannot sign in.
+
 ### Fixed — Opening stock and production plans failing on save
 
 - **Book opening stock** returned a server error (500) for any line with a

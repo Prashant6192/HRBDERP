@@ -6,6 +6,7 @@ namespace App\Http\Middleware;
 
 use App\Domain\Access\PermissionCatalogue;
 use App\Domain\Formulation\Services\FormulaSecurityService;
+use App\Domain\Marketplace\Services\BrandAccess;
 use App\Http\Controllers\NotificationController;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -62,6 +63,8 @@ class HandleInertiaRequests extends Middleware
                 // does anything. See SECURITY_ARCHITECTURE.md.
                 'permissions' => $this->permissionsFor($user),
                 'isSuperAdmin' => $user instanceof User && $user->isSuperAdmin(),
+                // An outside agency that only uploads labels.
+                'agency' => $user instanceof User && app(BrandAccess::class)->isRestricted($user),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
 

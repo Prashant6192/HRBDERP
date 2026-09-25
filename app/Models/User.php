@@ -8,13 +8,16 @@ use App\Domain\Access\Enums\RoleName;
 use App\Domain\Audit\Concerns\RecordsAuditTrail;
 use App\Domain\Identity\Enums\UserStatus;
 use App\Domain\Identity\Models\Department;
+use App\Domain\Marketplace\Models\Brand;
 use App\Domain\Warehousing\Models\EmployeeAssignment;
+use App\Notifications\ResetPasswordNotification;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -125,6 +128,17 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * The brands an outside agency may upload marketplace labels for.
+     * See BrandAccess.
+     *
+     * @return BelongsToMany<Brand, $this>
+     */
+    public function brands(): BelongsToMany
+    {
+        return $this->belongsToMany(Brand::class)->withTimestamps();
+    }
+
+    /**
      * Where this person works: one row per facility (or store) they are
      * assigned to. See EmployeeAssignment and FacilityAccess.
      *
@@ -148,6 +162,21 @@ class User extends Authenticatable implements PasskeyUser
     public function isActive(): bool
     {
         return $this->status->canAuthenticate() && $this->deleted_at === null;
+    }
+
+    /**
+     * The password reset email, branded and saying where the request came
+     * from. A deactivated account gets nothing: a reset link must never be
+     * the way back in for someone whose access was withdrawn. The screen
+     * that asked says the same thing either way, so it reveals nothing.
+     */
+    public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
+    {
+        if (! $this->isActive()) {
+            return;
+        }
+
+        $this->notify(ResetPasswordNotification::forCurrentRequest((string) $token));
     }
 
     /**

@@ -126,6 +126,20 @@ LOG_LEVEL=warning
 
 ERP_FORMULA_ACCESS_TTL_MINUTES=20
 ERP_FORMULA_REQUIRE_PIN=true
+
+# Mail: without this, "Forgot password" emails go nowhere.
+# SMTP from your provider; see DEPLOYMENT.md for Postmark and Resend values.
+MAIL_MAILER=smtp
+MAIL_SCHEME=smtp
+MAIL_HOST=smtp.postmarkapp.com
+MAIL_PORT=587
+MAIL_USERNAME=...
+MAIL_PASSWORD=...
+MAIL_FROM_ADDRESS="erp@yourdomain.com"
+MAIL_FROM_NAME="HRBD ERP"
+
+# Online orders: labels not packed by this time are raised and escalated.
+ERP_ONLINE_ORDERS_CUTOFF=16:00
 ```
 
 `APP_DEBUG` **must** be `false`. With it on, an error page shows the contents of
@@ -254,6 +268,21 @@ Then the day-to-day flow is: **Production Plans** (check the stores, raise
 material requests) → **Goods Receipts** against those requests → **QC
 Checkpoint** → **Manufacturing Orders** (approve, start, complete) → QC on the
 finished batch → Finished Goods Store.
+
+**Online orders at the depot**, once:
+
+1. **Dispatch → Brands**: check each brand ships from the right store (Paper
+   Market's finished goods store is chosen automatically when the depot's
+   name contains "Paper Market"), and set Cleanse Ayurveda's stock owner if
+   its stock belongs to HRBD as a contract client.
+2. **Employees**: create one account for the e-commerce agency with the
+   **E-commerce Agency** role, then tick it under its brands on the Brands
+   screen.
+3. **Facilities → the depot → Employees**: assign the depot's accountant and
+   packers to the depot. People are shown only the labels of the facilities
+   they work at.
+4. The first morning, map each SKU once under **Dispatch → SKU mapping**;
+   after that labels are matched on their own.
 
 ---
 

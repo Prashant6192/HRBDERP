@@ -44,6 +44,9 @@ enum RoleName: string
     case PackagingExecutive = 'Packaging Executive';
     case ProductionOperator = 'Production Operator';
 
+    // Outside the company: the agency that runs the marketplace accounts.
+    case EcommerceAgency = 'E-commerce Agency';
+
     /**
      * Whether this role bypasses individual permission checks entirely.
      */
@@ -79,6 +82,7 @@ enum RoleName: string
             self::StoreExecutive => 'Receives deliveries, books stock in and prints batch stickers for the stores they are assigned to. No planning or production.',
             self::PackagingExecutive => 'Packs finished batches: sees orders ready to pack, records packaging consumption and completion. Nothing else.',
             self::ProductionOperator => 'Runs the kettle: sees approved orders, starts them and records consumption. No approvals, no planning.',
+            self::EcommerceAgency => 'The outside agency running the marketplace accounts: uploads the day\'s label PDFs for the brands it is given and sees what became of them. Cannot remove an upload, cancel or correct a parcel. Sees nothing else: no dashboard, no stock, no prices, no products.',
         };
     }
 
@@ -182,6 +186,11 @@ enum RoleName: string
                 'report.view', 'assistant.view', 'report.export',
                 'approval.view',
                 'document.view',
+                // Running the depot's online orders: print the labels, pack by
+                // scan, hand over to the courier, receive returns. SKU mapping,
+                // brands and uploads stay with the Dispatch Manager.
+                'marketplace.view', 'marketplace.print', 'marketplace.pack',
+                'marketplace.handover', 'marketplace.return',
             ],
 
             self::PurchaseManager => [
@@ -228,7 +237,8 @@ enum RoleName: string
                 'production.view',
                 'purchase.view', 'purchase.export',
                 'sales.view', 'sales.export',
-                'marketplace.view',
+                // The depot's accountant prints the day's labels.
+                'marketplace.view', 'marketplace.print', 'marketplace.export',
                 'costing.*',
                 'dispatch.view', 'dispatch.export',
                 'report.view', 'assistant.view', 'report.export',
@@ -266,6 +276,8 @@ enum RoleName: string
                 'facility.view', 'warehouse.view', 'product.view', 'client.view', 'uom.view',
                 'inventory.view',
                 'dispatch.*',
+                // Marketplace parcels leave through the same gate.
+                'marketplace.*',
                 'report.view', 'assistant.view',
                 'document.view',
             ],
@@ -307,6 +319,9 @@ enum RoleName: string
                 'inventory.view', 'inventory.receive', 'inventory.count', 'inventory.transfer', 'inventory.receive_transfer',
                 'purchase.view', 'purchase.create', 'purchase.receive',
                 'qc.view',
+                // Packing marketplace parcels by scanning their labels, and
+                // handing them to the courier.
+                'marketplace.view', 'marketplace.pack', 'marketplace.handover', 'marketplace.return',
             ],
 
             // Batches to pack: consumption of packaging and completion of the
@@ -320,6 +335,12 @@ enum RoleName: string
             self::ProductionOperator => [
                 'raw_material.view', 'uom.view',
                 'production.view', 'production.consume',
+            ],
+
+            // Upload the brand's labels and follow its parcels. Which brands
+            // is set on the user; see BrandAccess.
+            self::EcommerceAgency => [
+                'marketplace.view', 'marketplace.upload',
             ],
         };
     }

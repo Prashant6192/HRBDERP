@@ -15,6 +15,7 @@ export function AppSidebarHeader({
 }) {
     const { auth } = usePage<SharedData>().props;
     const seesReports = auth?.permissions?.includes('report.view') ?? false;
+    const isAgency = auth?.agency === true;
 
     return (
         <header className="border-sidebar-border/50 flex h-16 shrink-0 items-center justify-between gap-2 border-b px-6 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 md:px-4">
@@ -33,14 +34,16 @@ export function AppSidebarHeader({
                         <span className="hidden sm:inline">Management</span>
                     </Link>
                 )}
-                <Link
-                    href={floorIndex()}
-                    className="text-muted-foreground hover:bg-muted hover:text-foreground flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm"
-                    title="Shop-floor mode: scan, issue and record on a phone"
-                >
-                    <ScanLine className="size-4" />
-                    <span className="hidden sm:inline">Floor</span>
-                </Link>
+                {!isAgency && (
+                    <Link
+                        href={floorIndex()}
+                        className="text-muted-foreground hover:bg-muted hover:text-foreground flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm"
+                        title="Shop-floor mode: scan, issue and record on a phone"
+                    >
+                        <ScanLine className="size-4" />
+                        <span className="hidden sm:inline">Floor</span>
+                    </Link>
+                )}
                 <NotificationBell />
             </div>
         </header>

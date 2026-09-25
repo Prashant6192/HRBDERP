@@ -63,6 +63,15 @@ between them.
   and press **Receive this return** in the bar pinned to the bottom of the
   screen. The phone goes straight back to the scanner for the next packet.
   The desk screen counts with the same − and + buttons.
+- **Scan with the camera, on any phone or laptop.** **Receive a return**
+  on the desk has a **Camera** button beside **Find**. Hold the label's
+  barcode in the box and the parcel opens by itself. The floor phone opens
+  the camera straight away. The camera now reads every barcode printed on
+  marketplace labels (Code 128, Code 39, Data Matrix, PDF417 and more, as
+  well as QR codes) and works on iPhones and in Firefox too. Where the
+  browser has no barcode reader of its own, the ERP's own reader takes
+  over, served from the ERP and not from an outside site. Packing, courier
+  pickup and the floor scanner use the same camera.
 - New permission `marketplace.return`, given to the Store Executive and the
   Warehouse Manager (and to the Dispatch and E-commerce Managers through
   `marketplace.*`).

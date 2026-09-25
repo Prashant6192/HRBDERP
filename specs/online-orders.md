@@ -199,3 +199,10 @@ Asked for after the first week on the preview, and built together:
   and + buttons, and receive it from a bar pinned to the bottom of the
   screen. It posts to the same place as the desk screen and comes back to
   the scanner for the next packet.
+- **Camera scanning.** One camera component (`BarcodeCamera`) serves the
+  desk return screen (behind a **Camera** button), floor returns, packing,
+  courier pickup and the general floor scanner. It uses the browser's
+  `BarcodeDetector` where that reads Code 128, and otherwise the bundled
+  zxing-wasm reader (`barcode-detector` ponyfill), loaded on first use and
+  served from the ERP's own build. Formats: Code 128/39/93, Codabar, ITF,
+  EAN-13/8, UPC-A/E, QR, Data Matrix, PDF417. The camera needs HTTPS.

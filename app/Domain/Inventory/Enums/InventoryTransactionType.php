@@ -30,6 +30,7 @@ enum InventoryTransactionType: string
     case SalesDispatch = 'SALES_DISPATCH';
     // A parcel packed against a marketplace label.
     case MarketplaceSale = 'MARKETPLACE_SALE';
+    case MarketplaceReturn = 'MARKETPLACE_RETURN';
     case MarketplaceTransfer = 'MARKETPLACE_TRANSFER';
     case Reversal = 'REVERSAL';
 
@@ -52,6 +53,7 @@ enum InventoryTransactionType: string
             self::Sample => 'Sample',
             self::SalesDispatch => 'Dispatched',
             self::MarketplaceSale => 'Sold online (packed)',
+            self::MarketplaceReturn => 'Online order returned',
             self::MarketplaceTransfer => 'Transferred to marketplace',
             self::Reversal => 'Reversal of an earlier posting',
         };
@@ -68,7 +70,8 @@ enum InventoryTransactionType: string
             self::GrnReceipt,
             self::ProductionReturn,
             self::ProductionOutput,
-            self::StockAdjustmentIn => 'in',
+            self::StockAdjustmentIn,
+            self::MarketplaceReturn => 'in',
 
             self::PurchaseReturn,
             self::ProductionConsumption,

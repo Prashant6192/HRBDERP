@@ -31,6 +31,7 @@ import {
     Store,
     Tag,
     Tags,
+    Undo2,
     Truck,
     Users,
     Warehouse,
@@ -44,6 +45,7 @@ import { index as customersIndex } from '@/routes/customers';
 import { index as dispatchesIndex } from '@/routes/dispatches';
 import { index as listingsIndex } from '@/routes/listings';
 import { index as onlineOrdersIndex } from '@/routes/online-orders';
+import { index as returnsIndex } from '@/routes/online-orders/returns';
 import { index as formulasIndex } from '@/routes/formulas';
 import { index as manufacturingIndex } from '@/routes/manufacturing';
 import { index as materialRequestsIndex } from '@/routes/material-requests';
@@ -331,6 +333,12 @@ export const erpNavigation: ErpNavGroup[] = [
                 href: onlineOrdersIndex().url,
                 icon: ShoppingBag,
                 permission: 'marketplace.view',
+            },
+            {
+                title: 'Returns',
+                href: returnsIndex().url,
+                icon: Undo2,
+                permission: 'marketplace.return',
             },
             {
                 title: 'SKU mapping',

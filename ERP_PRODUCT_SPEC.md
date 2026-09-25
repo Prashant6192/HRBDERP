@@ -478,10 +478,22 @@ sign. A label printed and not packed by the cut-off stays raised on the
 command centre, and escalates, until it is packed or cancelled with a
 reason.
 
+A marketplace SKU can be a combo of several products or a pack of two;
+each parcel carries a pick list, product by product, that the stock is
+held and taken against and the packer picks from. The main screen lists the
+day's parcels by status and courier, with a light per courier that turns
+green once its parcels are all packed. An order can be cancelled from the
+main screen by scanning its label until the courier has it.
+
+A parcel that comes back is received against itself: good goods back on the
+shelf in the batch they left from, damaged goods into the facility's
+damaged goods store as dead stock, what did not come back counted as such,
+and a claim with the marketplace's deadline for anything damaged, missing
+or wrong.
+
 An outside agency gets its own login with one role — upload and follow its
-own brands' parcels — and sees nothing else in the ERP. Returns and damage
-claims are the next part; order-sheet imports for labels that carry no
-product (Myntra) after that.
+own brands' parcels — and sees nothing else in the ERP. Order-sheet imports
+for labels that carry no product (Myntra) and COD reconciliation come next.
 
 ### Accounting and sales — _planned_
 

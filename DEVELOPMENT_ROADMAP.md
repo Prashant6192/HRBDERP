@@ -91,6 +91,7 @@ Where the build has got to, and what comes next.
 | Batch reconciliation: filled, rejected, samples, bulk left over; bulk, packing and overall yields                         | Built |
 | Management view on a phone at `/m`: making, stock and value, to order, formulas, clients, batches ready, to bill          | Built |
 | Online orders: agency uploads marketplace labels, print by courier, pack by scan, courier handover, not-packed alarm      | Built |
+| Online orders: combos and pick lists, filterable main screen, cancel by scan, returns with damaged store and claims       | Built |
 
 ---
 
@@ -111,9 +112,6 @@ Where the build has got to, and what comes next.
 
 ### Phase 8 — Accounting, dispatch and sales
 
-- Online orders, part 2: returns (RTO and customer) received against the
-  original parcel, condition into the finished goods or damaged store, and
-  damage claims with the marketplace's deadline (see `specs/online-orders.md`)
 - Online orders, part 3: order-sheet import for labels that carry no product
   (Myntra), COD reconciliation
 - Sales orders and allocation from finished stock; dispatch notes

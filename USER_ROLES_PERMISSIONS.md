@@ -67,14 +67,14 @@ roles to the defaults below.
 
 ### Commercial
 
-| Module        | Key           | Abilities                                                                                |
-| ------------- | ------------- | ---------------------------------------------------------------------------------------- |
-| Dispatch      | `dispatch`    | `view`, `create`, `edit`, `invoice`, `dispatch`, `cancel`, `export`                      |
-| Sales         | `sales`       | `view`, `create`, `edit`, `delete`, `export`                                             |
-| Online orders | `marketplace` | `view`, `upload`, `print`, `pack`, `handover`, `manage`, `import`, `reconcile`, `export` |
-| Costing       | `costing`     | `view`, `edit`, `export`                                                                 |
-| Reports       | `report`      | `view`, `export`                                                                         |
-| ERP Assistant | `assistant`   | `view`                                                                                   |
+| Module        | Key           | Abilities                                                                                          |
+| ------------- | ------------- | -------------------------------------------------------------------------------------------------- |
+| Dispatch      | `dispatch`    | `view`, `create`, `edit`, `invoice`, `dispatch`, `cancel`, `export`                                |
+| Sales         | `sales`       | `view`, `create`, `edit`, `delete`, `export`                                                       |
+| Online orders | `marketplace` | `view`, `upload`, `print`, `pack`, `handover`, `return`, `manage`, `import`, `reconcile`, `export` |
+| Costing       | `costing`     | `view`, `edit`, `export`                                                                           |
+| Reports       | `report`      | `view`, `export`                                                                                   |
+| ERP Assistant | `assistant`   | `view`                                                                                             |
 
 ### Workflow
 
@@ -137,9 +137,12 @@ acknowledgement and signed invoice are on record.
 
 `marketplace.upload` adds a day's label PDFs and cancels a parcel before it
 is packed; `print` prints labels; `pack` packs a parcel by scanning its
-label, which takes its stock out; `handover` records a courier's pickup;
-`manage` maps SKUs, sets up brands, packs without a scan (with a reason)
-and cancels a packed parcel. Who sees which parcels is narrowed twice: an
+label, which takes its stock out; `print` and `pack` also cancel an order
+until the courier has it (a packed parcel's stock goes back); `handover`
+records a courier's pickup; `return` receives a parcel that came back —
+good goods to the shelf, damaged goods to the damaged goods store — and
+records the claim; `manage` maps SKUs and combos, sets up brands, packs
+without a scan (with a reason) and cancels. Who sees which parcels is narrowed twice: an
 **E-commerce Agency** account sees only the brands given to it on the
 Brands screen (and none until it is given one); everyone else sees the
 facilities they are assigned to. **Assign the depot's accountant and
@@ -393,6 +396,7 @@ Receives, adjusts and transfers stock, and maintains warehouse master data.
 | Reports             | `view`, `export`                                                                                                            |
 | ERP Assistant       | `view`                                                                                                                      |
 | Approvals           | `view`                                                                                                                      |
+| Online orders       | `view`, `return`                                                                                                            |
 
 ### Purchase Manager
 
@@ -591,7 +595,7 @@ Receives deliveries, books stock in and prints batch stickers for the stores the
 | Inventory           | `view`, `receive`, `count`, `transfer`, `receive_transfer` |
 | Procurement         | `view`, `create`, `receive`                                |
 | Quality Control     | `view`                                                     |
-| Online orders       | `view`, `pack`, `handover`                                 |
+| Online orders       | `view`, `pack`, `handover`, `return`                       |
 
 ### Packaging Executive
 

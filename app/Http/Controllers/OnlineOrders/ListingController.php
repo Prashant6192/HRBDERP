@@ -37,7 +37,7 @@ class ListingController extends Controller
             ->join('marketplaces', 'marketplaces.id', '=', 'shipments.marketplace_id')
             ->join('brands', 'brands.id', '=', 'shipments.brand_id')
             ->whereIn('shipments.status', ShipmentStatus::awaitingPacking())
-            ->whereNull('shipment_lines.item_id')
+            ->whereNull('shipment_lines.listing_id')
             ->groupBy('shipments.marketplace_id', 'marketplaces.name', 'shipments.brand_id', 'brands.name', 'shipment_lines.seller_sku')
             ->selectRaw('shipments.marketplace_id, marketplaces.name AS marketplace, shipments.brand_id, brands.name AS brand, shipment_lines.seller_sku, COUNT(DISTINCT shipments.id) AS parcels, MAX(shipment_lines.description) AS description')
             ->orderByDesc('parcels')
@@ -50,7 +50,7 @@ class ListingController extends Controller
             ->all();
 
         $listings = MarketplaceListing::query()
-            ->with(['marketplace:id,name', 'brand:id,name', 'item:id,code,name'])
+            ->with(['marketplace:id,name', 'brand:id,name', 'item:id,code,name', 'components.item:id,code,name'])
             ->orderBy('marketplace_id')->orderBy('brand_id')->orderBy('seller_sku')
             ->get()
             ->map(fn (MarketplaceListing $l) => [
@@ -58,6 +58,9 @@ class ListingController extends Controller
                 'brand' => $l->brand?->name, 'brand_id' => $l->brand_id, 'seller_sku' => $l->seller_sku,
                 'item_id' => $l->item_id, 'item' => $l->item?->name, 'item_code' => $l->item?->code,
                 'units_per_order' => $l->units_per_order, 'is_active' => $l->is_active,
+                'components' => $l->components->map(fn ($c) => [
+                    'item_id' => $c->item_id, 'item' => $c->item?->name, 'item_code' => $c->item?->code, 'units' => $c->units_per_order,
+                ])->all(),
             ])
             ->all();
 
@@ -79,26 +82,22 @@ class ListingController extends Controller
             'marketplace_id' => ['required', 'integer', Rule::exists('marketplaces', 'id')],
             'brand_id' => ['required', 'integer', Rule::exists('brands', 'id')],
             'seller_sku' => ['required', 'string', 'max:255'],
-            'item_id' => ['required', 'integer', Rule::exists('items', 'id')],
-            'units_per_order' => ['required', 'integer', 'min:1', 'max:100'],
+            ...$this->componentRules(),
         ]);
 
         try {
-            $listing = $this->orders->mapSku(
+            $listing = $this->orders->mapSkuTo(
                 Marketplace::query()->findOrFail($data['marketplace_id']),
                 Brand::query()->findOrFail($data['brand_id']),
                 $data['seller_sku'],
-                Item::query()->findOrFail($data['item_id']),
-                (int) $data['units_per_order'],
+                $this->components($data),
                 $request->user(),
             );
         } catch (OnlineOrderException $e) {
             return back()->withToast('error', $e->getMessage());
         }
 
-        $listing->load('item:id,name');
-
-        return back()->withToast('success', "\"{$listing->seller_sku}\" is {$listing->item?->name}".($listing->units_per_order > 1 ? " × {$listing->units_per_order}" : '').'. Waiting parcels have been matched.');
+        return back()->withToast('success', "\"{$listing->seller_sku}\" is {$this->describe($listing)}. Waiting parcels have been matched.");
     }
 
     public function update(Request $request, MarketplaceListing $listing): RedirectResponse
@@ -106,9 +105,8 @@ class ListingController extends Controller
         $this->authorize('marketplace.manage');
 
         $data = $request->validate([
-            'item_id' => ['required', 'integer', Rule::exists('items', 'id')],
-            'units_per_order' => ['required', 'integer', 'min:1', 'max:100'],
             'is_active' => ['required', 'boolean'],
+            ...$this->componentRules(required: $request->boolean('is_active')),
         ]);
 
         if (! $data['is_active']) {
@@ -118,18 +116,56 @@ class ListingController extends Controller
         }
 
         try {
-            $this->orders->mapSku(
+            $listing = $this->orders->mapSkuTo(
                 $listing->marketplace,
                 $listing->brand,
                 $listing->seller_sku,
-                Item::query()->findOrFail($data['item_id']),
-                (int) $data['units_per_order'],
+                $this->components($data),
                 $request->user(),
             );
         } catch (OnlineOrderException $e) {
             return back()->withToast('error', $e->getMessage());
         }
 
-        return back()->withToast('success', "\"{$listing->seller_sku}\" updated.");
+        return back()->withToast('success', "\"{$listing->seller_sku}\" is now {$this->describe($listing)}.");
+    }
+
+    /**
+     * One product with its pieces, or several for a combo. A single
+     * item_id / units_per_order pair is still accepted.
+     *
+     * @return array<string, mixed>
+     */
+    private function componentRules(bool $required = true): array
+    {
+        return [
+            'components' => [Rule::requiredIf(fn () => $required && ! request()->filled('item_id')), 'array', 'min:1', 'max:10'],
+            'components.*.item_id' => ['required', 'integer', Rule::exists('items', 'id')],
+            'components.*.units' => ['required', 'integer', 'min:1', 'max:100'],
+            'item_id' => ['nullable', 'integer', Rule::exists('items', 'id')],
+            'units_per_order' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return list<array{item: Item, units: int}>
+     */
+    private function components(array $data): array
+    {
+        $rows = $data['components'] ?? [['item_id' => $data['item_id'] ?? null, 'units' => $data['units_per_order'] ?? 1]];
+        $items = Item::query()->whereIn('id', array_column($rows, 'item_id'))->get()->keyBy('id');
+
+        return array_values(array_map(
+            fn (array $row) => ['item' => $items->get((int) $row['item_id']) ?? throw new OnlineOrderException('Choose the product.'), 'units' => (int) $row['units']],
+            $rows,
+        ));
+    }
+
+    private function describe(MarketplaceListing $listing): string
+    {
+        return $listing->components
+            ->map(fn ($c) => $c->item?->name.($c->units_per_order > 1 ? " × {$c->units_per_order}" : ''))
+            ->implode(' + ');
     }
 }

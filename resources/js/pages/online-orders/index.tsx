@@ -1,6 +1,7 @@
 import { Head, Link, router } from '@inertiajs/react';
 import {
     AlertTriangle,
+    Ban,
     ChevronLeft,
     ChevronRight,
     FileText,
@@ -8,16 +9,22 @@ import {
     Printer,
     Search,
     Truck,
+    Undo2,
     Upload,
+    X,
 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
+import { CancelOrderDialog } from '@/components/online-orders/cancel-order-dialog';
+import { ParcelTable } from '@/components/online-orders/parcel-table';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { TONE_VARIANT, when } from '@/lib/dispatch';
 import {
+    canCancel,
     courierName,
+    describeParcel,
     type Abilities,
     type Batch,
     type Parcel,
@@ -25,6 +32,10 @@ import {
 import { cn } from '@/lib/utils';
 import { pdf as sheetPdf } from '@/routes/handover-sheets';
 import { create, index, show } from '@/routes/online-orders';
+import {
+    create as receiveReturn,
+    index as returnsIndex,
+} from '@/routes/online-orders/returns';
 
 type Counts = {
     total: number;
@@ -33,7 +44,31 @@ type Counts = {
     packed: number;
     handed_over: number;
     cancelled: number;
+    returned: number;
     attention: number;
+};
+
+type Show =
+    | 'all'
+    | 'attention'
+    | 'not_printed'
+    | 'printed'
+    | 'to_pack'
+    | 'packed'
+    | 'handed_over'
+    | 'cancelled'
+    | 'returned';
+
+const SHOW_LABEL: Record<Show, string> = {
+    all: 'All parcels',
+    attention: 'Need attention',
+    not_printed: 'Not printed',
+    printed: 'Printed, not packed',
+    to_pack: 'To pack',
+    packed: 'Packed, waiting for the courier',
+    handed_over: 'With the courier',
+    cancelled: 'Cancelled',
+    returned: 'Returned',
 };
 
 type CourierRow = {
@@ -72,18 +107,26 @@ function Tile({
     value,
     tone = 'default',
     hint,
+    active,
+    onClick,
 }: {
     label: string;
     value: number;
     tone?: 'default' | 'danger' | 'warning' | 'success';
     hint?: string;
+    active: boolean;
+    onClick: () => void;
 }) {
     return (
-        <div
+        <button
+            type="button"
+            onClick={onClick}
+            aria-pressed={active}
             className={cn(
-                'bg-card rounded-xl border p-4',
+                'bg-card hover:border-primary/60 rounded-xl border p-4 text-left transition',
                 tone === 'danger' && 'border-red-600/40 bg-red-500/5',
                 tone === 'warning' && 'border-amber-600/40 bg-amber-500/5',
+                active && 'ring-primary ring-2 ring-offset-2',
             )}
         >
             <p className="text-muted-foreground text-xs tracking-wide uppercase">
@@ -103,7 +146,53 @@ function Tile({
             {hint && (
                 <p className="text-muted-foreground mt-1 text-xs">{hint}</p>
             )}
-        </div>
+        </button>
+    );
+}
+
+/**
+ * A courier's light: glowing green once every parcel for it is packed,
+ * amber while some wait, red once it is past the cut-off with some still
+ * waiting.
+ */
+function CourierLight({ state }: { state: 'done' | 'waiting' | 'late' }) {
+    const colour =
+        state === 'done'
+            ? 'bg-emerald-500'
+            : state === 'late'
+              ? 'bg-red-500'
+              : 'bg-amber-400';
+
+    return (
+        <span
+            className="relative flex size-3.5 shrink-0"
+            title={
+                state === 'done'
+                    ? 'Every parcel for this courier is packed'
+                    : state === 'late'
+                      ? 'Past the cut-off with parcels not packed'
+                      : 'Parcels still to pack'
+            }
+        >
+            {state !== 'waiting' && (
+                <span
+                    className={cn(
+                        'absolute inline-flex size-full animate-ping rounded-full opacity-75',
+                        colour,
+                    )}
+                />
+            )}
+            <span
+                className={cn(
+                    'relative inline-flex size-3.5 rounded-full',
+                    colour,
+                    state === 'done' &&
+                        'shadow-[0_0_10px_3px_rgba(16,185,129,0.65)]',
+                    state === 'late' &&
+                        'shadow-[0_0_10px_3px_rgba(239,68,68,0.6)]',
+                )}
+            />
+        </span>
     );
 }
 
@@ -115,6 +204,9 @@ export default function OnlineOrdersIndex({
     batches,
     totals,
     couriers,
+    parcels,
+    show: showing,
+    courier: courierFilter,
     sheets,
     search,
     found,
@@ -129,14 +221,19 @@ export default function OnlineOrdersIndex({
     batches: (Batch & { counts: Counts })[];
     totals: Omit<Counts, 'total'> & { parcels: number };
     couriers: CourierRow[];
+    parcels: Parcel[];
+    show: Show;
+    courier: string | null;
     sheets: Sheet[];
     search: string;
     found: Parcel[];
     facility: number | null;
     facilities: { value: string; label: string }[];
-    can: Abilities;
+    can: Abilities & { return: boolean };
 }) {
     const [query, setQuery] = useState(search);
+    const [cancelOpen, setCancelOpen] = useState(false);
+    const [cancelling, setCancelling] = useState<Parcel | null>(null);
     const go = (params: Record<string, string | number | null>) =>
         router.get(
             index().url,
@@ -145,11 +242,18 @@ export default function OnlineOrdersIndex({
                     date,
                     facility,
                     q: search || null,
+                    show: showing === 'all' ? null : showing,
+                    courier: courierFilter,
                     ...params,
-                }).filter(([, v]) => v !== null && v !== ''),
+                }).filter(
+                    ([k, v]) => v !== null && (v !== '' || k === 'courier'),
+                ),
             ),
             { preserveState: true, preserveScroll: true },
         );
+    const pick = (next: Show, courier: string | null = null) =>
+        go({ show: next === 'all' ? null : next, courier });
+    const mayCancelAny = can.upload || can.print || can.pack || can.manage;
 
     const onSearch = (e: FormEvent) => {
         e.preventDefault();
@@ -166,19 +270,46 @@ export default function OnlineOrdersIndex({
     return (
         <>
             <Head title="Online orders" />
-            <div className="space-y-6">
+            <div className="space-y-6 p-4 sm:p-6">
                 <PageHeader
                     title="Online orders"
                     description="The marketplaces' labels for the day: uploaded by the agency, printed by courier, packed by scanning each label, handed to the courier."
                     actions={
-                        can.upload && (
-                            <Button asChild>
-                                <Link href={create()}>
-                                    <Upload className="size-4" />
-                                    Upload labels
-                                </Link>
-                            </Button>
-                        )
+                        <>
+                            {mayCancelAny && (
+                                <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                        setCancelling(null);
+                                        setCancelOpen(true);
+                                    }}
+                                >
+                                    <Ban className="size-4" />
+                                    Cancel an order
+                                </Button>
+                            )}
+                            {can.return && (
+                                <Button variant="outline" asChild>
+                                    <Link href={receiveReturn()}>
+                                        <Undo2 className="size-4" />
+                                        Receive a return
+                                    </Link>
+                                </Button>
+                            )}
+                            {!can.restricted && (
+                                <Button variant="ghost" asChild>
+                                    <Link href={returnsIndex()}>Returns</Link>
+                                </Button>
+                            )}
+                            {can.upload && (
+                                <Button asChild>
+                                    <Link href={create()}>
+                                        <Upload className="size-4" />
+                                        Upload labels
+                                    </Link>
+                                </Button>
+                            )}
+                        </>
                     }
                 />
 
@@ -291,12 +422,7 @@ export default function OnlineOrdersIndex({
                                             {courierName(p.courier)}
                                         </span>
                                         <span className="text-muted-foreground">
-                                            {p.lines
-                                                .map(
-                                                    (l) =>
-                                                        `${l.item ?? l.seller_sku} × ${l.quantity}`,
-                                                )
-                                                .join(', ')}
+                                            {describeParcel(p)}
                                         </span>
                                         <StatusBadge
                                             variant={
@@ -314,11 +440,18 @@ export default function OnlineOrdersIndex({
                 )}
 
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-                    <Tile label="Parcels" value={totals.parcels} />
+                    <Tile
+                        label="Parcels"
+                        value={totals.parcels}
+                        active={showing === 'all' && courierFilter === null}
+                        onClick={() => pick('all')}
+                    />
                     <Tile
                         label="Not printed"
                         value={totals.not_printed}
                         tone={totals.not_printed > 0 ? 'warning' : 'default'}
+                        active={showing === 'not_printed'}
+                        onClick={() => pick('not_printed')}
                     />
                     <Tile
                         label="Printed, not packed"
@@ -331,24 +464,221 @@ export default function OnlineOrdersIndex({
                                 : 'default'
                         }
                         hint={`Pack by ${cutoff}`}
+                        active={showing === 'printed'}
+                        onClick={() => pick('printed')}
                     />
                     <Tile
                         label="Packed"
                         value={totals.packed}
                         tone={totals.packed > 0 ? 'success' : 'default'}
+                        hint="Waiting for the courier"
+                        active={showing === 'packed'}
+                        onClick={() => pick('packed')}
                     />
                     <Tile
                         label="With courier"
                         value={totals.handed_over}
                         tone={totals.handed_over > 0 ? 'success' : 'default'}
+                        active={showing === 'handed_over'}
+                        onClick={() => pick('handed_over')}
                     />
                     <Tile
                         label="Need attention"
                         value={totals.attention}
                         tone={totals.attention > 0 ? 'danger' : 'default'}
                         hint="No product, no stock or no AWB"
+                        active={showing === 'attention'}
+                        onClick={() => pick('attention')}
                     />
                 </div>
+
+                {couriers.length > 0 && (
+                    <section className="bg-card rounded-xl border">
+                        <div className="flex items-center justify-between border-b px-4 py-3">
+                            <h2 className="flex items-center gap-2 text-sm font-semibold">
+                                <Truck className="size-4" /> By courier
+                            </h2>
+                            <span className="text-muted-foreground text-xs">
+                                Green: every parcel packed · click to list
+                            </span>
+                        </div>
+                        <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                            {couriers.map((c) => {
+                                const waiting = c.not_printed + c.printed;
+                                const state =
+                                    waiting === 0
+                                        ? 'done'
+                                        : past_cutoff
+                                          ? 'late'
+                                          : 'waiting';
+                                const key = c.courier ?? '';
+                                const selected = courierFilter === key;
+
+                                return (
+                                    <div
+                                        key={key || '—'}
+                                        className={cn(
+                                            'rounded-lg border p-3 transition',
+                                            state === 'done' &&
+                                                'border-emerald-500/60 bg-emerald-500/5',
+                                            selected &&
+                                                'ring-primary ring-2 ring-offset-2',
+                                        )}
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={() => pick('all', key)}
+                                            className="flex w-full items-center gap-2 text-left"
+                                        >
+                                            <CourierLight state={state} />
+                                            <span className="min-w-0 flex-1 truncate font-medium">
+                                                {courierName(c.courier)}
+                                            </span>
+                                            <span className="text-2xl font-semibold tabular-nums">
+                                                {c.total}
+                                            </span>
+                                        </button>
+                                        <p
+                                            className={cn(
+                                                'mt-1 text-xs font-medium',
+                                                state === 'done'
+                                                    ? 'text-emerald-700 dark:text-emerald-300'
+                                                    : state === 'late'
+                                                      ? 'text-red-700 dark:text-red-300'
+                                                      : 'text-amber-700 dark:text-amber-300',
+                                            )}
+                                        >
+                                            {state === 'done'
+                                                ? 'All packed'
+                                                : `${waiting} still to pack`}
+                                        </p>
+                                        <div className="mt-2 grid grid-cols-3 gap-1 text-xs">
+                                            {(
+                                                [
+                                                    [
+                                                        'not_printed',
+                                                        c.not_printed,
+                                                        'to print',
+                                                        Printer,
+                                                    ],
+                                                    [
+                                                        'printed',
+                                                        c.printed,
+                                                        'to pack',
+                                                        PackageCheck,
+                                                    ],
+                                                    [
+                                                        'packed',
+                                                        c.packed,
+                                                        'to hand over',
+                                                        Truck,
+                                                    ],
+                                                ] as const
+                                            ).map(([show, n, label, Icon]) => (
+                                                <button
+                                                    key={show}
+                                                    type="button"
+                                                    onClick={() =>
+                                                        pick(show, key)
+                                                    }
+                                                    className={cn(
+                                                        'hover:bg-muted flex flex-col items-start rounded-md px-1.5 py-1 text-left',
+                                                        selected &&
+                                                            showing === show &&
+                                                            'bg-muted',
+                                                    )}
+                                                >
+                                                    <span className="flex items-center gap-1 text-sm font-semibold tabular-nums">
+                                                        <Icon className="text-muted-foreground size-3.5" />
+                                                        {n}
+                                                    </span>
+                                                    <span className="text-muted-foreground leading-tight">
+                                                        {label}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </section>
+                )}
+
+                <section className="bg-card rounded-xl border">
+                    <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
+                        <h2 className="mr-auto text-sm font-semibold">
+                            {SHOW_LABEL[showing]}
+                            {courierFilter !== null &&
+                                ` · ${courierName(courierFilter || null)}`}
+                            <span className="text-muted-foreground ml-2 font-normal">
+                                {parcels.length}
+                            </span>
+                        </h2>
+                        {(
+                            [
+                                'all',
+                                'to_pack',
+                                'packed',
+                                'cancelled',
+                                'returned',
+                            ] as Show[]
+                        ).map((key) => (
+                            <button
+                                key={key}
+                                type="button"
+                                onClick={() => pick(key, courierFilter)}
+                                className={cn(
+                                    'rounded-full border px-3 py-1 text-xs',
+                                    showing === key
+                                        ? 'bg-primary text-primary-foreground border-primary'
+                                        : 'hover:bg-muted',
+                                )}
+                            >
+                                {key === 'all' ? 'All' : SHOW_LABEL[key]}
+                                {key === 'cancelled' &&
+                                    ` (${totals.cancelled})`}
+                                {key === 'returned' && ` (${totals.returned})`}
+                            </button>
+                        ))}
+                        {(showing !== 'all' || courierFilter !== null) && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => pick('all', null)}
+                            >
+                                <X className="size-4" />
+                                Clear
+                            </Button>
+                        )}
+                    </div>
+                    <ParcelTable
+                        parcels={parcels}
+                        showBatch
+                        empty="No parcels here for this day."
+                        actions={(p) => (
+                            <>
+                                <Button variant="ghost" size="sm" asChild>
+                                    <Link href={show(p.batch_id)}>Open</Link>
+                                </Button>
+                                {canCancel(can, p) && (
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        title="Cancel this order"
+                                        aria-label="Cancel this order"
+                                        onClick={() => {
+                                            setCancelling(p);
+                                            setCancelOpen(true);
+                                        }}
+                                    >
+                                        <Ban className="size-4" />
+                                    </Button>
+                                )}
+                            </>
+                        )}
+                    />
+                </section>
 
                 <section className="bg-card rounded-xl border">
                     <div className="flex items-center justify-between border-b px-4 py-3">
@@ -470,50 +800,6 @@ export default function OnlineOrdersIndex({
                     )}
                 </section>
 
-                {couriers.length > 0 && (
-                    <section className="bg-card rounded-xl border">
-                        <div className="flex items-center justify-between border-b px-4 py-3">
-                            <h2 className="flex items-center gap-2 text-sm font-semibold">
-                                <Truck className="size-4" /> By courier
-                            </h2>
-                            <span className="text-muted-foreground text-xs">
-                                What each pickup should take
-                            </span>
-                        </div>
-                        <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
-                            {couriers.map((c) => (
-                                <div
-                                    key={c.courier ?? '—'}
-                                    className="rounded-lg border p-3"
-                                >
-                                    <div className="flex items-baseline justify-between">
-                                        <span className="font-medium">
-                                            {courierName(c.courier)}
-                                        </span>
-                                        <span className="text-2xl font-semibold tabular-nums">
-                                            {c.total}
-                                        </span>
-                                    </div>
-                                    <div className="text-muted-foreground mt-2 grid grid-cols-3 gap-1 text-xs">
-                                        <span className="flex items-center gap-1">
-                                            <Printer className="size-3" />
-                                            {c.not_printed} to print
-                                        </span>
-                                        <span className="flex items-center gap-1">
-                                            <PackageCheck className="size-3" />
-                                            {c.printed} to pack
-                                        </span>
-                                        <span className="flex items-center gap-1">
-                                            <Truck className="size-3" />
-                                            {c.packed} to hand over
-                                        </span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </section>
-                )}
-
                 {sheets.length > 0 && (
                     <section className="bg-card rounded-xl border">
                         <h2 className="border-b px-4 py-3 text-sm font-semibold">
@@ -551,6 +837,18 @@ export default function OnlineOrdersIndex({
                     </section>
                 )}
             </div>
+
+            <CancelOrderDialog
+                open={cancelOpen}
+                onOpenChange={(o) => {
+                    setCancelOpen(o);
+
+                    if (!o) {
+                        setCancelling(null);
+                    }
+                }}
+                parcel={cancelling}
+            />
         </>
     );
 }

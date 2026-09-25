@@ -6,7 +6,8 @@ namespace App\Domain\Marketplace\Enums;
 
 /**
  * A parcel's day: its label uploaded, printed, the goods packed against it,
- * handed to the courier. Or cancelled, with a reason.
+ * handed to the courier. Or cancelled, with a reason; or, after it left,
+ * returned.
  */
 enum ShipmentStatus: string
 {
@@ -15,6 +16,7 @@ enum ShipmentStatus: string
     case Packed = 'packed';
     case HandedOver = 'handed_over';
     case Cancelled = 'cancelled';
+    case Returned = 'returned';
 
     public function label(): string
     {
@@ -24,6 +26,7 @@ enum ShipmentStatus: string
             self::Packed => 'Packed',
             self::HandedOver => 'Handed to courier',
             self::Cancelled => 'Cancelled',
+            self::Returned => 'Returned',
         };
     }
 
@@ -35,6 +38,7 @@ enum ShipmentStatus: string
             self::Packed => 'info',
             self::HandedOver => 'success',
             self::Cancelled => 'neutral',
+            self::Returned => 'danger',
         };
     }
 
@@ -46,6 +50,12 @@ enum ShipmentStatus: string
 
     /** Its stock has left. */
     public function isPacked(): bool
+    {
+        return in_array($this, [self::Packed, self::HandedOver], strict: true);
+    }
+
+    /** It has left the depot, so it can come back as a return. */
+    public function canBeReturned(): bool
     {
         return in_array($this, [self::Packed, self::HandedOver], strict: true);
     }

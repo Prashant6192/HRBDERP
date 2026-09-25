@@ -257,7 +257,7 @@ export default function Brands({
     return (
         <>
             <Head title="Brands" />
-            <div className="space-y-6">
+            <div className="space-y-6 p-4 sm:p-6">
                 <PageHeader
                     title="Brands"
                     description="The brands sold online: the store their parcels leave from, whose stock they take, and the agency accounts that upload their labels."

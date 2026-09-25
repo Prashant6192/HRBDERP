@@ -111,7 +111,7 @@ export default function UploadLabels({
     return (
         <>
             <Head title="Upload labels" />
-            <div className="mx-auto max-w-3xl space-y-6">
+            <div className="mx-auto max-w-3xl space-y-6 p-4 sm:p-6">
                 <PageHeader
                     title="Upload labels"
                     description="Upload the label PDF exactly as the marketplace gave it. Every label becomes a parcel the depot prints, packs and hands to the courier."

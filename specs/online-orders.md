@@ -1,8 +1,8 @@
 # Spec — Online orders: marketplace labels, packing by scan, returns
 
-Status: PR 1 (online orders core) built — see "As built" at the end. PR 2
-(returns and claims) and PR 3 (order-sheet import, COD reconciliation) to
-follow.
+Status: PR 1 (online orders core) and PR 2 (combos, returns and claims)
+built — see the "As built" sections at the end. PR 3 (order-sheet import,
+COD reconciliation) to follow.
 
 Problem being solved: at the Delhi depot (Paper Market), labels for Meesho,
 Flipkart, Amazon and Myntra orders arrive on WhatsApp every morning, get
@@ -163,3 +163,33 @@ What differs from the plan above, deliberately:
   else to the facilities they are assigned to, so the depot's accountant
   and packers must be assigned to the depot.
 - `claim_window_hours` exists on `marketplaces` for PR 2 and is not yet used.
+
+## As built (PR 2)
+
+Asked for after the first week on the preview, and built together:
+
+- **Combos and packs of two.** `marketplace_listing_components` lets one
+  SKU hold several products, each with its pieces. Each parcel has
+  `shipment_picks` — product and units — written when its lines are
+  matched; reservations, the shortfall, packing and the packer's phone all
+  work from the picks. Existing listings and parcels were carried over as
+  one-product listings and picks by the migration.
+- **Main screen.** The tiles and each courier's figures filter a parcel
+  list across the day's batches (`?show=` and `?courier=`). One table with
+  a header row per courier, shared with the batch page, keeps the columns
+  aligned. Each courier card has a light: green when all its parcels are
+  packed, amber while some wait, red after the cut-off.
+- **Cancel by code.** `GET online-orders/lookup?code=` finds a parcel by AWB,
+  second barcode or order number. Print and pack users may cancel until the
+  courier has it; the agency before packing; manage always (not after
+  handover).
+- **Returns** differ from the plan above in three ways: a return is always
+  received against a known parcel (an unknown packet is not yet handled);
+  the condition is counted per product as good / damaged / not received
+  rather than one condition per return; and the goods go back into the
+  batches they left from, so a returned bottle keeps its batch. The damaged
+  store is the facility's `damaged` store, opened on first use from the
+  Damaged Goods store category. Ledger type `MARKETPLACE_RETURN` (in),
+  referencing the return. Anything damaged, not received or wrong opens a
+  claim, with `claim_deadline_at` from `marketplaces.claim_window_hours`
+  when set. Permission `marketplace.return`.

@@ -12,6 +12,7 @@ namespace App\Domain\Marketplace\Enums;
  *   reserved  — held on the shelf for this parcel
  *   consumed  — packed: the stock has left through the ledger
  *   released  — cancelled: what was held is free again
+ *   returned  — came back from the customer or the courier
  */
 enum StockState: string
 {
@@ -20,6 +21,7 @@ enum StockState: string
     case Reserved = 'reserved';
     case Consumed = 'consumed';
     case Released = 'released';
+    case Returned = 'returned';
 
     public function label(): string
     {
@@ -29,6 +31,7 @@ enum StockState: string
             self::Reserved => 'Stock held',
             self::Consumed => 'Stock out',
             self::Released => 'Released',
+            self::Returned => 'Back in store',
         };
     }
 
@@ -38,7 +41,7 @@ enum StockState: string
             self::Unmapped, self::Short => 'danger',
             self::Reserved => 'info',
             self::Consumed => 'success',
-            self::Released => 'neutral',
+            self::Released, self::Returned => 'neutral',
         };
     }
 }

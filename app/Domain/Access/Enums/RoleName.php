@@ -186,6 +186,8 @@ enum RoleName: string
                 'report.view', 'assistant.view', 'report.export',
                 'approval.view',
                 'document.view',
+                // Receiving online orders that came back into the depot.
+                'marketplace.view', 'marketplace.return',
             ],
 
             self::PurchaseManager => [
@@ -316,7 +318,7 @@ enum RoleName: string
                 'qc.view',
                 // Packing marketplace parcels by scanning their labels, and
                 // handing them to the courier.
-                'marketplace.view', 'marketplace.pack', 'marketplace.handover',
+                'marketplace.view', 'marketplace.pack', 'marketplace.handover', 'marketplace.return',
             ],
 
             // Batches to pack: consumption of packaging and completion of the

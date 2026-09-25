@@ -10,6 +10,47 @@ between them.
 
 ## [Unreleased]
 
+### Added — Online orders: combos, a working main screen, cancel by scan, returns
+
+- **The main screen is a working list.** Click a tile (Not printed, Printed
+  not packed, Packed, With courier, Need attention) or a courier's figures,
+  and the day's parcels are listed right there, across every batch. The
+  tiles only counted before, which is why the filter seemed not to work.
+- **One table, aligned.** Parcels are listed in one table with a header row
+  per courier, so the columns line up from Shadowfax to Valmo, on the main
+  screen and on each batch. Every online-orders page keeps a margin from
+  the window's edges.
+- **A light per courier.** Each courier's card glows **green** once every
+  parcel for it is packed, stays amber while some wait, and turns red after
+  the cut-off with parcels still waiting.
+- **Combos and packs of two.** A marketplace SKU can hold several products,
+  each with its pieces: "RR 500 ml + Satreetha" is two products; "pack of
+  2" is one product, 2 pieces. Mapped once on **SKU mapping**
+  (**Add another product (combo)**). Each parcel has a **pick list**:
+  stock is held and taken product by product, and the packer's phone says
+  **PICK 2 pieces** for each product, with "2 different products, 3 pieces
+  in this parcel" when there is more than one. A parcel short of one
+  product names it.
+- **Cancel an order from anywhere.** **Cancel an order** on the main
+  screen: scan or type the AWB or order number, see the parcel, pick the
+  reason. The depot (print or pack) and the office may cancel until the
+  courier has it; the agency before packing, as before. A packed parcel's
+  stock goes back on the shelf.
+- **Returns.** **Online orders → Returns → Receive a return**: scan the
+  returning parcel, choose RTO (not delivered) or customer return, and
+  count each product as good or damaged; what is not counted is "not
+  received". Good goods go back on the finished goods shelf **in the batch
+  they left from**; damaged goods go to the facility's **Damaged Goods
+  Store**, opened automatically the first time, where they stay as dead
+  stock until someone decides to write them off. Posted as
+  `MARKETPLACE_RETURN` (`RT-yymm-00001`). Anything damaged, missing or
+  wrong opens a **claim** with the marketplace's deadline; the returns list
+  shows claims to raise, overdue ones in red, and records the outcome. The
+  parcel shows **Returned** and is refused at the packing table.
+- New permission `marketplace.return`, given to the Store Executive and the
+  Warehouse Manager (and to the Dispatch and E-commerce Managers through
+  `marketplace.*`).
+
 ### Fixed — Opening stock and production plans failing on save
 
 - **Book opening stock** returned a server error (500) for any line with a
@@ -75,8 +116,7 @@ courier's signature, so a printed label can no longer be forgotten.
   command centre shows today's online orders.
 - **Cancelling** before packing lets go of what was held; after packing,
   and before the courier has it, the posting is reversed and the goods go
-  back on the shelf. A parcel with the courier comes back as a return
-  (next release). Packing without a scan is the office's call and records
+  back on the shelf. A parcel with the courier comes back as a return. Packing without a scan is the office's call and records
   the reason.
 - **Dispatch → Brands** sets where each brand ships from, whose stock it
   sells, and which agency accounts upload for it. Rahat Rooh and Cleanse

@@ -8,7 +8,9 @@ use App\Domain\Marketplace\Models\LabelBatch;
 use App\Domain\Marketplace\Models\LabelFile;
 use App\Domain\Marketplace\Models\Shipment;
 use App\Domain\Marketplace\Models\ShipmentLine;
+use App\Domain\Marketplace\Models\ShipmentPick;
 use App\Support\Math\Decimal;
+use Brick\Math\BigDecimal;
 
 /**
  * How a batch, a file and a parcel look to the screens.
@@ -92,6 +94,7 @@ final class OnlineOrderPresenter
             'pack_note' => $s->pack_note,
             'handed_over_at' => $s->handed_over_at?->toIso8601String(),
             'cancel_reason' => $s->cancel_reason,
+            'returned_at' => $s->returned_at?->toIso8601String(),
             'warnings' => $s->warnings ?? [],
             'marketplace' => $s->relationLoaded('marketplace') ? $s->marketplace?->name : null,
             'brand' => $s->relationLoaded('brand') ? $s->brand?->name : null,
@@ -100,11 +103,43 @@ final class OnlineOrderPresenter
                 'seller_sku' => $l->seller_sku,
                 'description' => $l->description,
                 'quantity' => $l->quantity,
+                'mapped' => $l->listing_id !== null,
                 'item_id' => $l->item_id,
                 'item' => $l->item?->name,
                 'item_code' => $l->item?->code,
                 'units' => $l->units === null ? null : Decimal::strip($l->units),
             ])->all(),
+            'picks' => self::picks($s),
         ];
+    }
+
+    /**
+     * What to take off the shelf, product by product: a combo's products
+     * each once, and the same product on two label lines added together.
+     *
+     * @return list<array{item_id: int, item: string|null, item_code: string|null, units: string, skus: list<string>}>
+     */
+    public static function picks(Shipment $s): array
+    {
+        if (! $s->relationLoaded('picks')) {
+            $s->load(['picks.item:id,code,name', 'picks.line:id,seller_sku']);
+        }
+
+        return $s->picks
+            ->groupBy('item_id')
+            ->map(function ($picks): array {
+                /** @var ShipmentPick $first */
+                $first = $picks->first();
+
+                return [
+                    'item_id' => $first->item_id,
+                    'item' => $first->item?->name,
+                    'item_code' => $first->item?->code,
+                    'units' => Decimal::strip((string) $picks->reduce(fn (BigDecimal $c, ShipmentPick $p) => $c->plus(BigDecimal::of($p->units)), BigDecimal::zero())),
+                    'skus' => $picks->map(fn (ShipmentPick $p) => $p->line?->seller_sku)->filter()->unique()->values()->all(),
+                ];
+            })
+            ->values()
+            ->all();
     }
 }

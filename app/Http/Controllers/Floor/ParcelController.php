@@ -64,7 +64,7 @@ class ParcelController extends Controller
         $mine = Shipment::query()
             ->where('packed_by', $user->id)
             ->where('packed_at', '>=', $today->utc())
-            ->with(['lines.item:id,code,name', 'marketplace:id,name'])
+            ->with(['lines.item:id,code,name', 'picks.item:id,code,name', 'picks.line:id,seller_sku', 'marketplace:id,name'])
             ->latest('packed_at')
             ->limit(15)
             ->get();
@@ -131,7 +131,7 @@ class ParcelController extends Controller
         $packed = $store === null ? collect() : Shipment::query()
             ->where('warehouse_id', $store->id)
             ->where('status', ShipmentStatus::Packed->value)
-            ->with(['lines.item:id,code,name', 'marketplace:id,name', 'packer:id,name'])
+            ->with(['lines.item:id,code,name', 'picks.item:id,code,name', 'picks.line:id,seller_sku', 'marketplace:id,name', 'packer:id,name'])
             ->orderByRaw("COALESCE(courier, '~')")
             ->orderBy('packed_at')
             ->get();
@@ -199,18 +199,19 @@ class ParcelController extends Controller
      */
     private function describe(Shipment $shipment): array
     {
-        $shipment->loadMissing(['lines.item:id,code,name', 'marketplace:id,name', 'brand:id,name,client_id', 'packer:id,name']);
+        $shipment->loadMissing(['lines.item:id,code,name', 'picks.item:id,code,name', 'picks.line:id,seller_sku', 'marketplace:id,name', 'brand:id,name,client_id', 'packer:id,name']);
 
         return [
             ...OnlineOrderPresenter::shipment($shipment),
             // The approved pack, so the packer can see it is the right bottle.
-            'pictures' => $shipment->lines
-                ->filter(fn ($l) => $l->item_id !== null)
-                ->map(function ($l) use ($shipment): ?array {
-                    $art = $this->artworks->forProduct($l->item_id, $shipment->brand?->client_id)
+            'pictures' => $shipment->picks
+                ->pluck('item_id')
+                ->unique()
+                ->map(function (int $itemId) use ($shipment): ?array {
+                    $art = $this->artworks->forProduct($itemId, $shipment->brand?->client_id)
                         ->first(fn ($a) => $a->status === ArtworkStatus::Approved && $a->document_mime !== null && str_starts_with($a->document_mime, 'image/'));
 
-                    return $art === null ? null : ['item_id' => $l->item_id, 'url' => route('artworks.document', $art)];
+                    return $art === null ? null : ['item_id' => $itemId, 'url' => route('artworks.document', $art)];
                 })
                 ->filter()
                 ->values()

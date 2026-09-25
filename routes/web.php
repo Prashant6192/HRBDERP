@@ -124,6 +124,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('floor/pack', [ParcelController::class, 'scan'])->name('floor.pack.scan');
     Route::get('floor/handover', [ParcelController::class, 'handover'])->name('floor.handover');
     Route::post('floor/handover', [ParcelController::class, 'storeHandover'])->name('floor.handover.store');
+    Route::get('floor/return', [ReturnController::class, 'floor'])->name('floor.return');
 
     Route::get('counts', [StockCountController::class, 'index'])->name('counts.index');
     Route::post('counts', [StockCountController::class, 'store'])->name('counts.store');

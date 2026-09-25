@@ -57,6 +57,12 @@ between them.
   and the returns list sit under one **Returns** menu. On a phone, page
   breadcrumbs show only the last two steps, and page-header buttons no
   longer squeeze into a column beside a long description.
+- **Receive a return on a phone.** Floor mode has a new **Receive a
+  return** tile. Scan the returning packet's label with the camera or a
+  handheld scanner, set the good and damaged pieces with − and + buttons,
+  and press **Receive this return** in the bar pinned to the bottom of the
+  screen. The phone goes straight back to the scanner for the next packet.
+  The desk screen counts with the same − and + buttons.
 - New permission `marketplace.return`, given to the Store Executive and the
   Warehouse Manager (and to the Dispatch and E-commerce Managers through
   `marketplace.*`).

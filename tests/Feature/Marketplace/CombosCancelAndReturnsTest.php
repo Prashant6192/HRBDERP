@@ -517,4 +517,31 @@ class CombosCancelAndReturnsTest extends TestCase
         $this->actingAs($this->dispatcher)->get(route('online-orders.index', ['show' => 'returned']))
             ->assertInertia(fn (Assert $page) => $page->has('parcels', 1)->where('totals.returned', 1));
     }
+
+    #[Test]
+    public function the_floor_phone_receives_a_return_and_comes_back_to_its_own_screen(): void
+    {
+        $this->orders->mapSku($this->meesho, $this->rahatRooh, 'RR 500 ml', $this->oil, 1, $this->agency);
+        $this->upload([$this->label('VL1000000000081', ['qty' => 1])]);
+        $shipment = $this->packAndHandOver('VL1000000000081');
+
+        $this->actingAs($this->packer)->get(route('floor.index'))
+            ->assertInertia(fn (Assert $page) => $page->where('can.return', true));
+
+        $this->actingAs($this->packer)->get(route('floor.return'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->component('floor/return')->has('kinds', 2)->has('stores', 1));
+
+        $this->actingAs($this->packer)->post(route('online-orders.returns.store'), [
+            'shipment_id' => $shipment->id,
+            'kind' => 'rto',
+            'lines' => [['item_id' => $this->oil->id, 'good' => '1', 'damaged' => '0']],
+            'from' => 'floor',
+        ])->assertRedirect(route('floor.return'));
+
+        $this->assertSame(ShipmentStatus::Returned, $shipment->refresh()->status);
+
+        // The agency has no floor return screen.
+        $this->actingAs($this->agency)->get(route('floor.return'))->assertForbidden();
+    }
 }

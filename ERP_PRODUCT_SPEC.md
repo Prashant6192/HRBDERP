@@ -402,7 +402,8 @@ matched system.
 
 **Mobile floor mode.** A one-column, large-target screen for a phone at
 `/floor`, installable to the home screen: scan, issue, record the stage,
-count, photograph. No data is cached offline.
+count, photograph, pack online orders, hand them to the courier and
+receive them back as returns. No data is cached offline.
 
 **Department scorecards and OTIF.** Planning, purchase, stores, QC,
 manufacturing, packaging and dispatch each carry a scorecard read from the

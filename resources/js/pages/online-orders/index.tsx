@@ -2,6 +2,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import {
     AlertTriangle,
     Ban,
+    ChevronDown,
     ChevronLeft,
     ChevronRight,
     FileText,
@@ -19,6 +20,12 @@ import { ParcelTable } from '@/components/online-orders/parcel-table';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { TONE_VARIANT, when } from '@/lib/dispatch';
 import {
@@ -288,18 +295,32 @@ export default function OnlineOrdersIndex({
                                     Cancel an order
                                 </Button>
                             )}
-                            {can.return && (
-                                <Button variant="outline" asChild>
-                                    <Link href={receiveReturn()}>
-                                        <Undo2 className="size-4" />
-                                        Receive a return
-                                    </Link>
-                                </Button>
-                            )}
-                            {!can.restricted && (
-                                <Button variant="ghost" asChild>
-                                    <Link href={returnsIndex()}>Returns</Link>
-                                </Button>
+                            {(can.return || !can.restricted) && (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline">
+                                            <Undo2 className="size-4" />
+                                            Returns
+                                            <ChevronDown className="size-4 opacity-60" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        {can.return && (
+                                            <DropdownMenuItem asChild>
+                                                <Link href={receiveReturn()}>
+                                                    Receive a return
+                                                </Link>
+                                            </DropdownMenuItem>
+                                        )}
+                                        {!can.restricted && (
+                                            <DropdownMenuItem asChild>
+                                                <Link href={returnsIndex()}>
+                                                    All returns and claims
+                                                </Link>
+                                            </DropdownMenuItem>
+                                        )}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             )}
                             {can.upload && (
                                 <Button asChild>

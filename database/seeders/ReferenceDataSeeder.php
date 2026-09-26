@@ -169,16 +169,55 @@ class ReferenceDataSeeder extends Seeder
         }
     }
 
+    /**
+     * The finished goods store of the depot online orders leave from: the
+     * Paper Market depot in Delhi. It is found by "Paper Market" in the
+     * facility's name or address; failing that, by the one active
+     * non-manufacturing facility in Delhi; failing that, by the only
+     * non-manufacturing facility with a finished goods store at all. When
+     * none of these is certain, nothing is guessed and the Brands screen
+     * asks for it.
+     */
     private static function paperMarketFinishedGoods(): ?Warehouse
     {
-        $depot = Facility::query()->where('name', 'ilike', '%paper market%')->orderBy('id')->first();
-
-        return $depot === null ? null : Warehouse::query()
-            ->where('facility_id', $depot->id)
+        $withStore = fn ($query) => $query->whereHas('stores', fn ($w) => $w
             ->where('type', WarehouseType::FinishedGoods->value)
-            ->where('is_active', true)
-            ->orderBy('id')
-            ->first();
+            ->where('is_active', true));
+
+        $candidates = [
+            // Named or addressed as Paper Market.
+            fn () => Facility::query()->where('is_active', true)->where(fn ($q) => $q
+                ->where('name', 'ilike', '%paper market%')
+                ->orWhere('address_line_1', 'ilike', '%paper market%')
+                ->orWhere('address_line_2', 'ilike', '%paper market%'))
+                ->tap($withStore)->orderBy('id')->get(),
+            // The Delhi facility that is not a factory.
+            fn () => Facility::query()->where('is_active', true)->where('can_manufacture', false)
+                ->where(fn ($q) => $q->where('city', 'ilike', '%delhi%')->orWhere('name', 'ilike', '%delhi%'))
+                ->tap($withStore)->orderBy('id')->get(),
+            // The only facility that is not a factory.
+            fn () => Facility::query()->where('is_active', true)->where('can_manufacture', false)
+                ->tap($withStore)->orderBy('id')->get(),
+        ];
+
+        foreach ($candidates as $find) {
+            $found = $find();
+
+            if ($found->count() === 1) {
+                return Warehouse::query()
+                    ->where('facility_id', $found->first()->id)
+                    ->where('type', WarehouseType::FinishedGoods->value)
+                    ->where('is_active', true)
+                    ->orderBy('id')
+                    ->first();
+            }
+
+            if ($found->count() > 1) {
+                return null;
+            }
+        }
+
+        return null;
     }
 
     /**

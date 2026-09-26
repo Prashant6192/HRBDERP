@@ -10,6 +10,13 @@ between them.
 
 ## [Unreleased]
 
+### Fixed — Online orders: the figures on the tiles line up
+
+- The six tiles at the top of **Online orders** (Parcels, Not printed,
+  Printed not packed, Packed, With courier, Need attention) now show their
+  numbers on one line. A tile with a two-line name or a note under its
+  number used to push its figure up or down.
+
 ### Added — Change or remove opening stock booked by mistake
 
 - **Book opening stock** now lists what has been booked at the facility,

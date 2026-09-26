@@ -246,8 +246,9 @@ class DemoDataSeeder extends Seeder
             ['code' => 'BOTL', 'name' => 'Bottles', 'type' => ItemType::PackagingMaterial],
             ['code' => 'CAPS', 'name' => 'Caps & Closures', 'type' => ItemType::PackagingMaterial],
             ['code' => 'LABL', 'name' => 'Labels & Cartons', 'type' => ItemType::PackagingMaterial],
-            ['code' => 'HAIR', 'name' => 'Hair Care', 'type' => ItemType::FinishedGood],
-            ['code' => 'SKIN', 'name' => 'Skin Care', 'type' => ItemType::FinishedGood],
+            ['code' => 'HAIR', 'name' => 'Haircare', 'type' => ItemType::FinishedGood],
+            ['code' => 'SKIN', 'name' => 'Skincare', 'type' => ItemType::FinishedGood],
+            ['code' => 'BODY', 'name' => 'Bodycare', 'type' => ItemType::FinishedGood],
         ];
 
         foreach ($categories as $definition) {

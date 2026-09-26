@@ -3,12 +3,33 @@
 Notable changes to HRBD ERP. Newest first.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-This project is pre-release; versions begin at 0.1.0 and the schema may change
-between them.
+Version 1.0.0 is the first release in use at the factory and the depot. From
+here each release is tagged in git (`v1.0.0`, …) and its number shows on the
+sign-in card and at the foot of the sidebar.
 
 ---
 
 ## [Unreleased]
+
+## [1.0.0] — 2026-09-26
+
+The first release in use: stores, formulations, planning and purchase,
+manufacturing, QC, dispatch, online orders and returns, and the management
+views, on `erp.rahatrooh.com`.
+
+### Changed — Version 1.0 on screen
+
+- The sign-in card and the foot of the sidebar show **v1.0.0**. The number
+  lives in `config/erp.php` (`erp.version`).
+- `erp.rahatrooh.com` opens straight onto the sign-in card (since the
+  sign-in change below); a deploy is what brings it to the live site.
+
+### Changed — Product categories: Skincare, Bodycare, Haircare
+
+- The category list on the product screen is **Skincare**, **Bodycare**
+  and **Haircare**, set by the reference data every deploy runs. Any
+  other finished-goods category that no product uses is switched off; one
+  a product already carries stays, so no product loses its category.
 
 ### Fixed — Online orders: the figures on the tiles line up
 

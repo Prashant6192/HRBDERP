@@ -15,6 +15,7 @@ export type SharedData = {
         brand: string;
         timezone: string;
         currency_symbol: string;
+        version?: string;
     };
     notifications: {
         unread: number;

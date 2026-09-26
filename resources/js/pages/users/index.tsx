@@ -135,6 +135,13 @@ export default function UserIndex({
                 label: s.label,
             })),
         },
+        {
+            // Employees are listed by default; outside accounts such as the
+            // e-commerce agency only when asked for.
+            key: 'kind',
+            label: 'Account',
+            options: [{ value: 'outside', label: 'Outside accounts (agency)' }],
+        },
     ];
 
     return (

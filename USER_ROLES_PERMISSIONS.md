@@ -635,6 +635,13 @@ page takes it back to online orders; any other action is refused.
 | ------------- | ---------------- |
 | Online orders | `view`, `upload` |
 
+The agency's login is an **outside account**, not an employee: it has no
+employee code or department and is not on the Employees list (Administration
+→ Users → Account: Outside accounts shows it). It signs in with its username,
+`divrit_processing`, created by the deploy with a starting password the
+agency should change under Settings → Password. It is tied to both online
+brands; untick one on the Brands screen to take it away.
+
 ## Changing a role
 
 Two ways, and they behave differently:

@@ -24,6 +24,17 @@ views, on `erp.rahatrooh.com`.
 - `erp.rahatrooh.com` opens straight onto the sign-in card (since the
   sign-in change below); a deploy is what brings it to the live site.
 
+### Added — A login for the digital agency, outside the employee list
+
+- The agency signs in as **`divrit_processing`**. Its account is created
+  by the deploy, once, with the **E-commerce Agency** role and both online
+  brands, and is never touched again, so a changed password stays changed.
+- It is an **outside account**: no employee code or department, not on the
+  Employees list, not offered where employees are picked. Administration →
+  Users shows it under **Account: Outside accounts**.
+- The sign-in card takes an **email address or username**. Employees still
+  sign in with their email.
+
 ### Changed — Product categories: Skincare, Bodycare, Haircare
 
 - The category list on the product screen is **Skincare**, **Bodycare**

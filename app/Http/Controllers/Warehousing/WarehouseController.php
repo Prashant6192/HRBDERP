@@ -216,6 +216,7 @@ class WarehouseController extends Controller
     {
         return User::query()
             ->active()
+            ->employees()
             ->orderBy('name')
             ->get(['id', 'name'])
             ->map(static fn (User $user): array => [

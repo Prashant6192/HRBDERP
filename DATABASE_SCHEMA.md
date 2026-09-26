@@ -221,6 +221,13 @@ The framework's table, extended into an employee record: `employee_code`,
 `department_id`, `designation`, `phone`, `status`, `deactivated_at`,
 `last_login_at`, `last_login_ip`, `must_change_password`, and soft deletes.
 
+`is_external` marks an **outside account** (the e-commerce agency): not an
+employee, so no employee code or department, left off the Employees list and
+the employee pickers. `username` (nullable, unique) lets such an account sign
+in without a company email; sign-in accepts the email address or the
+username, either case. `OutsideAccountsSeeder` creates the agency's login
+once (`divrit_processing`) and never touches it again.
+
 `formula_pin_hash` holds the second factor guarding formulations. It is hashed
 like a password, hidden from serialisation, and never returned by any endpoint.
 

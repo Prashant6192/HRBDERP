@@ -17,6 +17,7 @@ declare module '@inertiajs/core' {
                 brand: string;
                 timezone: string;
                 currency_symbol: string;
+                version?: string;
             };
             notifications: {
                 unread: number;

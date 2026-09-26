@@ -30,6 +30,12 @@ class DatabaseSeeder extends Seeder
             ReferenceDataSeeder::class,
         ]);
 
+        // Logins for people outside the company (the e-commerce agency),
+        // created once. Tests make their own users.
+        if (! app()->runningUnitTests()) {
+            $this->call(OutsideAccountsSeeder::class);
+        }
+
         if (app()->isProduction()) {
             $this->command?->warn('Production environment detected — demo data was not seeded.');
 

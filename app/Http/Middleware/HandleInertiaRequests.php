@@ -52,6 +52,7 @@ class HandleInertiaRequests extends Middleware
                 'brand' => config('erp.company.brand'),
                 'timezone' => config('erp.company.timezone'),
                 'currency_symbol' => config('erp.company.currency_symbol'),
+                'version' => config('erp.version'),
             ],
             'auth' => [
                 'user' => $user,

@@ -114,7 +114,7 @@ class FacilityController extends Controller
 
         return Inertia::render('facilities/create', [
             ...$this->formOptions(),
-            'employees' => User::query()->active()->orderBy('name')->get(['id', 'name', 'designation', 'employee_code'])
+            'employees' => User::query()->active()->employees()->orderBy('name')->get(['id', 'name', 'designation', 'employee_code'])
                 ->map(fn (User $u) => ['value' => $u->id, 'label' => $u->name, 'description' => trim(($u->employee_code ? "{$u->employee_code} · " : '').($u->designation ?? ''), ' ·')])->all(),
         ]);
     }
@@ -188,7 +188,7 @@ class FacilityController extends Controller
             'activity' => fn () => $tab === 'activity' ? $this->activity($facility, $storeIds) : null,
             'options' => fn () => in_array($tab, ['stores', 'employees'], strict: true) ? [
                 'categories' => $this->categoryOptions(),
-                'employees' => User::query()->active()->orderBy('name')->get(['id', 'name', 'designation', 'employee_code'])
+                'employees' => User::query()->active()->employees()->orderBy('name')->get(['id', 'name', 'designation', 'employee_code'])
                     ->map(fn (User $u) => ['value' => $u->id, 'label' => $u->name, 'description' => $u->designation])->all(),
                 'managers' => $this->managerOptions(),
             ] : null,
@@ -458,7 +458,7 @@ class FacilityController extends Controller
      */
     private function managerOptions(): array
     {
-        return User::query()->active()->orderBy('name')->get(['id', 'name'])
+        return User::query()->active()->employees()->orderBy('name')->get(['id', 'name'])
             ->map(fn (User $u) => ['value' => $u->id, 'label' => $u->name])->all();
     }
 

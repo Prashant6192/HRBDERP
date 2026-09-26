@@ -70,6 +70,7 @@ export default function AuthSimpleLayout({
 
             <p className="text-muted-foreground relative mt-6 text-xs">
                 {company} · works management
+                {erp?.version ? ` · v${erp.version}` : ''}
             </p>
         </div>
     );

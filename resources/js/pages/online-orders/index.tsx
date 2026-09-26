@@ -130,18 +130,20 @@ function Tile({
             onClick={onClick}
             aria-pressed={active}
             className={cn(
-                'bg-card hover:border-primary/60 rounded-xl border p-4 text-left transition',
+                // Top-aligned with a two-line label box, so every tile's
+                // number sits on the same line whatever its label or hint.
+                'bg-card hover:border-primary/60 flex flex-col items-start justify-start rounded-xl border p-4 text-left transition',
                 tone === 'danger' && 'border-red-600/40 bg-red-500/5',
                 tone === 'warning' && 'border-amber-600/40 bg-amber-500/5',
                 active && 'ring-primary ring-2 ring-offset-2',
             )}
         >
-            <p className="text-muted-foreground text-xs tracking-wide uppercase">
+            <p className="text-muted-foreground line-clamp-2 min-h-8 text-xs leading-4 tracking-wide uppercase">
                 {label}
             </p>
             <p
                 className={cn(
-                    'mt-1 text-3xl font-semibold tabular-nums',
+                    'mt-1 text-3xl leading-9 font-semibold tabular-nums',
                     tone === 'danger' && 'text-red-700 dark:text-red-300',
                     tone === 'warning' && 'text-amber-700 dark:text-amber-300',
                     tone === 'success' &&

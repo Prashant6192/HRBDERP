@@ -11,6 +11,16 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Fixed — Brands showed "Store not set yet" on the live site
+
+- Each online brand's dispatch store was filled in only when a facility was
+  named "Paper Market", and the live depot is named otherwise. The store is
+  now found by "Paper Market" in the facility's name or address, else as
+  the one active Delhi facility that is not a factory, else as the only
+  non-factory facility with a finished goods store. When two could be
+  meant, nothing is guessed and the Brands screen asks. A store chosen on
+  the Brands screen is never changed. It runs with the deploy.
+
 ### Fixed — The agency could not sign in on the live site
 
 - The live deploy runs migrations but not `db:seed`, so the agency's login,

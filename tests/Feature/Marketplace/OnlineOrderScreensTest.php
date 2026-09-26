@@ -156,11 +156,20 @@ class OnlineOrderScreensTest extends TestCase
             $this->agency->getAllPermissions()->pluck('name')->all(),
         );
 
-        $this->actingAs($this->agency)->get(route('dashboard'))->assertOk();
-        $this->actingAs($this->agency)->get(route('products.index'))->assertForbidden();
-        $this->actingAs($this->agency)->get(route('dispatches.index'))->assertForbidden();
-        $this->actingAs($this->agency)->get(route('listings.index'))->assertForbidden();
-        $this->actingAs($this->agency)->get(route('brands.index'))->assertForbidden();
+        // Any other page takes the agency back to its online orders.
+        foreach (['dashboard', 'products.index', 'dispatches.index', 'listings.index', 'brands.index', 'floor.index', 'floor.scan', 'command-centre', 'notifications.index'] as $name) {
+            $response = $this->actingAs($this->agency)->get(route($name));
+
+            $name === 'notifications.index'
+                ? $response->assertOk()
+                : $response->assertRedirect(route('online-orders.index'));
+        }
+
+        // Its own account settings stay open to it.
+        $this->actingAs($this->agency)->get(route('profile.edit'))->assertOk();
+
+        // Anything else it tries to do is refused outright.
+        $this->actingAs($this->agency)->postJson(route('floor.lookup'), ['code' => 'VL1000000000001'])->assertForbidden();
     }
 
     #[Test]
@@ -205,11 +214,40 @@ class OnlineOrderScreensTest extends TestCase
                 ->has('shipments', 2)
                 ->where('shortfall', [])
                 ->where('prints', [])
-                ->has('unmapped', 1)
-                ->where('unmapped.0.seller_sku', 'Hair oil 200 ml'));
+                ->where('unmapped', [])
+                ->where('shipments.0.stock_label', null)
+                ->where('shipments.0.picks', [])
+                ->where('shipments.0.lines.0.item', null)
+                ->where('can.correct', false));
 
         // …and cannot print them.
         $this->actingAs($this->agency)->postJson(route('online-orders.print', $batch), ['scope' => 'all'])->assertForbidden();
+    }
+
+    #[Test]
+    public function the_agency_cannot_take_back_cancel_or_change_what_it_uploaded(): void
+    {
+        $batch = $this->upload($this->agency, $this->rahatRooh, [$this->label('VL1000000000011')]);
+        $file = $batch->files()->sole();
+        $parcel = $batch->shipments()->sole();
+
+        $this->actingAs($this->agency)->delete(route('online-orders.files.destroy', $file))->assertForbidden();
+        $this->actingAs($this->agency)->post(route('online-orders.parcels.cancel', $parcel), ['reason' => 'Customer cancelled'])->assertForbidden();
+        $this->actingAs($this->agency)->patch(route('online-orders.parcels.update', $parcel), ['awb' => 'VL9999999999999'])->assertForbidden();
+        $this->actingAs($this->agency)->post(route('online-orders.hold', $batch))->assertForbidden();
+
+        $this->assertDatabaseHas('label_files', ['id' => $file->id]);
+        $this->assertSame(ShipmentStatus::Uploaded, $parcel->refresh()->status);
+        $this->assertSame('VL1000000000011', $parcel->awb);
+
+        // It can still close the day and open its own label file.
+        $this->actingAs($this->agency)->get(route('online-orders.files.show', $file))->assertOk();
+        $this->actingAs($this->agency)->post(route('online-orders.close', $batch))->assertRedirect();
+
+        // The office can remove an upload that has not been printed.
+        $other = $this->upload($this->agency, $this->rahatRooh, [$this->label('VL1000000000012')]);
+        $this->actingAs($this->dispatcher)->delete(route('online-orders.files.destroy', $other->files()->sole()))->assertRedirect();
+        $this->assertSame(0, $other->shipments()->count());
     }
 
     #[Test]
@@ -283,8 +321,8 @@ class OnlineOrderScreensTest extends TestCase
 
         $this->actingAs($this->packer)->postJson(route('floor.pack.scan'), ['code' => 'NOPE123'])->assertNotFound();
 
-        // The agency cancels an order the customer cancelled; the packer is told not to pack it.
-        $this->actingAs($this->agency)->post(route('online-orders.parcels.cancel', Shipment::query()->where('awb', 'VL1000000000002')->sole()), ['reason' => 'Customer cancelled'])->assertRedirect();
+        // The office cancels an order the customer cancelled; the packer is told not to pack it.
+        $this->actingAs($this->dispatcher)->post(route('online-orders.parcels.cancel', Shipment::query()->where('awb', 'VL1000000000002')->sole()), ['reason' => 'Customer cancelled'])->assertRedirect();
         $stop = $this->actingAs($this->packer)->postJson(route('floor.pack.scan'), ['code' => 'VL1000000000002'])->assertStatus(422)->json();
         $this->assertStringContainsString('Do not pack this parcel', $stop['message']);
 
@@ -325,7 +363,7 @@ class OnlineOrderScreensTest extends TestCase
 
         $pdf = $this->actingAs($this->packer)->get(route('handover-sheets.pdf', $sheet))->assertOk();
         $this->assertSame('application/pdf', $pdf->headers->get('Content-Type'));
-        $this->actingAs($this->agency)->get(route('handover-sheets.pdf', $sheet))->assertForbidden();
+        $this->actingAs($this->agency)->get(route('handover-sheets.pdf', $sheet))->assertRedirect(route('online-orders.index'));
     }
 
     #[Test]
@@ -372,7 +410,7 @@ class OnlineOrderScreensTest extends TestCase
         $this->assertContains('parcels_not_packed', $rules());
 
         $this->actingAs($this->packer)->postJson(route('floor.pack.scan'), ['code' => 'VL1000000000001'])->assertOk();
-        $this->actingAs($this->agency)->post(route('online-orders.parcels.cancel', Shipment::query()->where('awb', 'VL1000000000002')->sole()), ['reason' => 'Out of stock on listing'])->assertRedirect();
+        $this->actingAs($this->dispatcher)->post(route('online-orders.parcels.cancel', Shipment::query()->where('awb', 'VL1000000000002')->sole()), ['reason' => 'Out of stock on listing'])->assertRedirect();
 
         $this->assertSame([], $rules());
     }

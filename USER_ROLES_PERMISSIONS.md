@@ -144,7 +144,11 @@ good goods to the shelf, damaged goods to the damaged goods store — and
 records the claim; `manage` maps SKUs and combos, sets up brands, packs
 without a scan (with a reason) and cancels. Who sees which parcels is narrowed twice: an
 **E-commerce Agency** account sees only the brands given to it on the
-Brands screen (and none until it is given one); everyone else sees the
+Brands screen (and none until it is given one), and only the online-orders
+upload screens, its notifications and its own settings: any other page
+takes it back to online orders, and any other action is refused. It cannot
+remove an upload, cancel or correct a parcel, and sees no stock or product
+names. Removing an uploaded file is the office's (`manage`). Everyone else sees the
 facilities they are assigned to. **Assign the depot's accountant and
 packers to the depot**, or its labels are not on their screens.
 
@@ -396,7 +400,7 @@ Receives, adjusts and transfers stock, and maintains warehouse master data.
 | Reports             | `view`, `export`                                                                                                            |
 | ERP Assistant       | `view`                                                                                                                      |
 | Approvals           | `view`                                                                                                                      |
-| Online orders       | `view`, `return`                                                                                                            |
+| Online orders       | `view`, `print`, `pack`, `handover`, `return`                                                                               |
 
 ### Purchase Manager
 
@@ -621,13 +625,22 @@ Runs the kettle: sees approved orders, starts them and records consumption. No a
 ### E-commerce Agency
 
 The outside agency running the marketplace accounts: uploads the day's
-label PDFs for the brands it is given and follows each parcel to the
-courier. Sees nothing else: no stock figures, no products, no prices, no
-other menu.
+label PDFs for the brands it is given, closes the day, and sees what
+became of its parcels. It cannot remove an upload, cancel or correct a
+parcel, or re-check stock. It reaches nothing else: no dashboard, no floor
+mode, no stock figures, no products, no prices, no other menu. Any other
+page takes it back to online orders; any other action is refused.
 
 | Module        | Abilities        |
 | ------------- | ---------------- |
 | Online orders | `view`, `upload` |
+
+The agency's login is an **outside account**, not an employee: it has no
+employee code or department and is not on the Employees list (Administration
+→ Users → Account: Outside accounts shows it). It signs in with its username,
+`divrit_processing`, created by the deploy with a starting password the
+agency should change under Settings → Password. It is tied to both online
+brands; untick one on the Brands screen to take it away.
 
 ## Changing a role
 
@@ -669,7 +682,12 @@ employee's record, or anyone holding the workflow's permission
 requester. The person who booked a delivery in cannot release it from QC.
 
 `inventory.reverse` (Warehouse Manager, Factory Manager, Owner) reverses a
-stock posting; nothing else can change one.
+stock posting; nothing else can change one. Holding it together with
+`inventory.opening_stock` also allows **changing or removing a line of
+opening stock** on the facility's opening stock screen, while that batch
+has not been used, moved or reserved and opening stock is still open for
+the facility. Each correction is its own `OPENING_CORRECTION` posting with
+a reason. The Super Admin can always do it.
 
 `assistant.view` opens **Ask the ERP**. Every manager role and the
 management roles hold it; the shop-floor roles, Designer and Viewer do not.

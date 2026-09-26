@@ -40,7 +40,7 @@ class UserController extends Controller
     {
         $this->authorize('viewAny', User::class);
 
-        $table = TableQuery::fromRequest($request, allowedFilters: ['role', 'department', 'status']);
+        $table = TableQuery::fromRequest($request, allowedFilters: ['role', 'department', 'status', 'kind']);
 
         $query = User::query()
             ->with(['department:id,name', 'roles:id,name'])
@@ -57,6 +57,10 @@ class UserController extends Controller
         if ($status = $table->filter('status')) {
             $query->where('status', $status);
         }
+
+        // Employees by default; outside accounts (the e-commerce agency)
+        // are listed only when asked for.
+        $query->where('is_external', $table->filter('kind') === 'outside');
 
         return Inertia::render('users/index', [
             'users' => $table->paginate(

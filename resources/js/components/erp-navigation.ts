@@ -85,6 +85,8 @@ export type ErpNavItem = {
     comingSoon?: boolean;
     /** Reserved for the system administrator, whatever permissions others hold. */
     superAdminOnly?: boolean;
+    /** Not for an outside agency, which only uploads labels. */
+    notForAgency?: boolean;
 };
 
 export type ErpNavGroup = {
@@ -110,6 +112,7 @@ export const erpNavigation: ErpNavGroup[] = [
                 title: 'Dashboard',
                 href: dashboard().url,
                 icon: LayoutGrid,
+                notForAgency: true,
             },
             {
                 title: 'Command Centre',

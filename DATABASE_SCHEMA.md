@@ -221,6 +221,13 @@ The framework's table, extended into an employee record: `employee_code`,
 `department_id`, `designation`, `phone`, `status`, `deactivated_at`,
 `last_login_at`, `last_login_ip`, `must_change_password`, and soft deletes.
 
+`is_external` marks an **outside account** (the e-commerce agency): not an
+employee, so no employee code or department, left off the Employees list and
+the employee pickers. `username` (nullable, unique) lets such an account sign
+in without a company email; sign-in accepts the email address or the
+username, either case. `OutsideAccountsSeeder` creates the agency's login
+once (`divrit_processing`) and never touches it again.
+
 `formula_pin_hash` holds the second factor guarding formulations. It is hashed
 like a password, hidden from serialisation, and never returned by any endpoint.
 
@@ -269,6 +276,13 @@ Maker-checker: the person who authorises what this employee raises.
 A reversal posts the opposite of every line of the transaction it points
 at, under type `REVERSAL`. A transaction can be reversed once; a reversal
 cannot be reversed. Neither is ever edited.
+
+A line of opening stock booked by mistake is corrected with its own
+`OPENING_CORRECTION` transaction against the same lot (quantities may be
+negative or positive and need not net to zero), referencing the lot and
+carrying the reason. It is only posted while the lot has no other movement
+and no active reservation; the lot's batch, dates, rate and
+`initial_quantity` are updated with it.
 
 ### `documents`
 

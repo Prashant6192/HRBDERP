@@ -147,6 +147,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('facilities/{facility}/employees', [EmployeeAssignmentController::class, 'store'])->name('facilities.employees.store');
     Route::get('facilities/{facility}/opening-stock', [OpeningStockController::class, 'create'])->name('facilities.opening-stock.create');
     Route::post('facilities/{facility}/opening-stock', [OpeningStockController::class, 'store'])->name('facilities.opening-stock.store');
+    Route::patch('facilities/{facility}/opening-stock/{lot}', [OpeningStockController::class, 'update'])->name('facilities.opening-stock.update');
+    Route::delete('facilities/{facility}/opening-stock/{lot}', [OpeningStockController::class, 'destroy'])->name('facilities.opening-stock.destroy');
     // The counting sheet for one store: the template to fill in, and the
     // filled-in sheet matched to the masters before it is booked.
     Route::get('stores/{warehouse}/opening-stock/template', [OpeningStockSheetController::class, 'template'])->name('stores.opening-stock.template');

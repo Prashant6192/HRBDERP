@@ -104,12 +104,14 @@ final class OnlineOrderPresenter
                 'description' => $l->description,
                 'quantity' => $l->quantity,
                 'mapped' => $l->listing_id !== null,
-                'item_id' => $l->item_id,
-                'item' => $l->item?->name,
-                'item_code' => $l->item?->code,
-                'units' => $l->units === null ? null : Decimal::strip($l->units),
+                // The ERP's own products and stock stay inside the company;
+                // an outside agency sees the label as the marketplace printed it.
+                'item_id' => $withStock ? $l->item_id : null,
+                'item' => $withStock ? $l->item?->name : null,
+                'item_code' => $withStock ? $l->item?->code : null,
+                'units' => $withStock && $l->units !== null ? Decimal::strip($l->units) : null,
             ])->all(),
-            'picks' => self::picks($s),
+            'picks' => $withStock ? self::picks($s) : [],
         ];
     }
 

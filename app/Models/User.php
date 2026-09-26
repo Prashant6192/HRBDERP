@@ -50,6 +50,8 @@ use Spatie\Permission\Traits\HasRoles;
  * @property int $formula_pin_failed_attempts
  * @property Carbon|null $formula_pin_locked_until
  * @property bool $must_change_password
+ * @property string|null $username Sign-in name for an outside account without a company email.
+ * @property bool $is_external An outside account (the e-commerce agency), not an employee.
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property Carbon|null $two_factor_confirmed_at
@@ -96,6 +98,7 @@ class User extends Authenticatable implements PasskeyUser
             'formula_pin_failed_attempts' => 'integer',
             'formula_pin_locked_until' => 'datetime',
             'must_change_password' => 'boolean',
+            'is_external' => 'boolean',
             'status' => UserStatus::class,
         ];
     }
@@ -264,6 +267,18 @@ class User extends Authenticatable implements PasskeyUser
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('status', UserStatus::Active->value);
+    }
+
+    /**
+     * People who work for the company: not outside accounts such as the
+     * e-commerce agency.
+     *
+     * @param  Builder<$this>  $query
+     * @return Builder<$this>
+     */
+    public function scopeEmployees(Builder $query): Builder
+    {
+        return $query->where('is_external', false);
     }
 
     /**

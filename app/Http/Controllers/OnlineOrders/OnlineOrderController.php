@@ -319,8 +319,8 @@ class OnlineOrderController extends Controller
             'batch' => OnlineOrderPresenter::batch($batch),
             'files' => $batch->files()->with('uploader:id,name')->withCount('shipments')->get()
                 ->map(fn (LabelFile $f) => OnlineOrderPresenter::file($f))->all(),
-            'shipments' => $shipments->map(fn (Shipment $s) => OnlineOrderPresenter::shipment($s, withStock: true))->all(),
-            'unmapped' => $unmapped,
+            'shipments' => $shipments->map(fn (Shipment $s) => OnlineOrderPresenter::shipment($s, withStock: ! $restricted))->all(),
+            'unmapped' => $restricted ? [] : $unmapped,
             'shortfall' => $restricted ? [] : $this->orders->shortfall($batch),
             'prints' => $restricted ? [] : $batch->prints()->with('printer:id,name')->limit(20)->get()
                 ->map(fn (LabelPrint $p) => ['scope' => $p->scope, 'courier' => $p->courier, 'shipments' => $p->shipment_count, 'pages' => $p->page_count, 'by' => $p->printer?->name, 'at' => $p->created_at?->toIso8601String()])->all(),
@@ -330,7 +330,7 @@ class OnlineOrderController extends Controller
                 ...$this->abilities($user),
                 'upload_here' => $user->can('marketplace.upload') && $batch->isOpen(),
                 'close' => $user->can('marketplace.upload') && $batch->isOpen(),
-                'correct' => $user->can('marketplace.upload') || $user->can('marketplace.manage'),
+                'correct' => $user->can('marketplace.manage'),
             ],
         ]);
     }
@@ -355,7 +355,7 @@ class OnlineOrderController extends Controller
     public function holdAgain(Request $request, LabelBatch $batch): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->can('marketplace.print') || $user->can('marketplace.manage') || $user->can('marketplace.upload'), 403);
+        abort_unless($user->can('marketplace.print') || $user->can('marketplace.manage'), 403);
         $this->assertCanSee($user, $batch);
 
         $counts = $this->orders->holdAgain($batch);
@@ -416,7 +416,8 @@ class OnlineOrderController extends Controller
     public function removeFile(Request $request, LabelFile $file): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->can('marketplace.upload') || $user->can('marketplace.manage'), 403);
+        // The office only: an agency cannot take back what it uploaded.
+        abort_unless($user->can('marketplace.manage'), 403);
         $file->loadMissing('batch');
         $this->assertCanSee($user, $file->batch);
 
@@ -432,7 +433,7 @@ class OnlineOrderController extends Controller
     public function correct(Request $request, Shipment $shipment): RedirectResponse
     {
         $user = $request->user();
-        abort_unless($user->can('marketplace.upload') || $user->can('marketplace.manage'), 403);
+        abort_unless($user->can('marketplace.manage'), 403);
         $this->assertCanSee($user, $shipment->batch);
 
         $data = $request->validate([
@@ -495,15 +496,15 @@ class OnlineOrderController extends Controller
     }
 
     /**
-     * The agency cancels what the marketplace cancelled, before it is
-     * packed. The depot (print or pack) and the office (manage) may cancel
-     * until the courier has it; after that it comes back as a return.
+     * The depot (print or pack) and the office (manage) may cancel until
+     * the courier has it; after that it comes back as a return. The agency
+     * only uploads, and cannot cancel.
      */
     public static function mayCancel(User $user, Shipment $shipment): bool
     {
         if ($shipment->status->awaitsPacking()) {
             return $user->can('marketplace.manage') || $user->can('marketplace.print')
-                || $user->can('marketplace.pack') || $user->can('marketplace.upload');
+                || $user->can('marketplace.pack');
         }
 
         if ($shipment->status === ShipmentStatus::Packed) {

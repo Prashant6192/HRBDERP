@@ -48,16 +48,18 @@ export default function Login({ status, canResetPassword }: Props) {
                                 htmlFor="email"
                                 className="text-muted-foreground text-xs font-normal"
                             >
-                                Email address
+                                Email address or username
                             </Label>
                             <Input
                                 id="email"
-                                type="email"
+                                type="text"
                                 name="email"
                                 required
                                 autoFocus
                                 tabIndex={1}
-                                autoComplete="email"
+                                autoComplete="username"
+                                autoCapitalize="none"
+                                spellCheck={false}
                                 placeholder="you@company.com"
                             />
                             <InputError message={errors.email} />

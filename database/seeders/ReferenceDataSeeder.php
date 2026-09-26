@@ -7,6 +7,8 @@ namespace Database\Seeders;
 use App\Domain\Marketplace\Enums\LabelReaderKind;
 use App\Domain\Marketplace\Models\Brand;
 use App\Domain\Marketplace\Models\Marketplace;
+use App\Domain\MasterData\Enums\ItemType;
+use App\Domain\MasterData\Models\ItemCategory;
 use App\Domain\Warehousing\Enums\WarehouseType;
 use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Models\FacilityType;
@@ -85,6 +87,7 @@ class ReferenceDataSeeder extends Seeder
         }
 
         self::ensureTransitStore();
+        self::ensureProductCategories();
 
         // An earlier migration runs this seeder before the online-orders
         // tables exist; that migration seeds them itself.
@@ -92,6 +95,41 @@ class ReferenceDataSeeder extends Seeder
             self::ensureMarketplaces();
             self::ensureBrands();
         }
+    }
+
+    /**
+     * The product categories the company sells under. The codes match the
+     * ones demo data used, so a copy that already had them keeps its
+     * products' categories. Any other finished-goods category that no
+     * product uses is switched off, so the product screen offers these
+     * three; one a product still carries stays, so nothing loses its
+     * category.
+     */
+    public const PRODUCT_CATEGORIES = [
+        ['SKIN', 'Skincare'],
+        ['BODY', 'Bodycare'],
+        ['HAIR', 'Haircare'],
+    ];
+
+    public static function ensureProductCategories(): void
+    {
+        $codes = [];
+
+        foreach (self::PRODUCT_CATEGORIES as [$code, $name]) {
+            ItemCategory::query()->updateOrCreate(['code' => $code], [
+                'name' => $name,
+                'item_type' => ItemType::FinishedGood,
+                'is_active' => true,
+            ]);
+            $codes[] = $code;
+        }
+
+        ItemCategory::query()
+            ->where('item_type', ItemType::FinishedGood->value)
+            ->whereNotIn('code', $codes)
+            ->where('is_active', true)
+            ->whereDoesntHave('items')
+            ->update(['is_active' => false]);
     }
 
     /**

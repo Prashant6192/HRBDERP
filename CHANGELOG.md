@@ -3,12 +3,90 @@
 Notable changes to HRBD ERP. Newest first.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-This project is pre-release; versions begin at 0.1.0 and the schema may change
-between them.
+Version 1.0.0 is the first release in use at the factory and the depot. From
+here each release is tagged in git (`v1.0.0`, …) and its number shows on the
+sign-in card and at the foot of the sidebar.
 
 ---
 
 ## [Unreleased]
+
+### Fixed — The agency could not sign in on the live site
+
+- The live deploy runs migrations but not `db:seed`, so the agency's login,
+  the online-orders permissions and the product categories never reached it.
+  A migration now runs the same seeders once as part of the deploy: roles an
+  administrator changed only gain new abilities, and the agency's login is
+  created only if it is missing.
+
+## [1.0.0] — 2026-09-26
+
+The first release in use: stores, formulations, planning and purchase,
+manufacturing, QC, dispatch, online orders and returns, and the management
+views, on `erp.rahatrooh.com`.
+
+### Changed — Version 1.0 on screen
+
+- The sign-in card and the foot of the sidebar show **v1.0.0**. The number
+  lives in `config/erp.php` (`erp.version`).
+- `erp.rahatrooh.com` opens straight onto the sign-in card (since the
+  sign-in change below); a deploy is what brings it to the live site.
+
+### Added — A login for the digital agency, outside the employee list
+
+- The agency signs in as **`divrit_processing`**. Its account is created
+  by the deploy, once, with the **E-commerce Agency** role and both online
+  brands, and is never touched again, so a changed password stays changed.
+- It is an **outside account**: no employee code or department, not on the
+  Employees list, not offered where employees are picked. Administration →
+  Users shows it under **Account: Outside accounts**.
+- The sign-in card takes an **email address or username**. Employees still
+  sign in with their email.
+
+### Changed — Product categories: Skincare, Bodycare, Haircare
+
+- The category list on the product screen is **Skincare**, **Bodycare**
+  and **Haircare**, set by the reference data every deploy runs. Any
+  other finished-goods category that no product uses is switched off; one
+  a product already carries stays, so no product loses its category.
+
+### Fixed — Online orders: the figures on the tiles line up
+
+- The six tiles at the top of **Online orders** (Parcels, Not printed,
+  Printed not packed, Packed, With courier, Need attention) now show their
+  numbers on one line. A tile with a two-line name or a note under its
+  number used to push its figure up or down.
+
+### Added — Change or remove opening stock booked by mistake
+
+- **Book opening stock** now lists what has been booked at the facility,
+  store by store, with **Change** and **Remove** on each line. Change
+  corrects the quantity, batch number, dates or rate; Remove takes the line
+  back out. A reason is asked for each time.
+- Nothing is overwritten: each correction is its own **Opening stock
+  corrected** (`OPENING_CORRECTION`) posting, so the first figure, the
+  correction, who made it and why all stay in the stock history.
+- Allowed while the batch has not been used, moved or reserved, and while
+  opening stock is open for the facility. Anyone who can book opening stock
+  and reverse postings may do it: the Super Admin, the Owner, the Factory
+  Manager and the Warehouse Manager.
+
+### Changed — The agency only uploads labels
+
+- An **E-commerce Agency** login reaches the online-orders upload screens,
+  its notifications and its own account settings, and nothing else. Any
+  other page, the dashboard and floor mode included, takes it back to
+  online orders; any other action is refused.
+- It can no longer remove an uploaded file, cancel or correct a parcel, or
+  check stock again. Removing an upload that has not been printed is the
+  office's (Dispatch Manager). It no longer sees stock states or the ERP's
+  product names, only the labels as the marketplace printed them.
+
+### Changed — The Warehouse Manager runs the depot's online orders
+
+- The Warehouse Manager can now print labels, pack by scan and hand
+  parcels to the courier, as well as receive returns. SKU mapping, brands
+  and removing uploads stay with the Dispatch Manager.
 
 ### Added — Online orders: combos, a working main screen, cancel by scan, returns
 
@@ -75,17 +153,6 @@ between them.
 - New permission `marketplace.return`, given to the Store Executive and the
   Warehouse Manager (and to the Dispatch and E-commerce Managers through
   `marketplace.*`).
-
-### Fixed — Opening stock and production plans failing on save
-
-- **Book opening stock** returned a server error (500) for any line with a
-  unit chosen. The screen sends the unit as text and the booking expected a
-  number, so it stopped before saving anything. The line is now booked.
-- **New production plan** failed with "an unexpected fault" whenever a
-  facility was chosen on the screen, for the same reason. The plan is now
-  checked and saved.
-- Stock transfers and dispatch take the unit the same forgiving way, so
-  neither can fail like this. New tests post exactly what the screens send.
 
 ### Added — Online orders: marketplace labels, packed by scan
 
@@ -183,6 +250,17 @@ courier's signature, so a printed label can no longer be forgotten.
 - The bare address, `erp.rahatrooh.com`, now goes straight to the sign-in card,
   or to the dashboard for someone already signed in. The framework's welcome
   page is gone; this ERP has nothing to show anyone who cannot sign in.
+
+### Fixed — Opening stock and production plans failing on save
+
+- **Book opening stock** returned a server error (500) for any line with a
+  unit chosen. The screen sends the unit as text and the booking expected a
+  number, so it stopped before saving anything. The line is now booked.
+- **New production plan** failed with "an unexpected fault" whenever a
+  facility was chosen on the screen, for the same reason. The plan is now
+  checked and saved.
+- Stock transfers and dispatch take the unit the same forgiving way, so
+  neither can fail like this. New tests post exactly what the screens send.
 
 ### Added — The management view on a phone
 

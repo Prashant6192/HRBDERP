@@ -11,6 +11,14 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Fixed — The agency could not sign in on the live site
+
+- The live deploy runs migrations but not `db:seed`, so the agency's login,
+  the online-orders permissions and the product categories never reached it.
+  A migration now runs the same seeders once as part of the deploy: roles an
+  administrator changed only gain new abilities, and the agency's login is
+  created only if it is missing.
+
 ## [1.0.0] — 2026-09-26
 
 The first release in use: stores, formulations, planning and purchase,

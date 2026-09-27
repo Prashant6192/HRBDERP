@@ -11,6 +11,25 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Changed — The opening-stock sheet adds materials that are not on file
+
+- Uploading the counting sheet refused every row whose code was not
+  already in the masters ("no material on file matches code SLES …"). Now
+  a code not on file, given with a name and a unit, is read as a new raw
+  material (a packaging material in a packaging store). The screen lists
+  the new materials above the lines and tags each line "New"; they are
+  added, with the code and name exactly as the sheet has them, when the
+  stock is posted, in the same transaction as the posting.
+- Rows with the same code are batches of one material. The same code with
+  two different names, a code already used by another kind of item or by
+  a deleted one, and rows missing the code, the name or the unit are still
+  refused, row by row.
+- Units as people write them (Kg, Kgs, Ltr, gm, Nos) are read as the
+  units on file.
+- Adding materials from a sheet needs the right to add that kind of
+  material (Super Admin, Owner, Purchase Manager). Products are never
+  added from a sheet.
+
 ### Fixed — Brands showed "Store not set yet" on the live site
 
 - Each online brand's dispatch store was filled in only when a facility was

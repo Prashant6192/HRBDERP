@@ -63,7 +63,12 @@ class OpeningStockService
     }
 
     /**
-     * @param  list<array{item_id: int, quantity: string, uom_id?: int|null, batch_number?: string|null, manufactured_at?: string|null, expiry_at?: string|null, unit_cost?: string|null, remarks?: string|null}>  $lines
+     * A line may instead carry new_item {code, name}: a material the
+     * counting sheet brings that is not on file. It is added — with that
+     * code and name, and the line's unit as its stock unit — in the same
+     * transaction, so a failed posting leaves no stray material behind.
+     *
+     * @param  list<array{item_id: int|null, new_item?: array{code: string, name: string}|null, quantity: string, uom_id?: int|null, batch_number?: string|null, manufactured_at?: string|null, expiry_at?: string|null, unit_cost?: string|null, remarks?: string|null}>  $lines
      */
     public function book(Warehouse $store, array $lines, int $userId, ?string $asOf = null, ?string $remarks = null): InventoryTransaction
     {
@@ -92,6 +97,12 @@ class OpeningStockService
 
             $date = $asOf ? CarbonImmutable::parse($asOf) : CarbonImmutable::today();
             $ledgerLines = [];
+
+            foreach ($lines as $index => $line) {
+                if (empty($line['item_id']) && ! empty($line['new_item']['code'] ?? null)) {
+                    $lines[$index]['item_id'] = $this->newMaterial($store, $line, $index, $userId)->id;
+                }
+            }
 
             foreach ($lines as $index => $line) {
                 $item = Item::query()->with('stockUom')->findOrFail($line['item_id']);
@@ -141,6 +152,60 @@ class OpeningStockService
                 createdBy: $userId,
             ));
         });
+    }
+
+    /**
+     * The material a new_item line names: the one already added under
+     * that code (an earlier line of the same sheet), else a new raw or
+     * packaging material as the sheet names it.
+     *
+     * @param  array<string, mixed>  $line
+     */
+    private function newMaterial(Warehouse $store, array $line, int $index, int $userId): Item
+    {
+        $code = trim((string) $line['new_item']['code']);
+        $name = trim((string) ($line['new_item']['name'] ?? ''));
+        $type = OpeningStockSheetService::newItemTypeFor(OpeningStockSheetService::kindFor($store));
+        $at = 'Line '.($index + 1);
+
+        if ($type === null) {
+            throw new OpeningStockException("{$at}: {$code} is not on file. Products cannot be added from opening stock; add the product under the masters first.");
+        }
+
+        $existing = Item::withTrashed()->whereRaw('upper(code) = ?', [strtoupper($code)])->first();
+
+        if ($existing !== null) {
+            if (! $existing->trashed() && $existing->type === $type) {
+                return $existing;
+            }
+
+            throw new OpeningStockException($existing->trashed()
+                ? "{$at}: code {$code} belonged to a deleted material ({$existing->name}). Give this one a different code."
+                : "{$at}: code {$code} is already {$existing->name}, a ".strtolower($existing->type->label()).'. Give this one a different code.');
+        }
+
+        if ($name === '') {
+            throw new OpeningStockException("{$at}: the new material {$code} needs a name.");
+        }
+
+        $uomId = isset($line['uom_id']) && $line['uom_id'] !== '' ? (int) $line['uom_id'] : null;
+
+        if ($uomId === null) {
+            throw new OpeningStockException("{$at}: the new material {$name} ({$code}) needs its unit.");
+        }
+
+        return Item::create([
+            'code' => $code,
+            'name' => $name,
+            'type' => $type,
+            'stock_uom_id' => $uomId,
+            'is_batch_tracked' => true,
+            'requires_qc' => true,
+            'is_active' => true,
+            'description' => "Added from the opening stock sheet for {$store->facility->name} / {$store->name}.",
+            'created_by' => $userId,
+            'updated_by' => $userId,
+        ]);
     }
 
     private function toStockUnit(Item $item, BigDecimal $quantity, ?int $uomId): BigDecimal

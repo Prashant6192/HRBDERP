@@ -30,9 +30,14 @@ class StoreOpeningStockRequest extends FormRequest
             'remarks' => ['nullable', 'string', 'max:500'],
 
             'lines' => ['required', 'array', 'min:1'],
-            'lines.*.item_id' => ['required', 'integer', Rule::exists('items', 'id')->whereNull('deleted_at')],
+            'lines.*.item_id' => ['required_without:lines.*.new_item.code', 'nullable', 'integer', Rule::exists('items', 'id')->whereNull('deleted_at')],
+            // A material the counting sheet brings that is not on file yet:
+            // added, with this code and name, when the stock is posted.
+            'lines.*.new_item' => ['nullable', 'array'],
+            'lines.*.new_item.code' => ['nullable', 'string', 'max:64'],
+            'lines.*.new_item.name' => ['required_with:lines.*.new_item.code', 'nullable', 'string', 'max:255'],
             'lines.*.quantity' => ['required', 'numeric', 'gt:0'],
-            'lines.*.uom_id' => ['nullable', 'integer', Rule::exists('uoms', 'id')],
+            'lines.*.uom_id' => ['required_with:lines.*.new_item.code', 'nullable', 'integer', Rule::exists('uoms', 'id')],
             'lines.*.batch_number' => ['nullable', 'string', 'max:64'],
             'lines.*.manufactured_at' => ['nullable', 'date'],
             'lines.*.expiry_at' => ['nullable', 'date'],
@@ -51,6 +56,9 @@ class StoreOpeningStockRequest extends FormRequest
             'as_of.before_or_equal' => 'Opening stock cannot be dated in the future.',
             'lines.required' => 'Add at least one line.',
             'lines.*.quantity.gt' => 'Each quantity must be greater than zero.',
+            'lines.*.item_id.required_without' => 'Choose the item.',
+            'lines.*.new_item.name.required_with' => 'A new material needs a name.',
+            'lines.*.uom_id.required_with' => 'A new material needs its unit.',
         ];
     }
 }

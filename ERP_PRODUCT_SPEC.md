@@ -99,7 +99,14 @@ with a batch per line, and administrators close it once the facility is live.
 Until then a line booked by mistake can be changed (quantity, batch, dates,
 rate) or removed from the same screen, as long as none of that batch has
 been used, moved or reserved. The correction is an `OPENING_CORRECTION`
-posting with a reason, so the first figure stays in the history. The administrator books the old stock of a whole facility from
+posting with a reason, so the first figure stays in the history. A
+counting sheet may name materials the masters do not have yet: a code not
+on file, given with a name and a unit, is shown as a new raw material (or
+packaging material, in a packaging store) and added — code and name
+exactly as the sheet has them — when the stock is posted, in the same
+transaction. Rows with the same code are batches of one material. Adding
+them takes the right to add that kind of material; products are never
+added from a sheet. The administrator books the old stock of a whole facility from
 **Store → Old Stock Entry**: raw materials, packaging and finished goods in
 three sections, by hand or from a filled-in sheet, one posting per store,
 every batch QC passed automatically and usable at once.

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Inventory;
 
 use App\Domain\Inventory\Enums\LotQcStatus;
+use App\Domain\Inventory\Models\CartonLabelPrint;
 use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Models\InventoryTransactionLine;
 use App\Domain\Inventory\Services\CartonLabelService;
@@ -12,6 +13,7 @@ use App\Domain\Inventory\Services\RecallTraceService;
 use App\Domain\MasterData\Enums\ItemType;
 use App\Http\Controllers\Controller;
 use App\Support\Tables\TableQuery;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -109,20 +111,74 @@ class LotController extends Controller
     }
 
     /**
-     * How a finished batch is boxed: the finished goods store records it
-     * once, then prints one A5 label per carton.
+     * How a finished batch is boxed, and its carton stickers: recorded once,
+     * then printed on the TSC label printer or as A5 sheets.
      */
     public function cartons(Request $request, InventoryLot $lot): Response
     {
         Gate::authorize('printSticker', $lot);
 
-        $lot->load(['item:id,code,name,type,net_content,net_content_uom_id,mrp', 'item.netContentUom:id,code']);
+        $lot->load(['item:id,code,name,type,brand,net_content,net_content_uom_id,mrp,units_per_carton,barcode', 'item.netContentUom:id,code', 'item.stockUom:id,code']);
+        $printable = $lot->qc_status->isReleasable();
+
+        try {
+            $sticker = $printable && $lot->carton_plan ? $this->cartons->sticker($lot) : null;
+        } catch (InvalidArgumentException) {
+            $sticker = null;
+        }
 
         return Inertia::render('lots/cartons', [
             'lot' => $lot,
             'plan' => $lot->carton_plan,
-            'printable' => $lot->qc_status->isReleasable(),
+            'printable' => $printable,
+            // A batch not yet boxed starts from the product's last carton.
+            'suggested' => [
+                'units_per_box' => $lot->item?->units_per_carton,
+                'boxes' => $lot->item?->units_per_carton ? (int) ceil((float) $lot->initial_quantity / $lot->item->units_per_carton) : null,
+            ],
+            'sticker' => $sticker === null ? null : [...collect($sticker)->except('boxes')->all(), 'sample' => $sticker['boxes'][0] ?? null],
+            'prints' => CartonLabelPrint::query()->where('lot_id', $lot->id)->with('printedBy:id,name')->latest('printed_at')->limit(10)->get()
+                ->map(fn (CartonLabelPrint $p) => [
+                    'id' => $p->id, 'format' => $p->format, 'printer' => $p->printer, 'first_box' => $p->first_box, 'last_box' => $p->last_box,
+                    'copies' => $p->copies, 'by' => $p->printedBy?->name, 'at' => $p->printed_at->toIso8601String(),
+                ])->all(),
         ]);
+    }
+
+    /**
+     * The TSPL program a TSC printer understands, sent to it straight from
+     * the browser over USB or Bluetooth.
+     */
+    public function cartonsTspl(Request $request, InventoryLot $lot): HttpResponse
+    {
+        Gate::authorize('printSticker', $lot);
+
+        try {
+            $program = $this->cartons->tspl($lot, $request->integer('from') ?: null, $request->integer('to') ?: null, $request->integer('copies') ?: 1);
+        } catch (InvalidArgumentException $e) {
+            abort(422, $e->getMessage());
+        }
+
+        return response($program, 200, ['Content-Type' => 'text/plain; charset=us-ascii', 'Cache-Control' => 'no-store']);
+    }
+
+    /**
+     * Record a print made straight to a label printer.
+     */
+    public function cartonsPrinted(Request $request, InventoryLot $lot): JsonResponse
+    {
+        Gate::authorize('printSticker', $lot);
+
+        $data = $request->validate([
+            'printer' => ['nullable', 'string', 'max:160'],
+            'from' => ['required', 'integer', 'min:1'],
+            'to' => ['required', 'integer', 'gte:from'],
+            'copies' => ['nullable', 'integer', 'min:1', 'max:10'],
+        ]);
+
+        $this->cartons->logPrint($lot, CartonLabelService::FORMAT_TSPL, $data['printer'] ?? null, (int) $data['from'], (int) $data['to'], (int) ($data['copies'] ?? 1), $request->user()->id);
+
+        return response()->json(['ok' => true]);
     }
 
     public function storeCartons(Request $request, InventoryLot $lot): RedirectResponse
@@ -154,16 +210,27 @@ class LotController extends Controller
         return back()->withToast('success', "Carton plan saved for {$lot->batch_number}: {$data['boxes']} box".((int) $data['boxes'] === 1 ? '' : 'es').' ready to print.');
     }
 
-    public function printCartons(InventoryLot $lot): HttpResponse
+    /**
+     * The stickers as a PDF: 100 × 150 mm for the TSC's own driver, or the
+     * A5 sheets for the office printer. Each download is logged.
+     */
+    public function printCartons(Request $request, InventoryLot $lot): HttpResponse
     {
         Gate::authorize('printSticker', $lot);
 
+        $format = $request->query('format') === CartonLabelService::FORMAT_STICKER_PDF ? CartonLabelService::FORMAT_STICKER_PDF : CartonLabelService::FORMAT_A5;
+        $from = $request->integer('from') ?: null;
+        $to = $request->integer('to') ?: null;
+
         try {
-            $pdf = $this->cartons->render($lot);
+            $pdf = $this->cartons->render($lot, $format, $from, $to);
+            [$first, $last] = $this->cartons->range($this->cartons->sticker($lot), $from, $to);
         } catch (InvalidArgumentException $e) {
             abort(422, $e->getMessage());
         }
 
-        return $pdf->stream($this->cartons->filename($lot));
+        $this->cartons->logPrint($lot, $format, 'System print dialog', $first, $last, 1, $request->user()->id);
+
+        return $pdf->stream($this->cartons->filename($lot, $format));
     }
 }

@@ -223,7 +223,7 @@ class FacilityService
     private function details(array $attributes): array
     {
         return array_intersect_key($attributes, array_flip([
-            'name', 'manager_id', 'address_line_1', 'address_line_2', 'city', 'state', 'pincode', 'country',
+            'name', 'legal_name', 'manufacturing_licence', 'manager_id', 'address_line_1', 'address_line_2', 'city', 'state', 'pincode', 'country',
             'phone', 'email', 'gstin', 'notes', 'daily_capacity_kg',
         ]));
     }

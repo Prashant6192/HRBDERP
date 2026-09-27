@@ -34,6 +34,7 @@ class BrandController extends Controller
                 ->get()
                 ->map(fn (Brand $b) => [
                     'id' => $b->id, 'code' => $b->code, 'name' => $b->name, 'legal_name' => $b->legal_name, 'gstin' => $b->gstin,
+                    'marketed_by' => $b->marketed_by, 'consumer_care' => $b->consumer_care,
                     'client_id' => $b->client_id, 'client' => $b->client?->name,
                     'default_warehouse_id' => $b->default_warehouse_id,
                     'store' => $b->defaultWarehouse ? "{$b->defaultWarehouse->facility?->name} · {$b->defaultWarehouse->name}" : null,
@@ -65,6 +66,8 @@ class BrandController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'legal_name' => ['nullable', 'string', 'max:255'],
             'gstin' => ['nullable', 'string', 'regex:/^\d{2}[A-Z0-9]{13}$/'],
+            'marketed_by' => ['nullable', 'string', 'max:500'],
+            'consumer_care' => ['nullable', 'string', 'max:255'],
             'client_id' => ['nullable', 'integer', Rule::exists('clients', 'id')],
             'default_warehouse_id' => ['nullable', 'integer', Rule::exists('warehouses', 'id')->where('type', WarehouseType::FinishedGoods->value)],
             'is_active' => ['required', 'boolean'],

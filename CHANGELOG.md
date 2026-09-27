@@ -11,6 +11,61 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Changed — The ERP is arranged by place: Rail + Search
+
+- The long left menu is replaced by a **rail of places**: Rudrapur (the
+  factory), Paper Market (the depot), 3P Clients (contract work) and
+  Company (people, masters, administration). Places come from the facility
+  records — a facility that manufactures is a factory, any other a depot —
+  and a person sees only the facilities they are assigned to. Choosing a
+  place shows its departments and pages in a column beside the rail, in
+  the order work flows there, with **live counts** beside the pages that
+  have something waiting (critically low stock, batches waiting for QC,
+  lorries on the road, parcels to pack, approvals).
+- The place follows the page you open, and the column has its own "Find a
+  page" box. Every page opens as before, already narrowed to the place
+  where the page allows it (a depot's stock, its incoming transfers).
+- **Ctrl K** (or /) searches from anywhere: pages across every place, and
+  records — materials by code or name, batches, manufacturing orders,
+  transfers, dispatches, online orders by AWB or order number, plans,
+  vendors and people. Only what the person may open is returned.
+- On a phone the places run along the bottom with **Scan** in the middle;
+  tapping a place opens its pages in a sheet.
+- The outside agency's screens are unchanged: labels only, no search.
+
+### Added — Carton stickers for the TSC printer, built from the journey
+
+- After QC passes a batch, its carton sticker fills itself in: brand,
+  product, pieces per carton and net quantity of the carton, batch,
+  month of manufacture, use-before, MRP per piece and MRP of the carton
+  (inclusive of all taxes), gross weight, the factory's cosmetics
+  manufacturing licence, "Mfd. by" with the factory's name and address,
+  the brand's "Marketed by" line and consumer care, the product barcode,
+  and "Carton 3 of 48" with a QR carrying the batch, box number and
+  pieces.
+- Pieces per carton are remembered on the product; the next batch's
+  carton plan starts from them.
+- Printing: straight to a TSC label printer from Chrome or Edge over USB
+  (or Bluetooth Low Energy) as a 100 × 150 mm TSPL program; as a
+  100 × 150 mm PDF through the printer's own driver; or as the A5 sheets
+  kept for the office printer. Every print is logged against the batch:
+  who, when, which printer, which cartons.
+- New fields: the cosmetics manufacturing licence on each facility, and
+  "Marketed by" and consumer care on each brand. The facility's legal name
+  is now saved when edited (it was accepted but not stored).
+
+### Added — Receive by scan at the depot
+
+- Paper Market scans cartons off the lorry. The first carton verifies the
+  consignment (as the challan QR does), each carton counts once, a carton
+  from another lorry or one too many is refused, and when the last carton
+  is scanned the transfer **books itself into the store** through the same
+  receipt as receiving by hand. A short lorry can be booked in with what
+  was counted; the rest stays in transit until found or written off.
+- Older batch stickers without a carton number still count, using the
+  batch's carton plan, or the units the person types.
+- A phone camera opening a carton's QR lands on its batch.
+
 ### Changed — Stock control and HSN for Rudrapur's sheet materials
 
 - The raw materials added from Rudrapur's opening-stock sheet get their

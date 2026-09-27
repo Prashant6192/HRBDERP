@@ -7,6 +7,7 @@ namespace App\Http\Middleware;
 use App\Domain\Access\PermissionCatalogue;
 use App\Domain\Formulation\Services\FormulaSecurityService;
 use App\Domain\Marketplace\Services\BrandAccess;
+use App\Domain\Navigation\Services\PlaceService;
 use App\Http\Controllers\NotificationController;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -67,6 +68,9 @@ class HandleInertiaRequests extends Middleware
                 // An outside agency that only uploads labels.
                 'agency' => $user instanceof User && app(BrandAccess::class)->isRestricted($user),
             ],
+            // The places the navigation is arranged by, for the Rail + Search
+            // shell. Presentation only: every page authorises on its own.
+            'nav' => fn () => $user instanceof User ? app(PlaceService::class)->for($user) : null,
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
 
             // The bell: how many unread, and the latest few for the dropdown.

@@ -167,9 +167,15 @@ class OpeningStockCorrectionService
             $batch = trim((string) ($data['batch_number'] ?? ''));
             $batch = $batch === '' ? $lot->batch_number : $batch;
 
-            if ($batch !== $lot->batch_number
-                && InventoryLot::query()->where('item_id', $lot->item_id)->where('batch_number', $batch)->whereKeyNot($lot->id)->exists()) {
-                throw new OpeningStockException("This product already has a batch {$batch}.");
+            // Batch numbers are scanned on the floor, so each one is used once
+            // across the ERP, whatever the material.
+            $taken = $batch === $lot->batch_number ? null
+                : InventoryLot::query()->with('item:id,code,name')->where('batch_number', $batch)->whereKeyNot($lot->id)->first();
+
+            if ($taken !== null) {
+                throw new OpeningStockException($taken->item_id === $lot->item_id
+                    ? "This product already has a batch {$batch}."
+                    : "Batch {$batch} is already used for {$taken->item?->name} ({$taken->item?->code}). Every batch number must be different.");
             }
 
             $manufacturedAt = ! empty($data['manufactured_at']) ? CarbonImmutable::parse($data['manufactured_at'])->toDateString() : null;

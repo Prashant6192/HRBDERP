@@ -228,10 +228,14 @@ class OpeningStockService
         $requested = trim((string) $requested);
 
         if ($requested !== '') {
-            $exists = InventoryLot::query()->where('item_id', $item->id)->where('batch_number', $requested)->exists();
+            // Batch numbers are scanned on the floor, so each one is used once
+            // across the ERP — two suppliers' "3004" cannot both be 3004 here.
+            $taken = InventoryLot::query()->with('item:id,code,name')->where('batch_number', $requested)->first();
 
-            if ($exists) {
-                throw new OpeningStockException("{$item->name} already has a batch {$requested}. Add the quantity as a separate batch number.");
+            if ($taken !== null) {
+                throw new OpeningStockException($taken->item_id === $item->id
+                    ? "{$item->name} already has a batch {$requested}. Add the quantity as a separate batch number."
+                    : "Batch {$requested} is already used for {$taken->item?->name} ({$taken->item?->code}). Every batch number must be different: add the material code, e.g. {$requested}-{$item->code}.");
             }
 
             return $requested;

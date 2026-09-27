@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Inventory\Services;
 
 use App\Domain\Inventory\Exceptions\OpeningStockException;
+use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\MasterData\Enums\ItemType;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\MasterData\Models\PackagingMaterial;
@@ -140,6 +141,7 @@ class OpeningStockSheetService
         $lines = [];
         $problems = [];
         $newMaterials = [];
+        $batches = [];
 
         foreach (array_slice($rows, 1, null, true) as $index => $row) {
             $rowNo = $index + 1;
@@ -187,6 +189,19 @@ class OpeningStockSheetService
                 $problems[] = "Row {$rowNo} ({$item->name}): the unit \"{$unitText}\" is not a unit on file; the stock unit {$item->stockUom?->code} will be used.";
             }
 
+            $batch = trim((string) ($get('batch') ?? ''));
+            $batchProblem = $this->refuseBatch($batch, $item, $batches);
+
+            if ($batchProblem !== null) {
+                $problems[] = "Row {$rowNo} ({$label}): {$batchProblem} Every batch number must be different; add the material code, e.g. {$batch}-".($item?->code ?? $code).'.';
+
+                continue;
+            }
+
+            if ($batch !== '') {
+                $batches[$batch] = $rowNo;
+            }
+
             if ($newItem !== null) {
                 $key = strtoupper($code);
                 $newMaterials[$key] ??= ['code' => $code, 'name' => $name, 'unit' => $uom->code, 'rows' => []];
@@ -200,7 +215,7 @@ class OpeningStockSheetService
                 'item_label' => $item !== null ? "{$item->name} ({$item->code})" : "{$name} ({$code}) — new",
                 'quantity' => $quantity,
                 'uom_id' => $uom?->id ?? $item?->stock_uom_id,
-                'batch_number' => trim((string) ($get('batch') ?? '')) ?: null,
+                'batch_number' => $batch !== '' ? $batch : null,
                 'manufactured_at' => $this->date($get('mfg')),
                 'expiry_at' => $this->date($get('expiry')),
                 'unit_cost' => $this->number($get('rate')),
@@ -301,6 +316,27 @@ class OpeningStockSheetService
             $taken->type === $type && ! $taken->is_active => "code \"{$code}\" is {$taken->name}, which is switched off. Switch it back on under the masters, then upload again.",
             default => "code \"{$code}\" is already {$taken->name}, a ".strtolower($taken->type->label()).'. Give this one a different code.',
         };
+    }
+
+    /**
+     * Why a batch number cannot be used, or null when it can. Batch numbers
+     * are scanned on the floor, so each is used once across the ERP.
+     *
+     * @param  array<string, int>  $seen  batch numbers earlier in the sheet, with their row
+     */
+    private function refuseBatch(string $batch, ?Item $item, array $seen): ?string
+    {
+        if ($batch === '') {
+            return null;
+        }
+
+        if (isset($seen[$batch])) {
+            return "batch {$batch} is also on row {$seen[$batch]}.";
+        }
+
+        $taken = InventoryLot::query()->with('item:id,code,name')->where('batch_number', $batch)->first();
+
+        return $taken === null ? null : "batch {$batch} is already used for {$taken->item?->name} ({$taken->item?->code}).";
     }
 
     /**

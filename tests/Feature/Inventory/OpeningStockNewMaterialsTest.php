@@ -221,6 +221,35 @@ class OpeningStockNewMaterialsTest extends TestCase
         ])->assertSessionHasErrors('lines.0.uom_id');
     }
 
+    #[Test]
+    public function a_batch_number_is_used_once_across_all_materials(): void
+    {
+        $capb = RawMaterial::factory()->create(['code' => 'CAPB', 'stock_uom_id' => $this->kg->id]);
+        InventoryLot::factory()->create(['item_id' => $capb->id, 'batch_number' => '979290']);
+
+        // Suppliers reuse numbers: two fragrances both came as batch 3004.
+        $parsed = $this->actingAs($this->admin)->post(route('stores.opening-stock.parse', $this->rm), [
+            'sheet' => $this->sheet([
+                ['FR-PG', 'Frag-Pantene Gold', '3004', '18.2', 'Kgs', '', '', '', ''],
+                ['FR-PS', 'Frag- Pearl Shine', '3004', '16.37', 'Kgs', '', '', '', ''],
+                ['GR', 'Glycerine', '979290', '60', 'Kgs', '', '', '', ''],
+                ['FR-DZ', 'Frag-Dazzle', '3004-FR-DZ', '8.8', 'Kgs', '', '', '', ''],
+            ]),
+        ])->assertOk()->json();
+
+        $this->assertSame(['FR-PG', 'FR-DZ'], array_column($parsed['new_materials'], 'code'));
+        $this->assertSame('Row 3 (Frag- Pearl Shine): batch 3004 is also on row 2. Every batch number must be different; add the material code, e.g. 3004-FR-PS.', $parsed['problems'][0]);
+        $this->assertStringContainsString('Row 4 (Glycerine): batch 979290 is already used for', $parsed['problems'][1]);
+
+        // Posted anyway, the clash is explained rather than a server error.
+        $this->actingAs($this->admin)->post(route('facilities.opening-stock.store', $this->rudrapur), [
+            'warehouse_id' => (string) $this->rm->id,
+            'lines' => [$this->newLine('GR', 'Glycerine', '979290', '60')],
+        ])->assertSessionHasErrors(['lines' => 'Batch 979290 is already used for '.$capb->name.' (CAPB). Every batch number must be different: add the material code, e.g. 979290-GR.']);
+
+        $this->assertFalse(Item::query()->where('code', 'GR')->exists());
+    }
+
     /**
      * @return array<string, mixed>
      */

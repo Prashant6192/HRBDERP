@@ -31,6 +31,7 @@ export type FacilityDetails = {
     email: string;
     gstin: string;
     legal_name: string;
+    manufacturing_licence: string;
     notes: string;
     daily_capacity_kg: string;
 };
@@ -52,6 +53,7 @@ export const EMPTY_DETAILS: FacilityDetails = {
     email: '',
     gstin: '',
     legal_name: '',
+    manufacturing_licence: '',
     notes: '',
     daily_capacity_kg: '',
 };
@@ -300,6 +302,21 @@ export function FacilityDetailsFields({
                         onChange={(e) =>
                             setField('gstin', e.target.value.toUpperCase())
                         }
+                    />
+                </Field>
+                <Field
+                    label="Cosmetics manufacturing licence no."
+                    htmlFor="manufacturing_licence"
+                    error={errors.manufacturing_licence}
+                    hint="Printed on carton stickers of batches made here. Leave blank for a depot."
+                >
+                    <Input
+                        id="manufacturing_licence"
+                        value={data.manufacturing_licence}
+                        onChange={(e) =>
+                            setField('manufacturing_licence', e.target.value)
+                        }
+                        placeholder="e.g. UK/COS/2024/0113"
                     />
                 </Field>
                 <Field

@@ -18,6 +18,8 @@ type BrandRow = {
     name: string;
     legal_name: string | null;
     gstin: string | null;
+    marketed_by: string | null;
+    consumer_care: string | null;
     client_id: number | null;
     client: string | null;
     default_warehouse_id: number | null;
@@ -43,6 +45,8 @@ function BrandCard({
         name: brand.name,
         legal_name: brand.legal_name ?? '',
         gstin: brand.gstin ?? '',
+        marketed_by: brand.marketed_by ?? '',
+        consumer_care: brand.consumer_care ?? '',
         client_id: brand.client_id ? String(brand.client_id) : '',
         default_warehouse_id: brand.default_warehouse_id
             ? String(brand.default_warehouse_id)
@@ -66,6 +70,8 @@ function BrandCard({
                             : Number(d.default_warehouse_id),
                     legal_name: d.legal_name || null,
                     gstin: d.gstin || null,
+                    marketed_by: d.marketed_by || null,
+                    consumer_care: d.consumer_care || null,
                 }));
                 form.patch(update(brand.id).url, { preserveScroll: true });
             }}
@@ -160,6 +166,39 @@ function BrandCard({
                             form.setData('legal_name', e.target.value)
                         }
                     />
+                </div>
+                <div className="space-y-1 sm:col-span-2">
+                    <Label htmlFor={id('marketed')}>
+                        Marketed by (carton sticker)
+                    </Label>
+                    <Input
+                        id={id('marketed')}
+                        value={form.data.marketed_by}
+                        onChange={(e) =>
+                            form.setData('marketed_by', e.target.value)
+                        }
+                        placeholder="Marketed by: HRBD Enterprises, Paper Market, Delhi 110006"
+                    />
+                    <p className="text-muted-foreground text-xs">
+                        Printed under &ldquo;Mfd. by&rdquo; on every carton of
+                        this brand. The manufacturer&rsquo;s name, address and
+                        licence come from the factory&rsquo;s record.
+                    </p>
+                    <InputError message={form.errors.marketed_by} />
+                </div>
+                <div className="space-y-1 sm:col-span-2">
+                    <Label htmlFor={id('care')}>
+                        Consumer care (carton sticker)
+                    </Label>
+                    <Input
+                        id={id('care')}
+                        value={form.data.consumer_care}
+                        onChange={(e) =>
+                            form.setData('consumer_care', e.target.value)
+                        }
+                        placeholder="1800-000-0000 · care@rahatrooh.com"
+                    />
+                    <InputError message={form.errors.consumer_care} />
                 </div>
             </div>
 

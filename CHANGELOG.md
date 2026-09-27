@@ -11,6 +11,18 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Changed — Stock control and HSN for Rudrapur's sheet materials
+
+- The raw materials added from Rudrapur's opening-stock sheet get their
+  stock control on the next deploy: reorder level and minimum stock both at
+  a third of the stock counted in, so a material down to a third is to be
+  ordered and shows as critically low; lead time 10 days. The HSN code is
+  filled from the customs tariff (which GST follows) — eight digits where
+  the tariff line is clear, the heading where only that is — and left
+  blank for trade-name blends, to be taken from the supplier's bill.
+- Only empty fields are filled; anything already typed in on a material's
+  page stays.
+
 ### Fixed — Opening stock: a batch number used by another material
 
 - Batch numbers are scanned on the floor, so each one is used once across

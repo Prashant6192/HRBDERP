@@ -11,6 +11,16 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Fixed — Opening stock: a batch number used by another material
+
+- Batch numbers are scanned on the floor, so each one is used once across
+  the ERP. Opening stock only checked the same material, so a sheet where
+  two suppliers' batches were both "3004" failed with a server error on
+  posting. The sheet upload now reports such a row — a repeat within the
+  sheet, or a batch already in the ERP — with the fix to make (add the
+  material code, e.g. 3004-FR-PG), and posting explains it instead of
+  failing. Correcting a booked batch checks the same way.
+
 ### Changed — The opening-stock sheet adds materials that are not on file
 
 - Uploading the counting sheet refused every row whose code was not

@@ -6,7 +6,6 @@ namespace App\Http\Controllers\Inventory;
 
 use App\Domain\Inventory\Exceptions\OpeningStockException;
 use App\Domain\Inventory\Services\OpeningStockSheetService;
-use App\Domain\Warehousing\Enums\WarehouseType;
 use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Models\Warehouse;
 use App\Http\Controllers\Controller;
@@ -19,7 +18,8 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
  * The counting sheet behind opening stock.
  *
  * The store counts what is on the shelf into the template and uploads it;
- * every row is matched to the material on file before anything is booked.
+ * every row is matched to the material on file before anything is booked,
+ * and a code not on file is shown as a new material to be added on posting.
  * Which materials a sheet may name follows the store it is for, so a
  * packaging store cannot take a raw material by mistake.
  */
@@ -51,7 +51,9 @@ class OpeningStockSheetController extends Controller
         ]);
 
         try {
-            $parsed = $this->sheets->parse($request->file('sheet')->getRealPath(), $this->kindFor($warehouse));
+            $kind = $this->kindFor($warehouse);
+            $class = OpeningStockSheetService::newItemClassFor($kind);
+            $parsed = $this->sheets->parse($request->file('sheet')->getRealPath(), $kind, $class !== null && $request->user()->can('create', $class));
         } catch (OpeningStockException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
@@ -64,11 +66,7 @@ class OpeningStockSheetController extends Controller
      */
     private function kindFor(Warehouse $warehouse): string
     {
-        return match ($warehouse->type) {
-            WarehouseType::Packaging, WarehouseType::PackagingStaging => 'packaging',
-            WarehouseType::FinishedGoods, WarehouseType::Marketplace => 'finished_goods',
-            default => 'raw_material',
-        };
+        return OpeningStockSheetService::kindFor($warehouse);
     }
 
     private function authorise(Request $request, Warehouse $warehouse): void

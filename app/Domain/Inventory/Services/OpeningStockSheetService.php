@@ -7,7 +7,11 @@ namespace App\Domain\Inventory\Services;
 use App\Domain\Inventory\Exceptions\OpeningStockException;
 use App\Domain\MasterData\Enums\ItemType;
 use App\Domain\MasterData\Models\Item;
+use App\Domain\MasterData\Models\PackagingMaterial;
+use App\Domain\MasterData\Models\RawMaterial;
 use App\Domain\Measurement\Models\Uom;
+use App\Domain\Warehousing\Enums\WarehouseType;
+use App\Domain\Warehousing\Models\Warehouse;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -21,8 +25,10 @@ use Throwable;
  *
  * The factory counts what is on the shelf into a sheet — one row per
  * batch — and uploads it. Each row is matched to the material on file by
- * code, else by name; what does not match is reported, row by row, and
- * nothing is booked until the person has looked at every line.
+ * code, else by name. A code not on file, with a name and a unit, becomes
+ * a new raw or packaging material named as the sheet names it; anything
+ * else that does not match is reported, row by row, and nothing is booked
+ * until the person has looked at every line.
  */
 class OpeningStockSheetService
 {
@@ -89,9 +95,14 @@ class OpeningStockSheetService
     /**
      * Rows of an uploaded sheet, matched to the masters.
      *
-     * @return array{lines: list<array<string, mixed>>, problems: list<string>}
+     * A code the masters do not know, given with a name and a unit, is
+     * read as a new material — exactly as the sheet names it — when the
+     * person may add materials. Nothing is created here: the rows come
+     * back marked new, and the material is added when the stock is posted.
+     *
+     * @return array{lines: list<array<string, mixed>>, problems: list<string>, new_materials: list<array{code: string, name: string, unit: string, rows: list<int>}>}
      */
-    public function parse(string $path, string $kind): array
+    public function parse(string $path, string $kind, bool $mayCreate = false): array
     {
         try {
             $reader = IOFactory::createReaderForFile($path);
@@ -128,6 +139,7 @@ class OpeningStockSheetService
 
         $lines = [];
         $problems = [];
+        $newMaterials = [];
 
         foreach (array_slice($rows, 1, null, true) as $index => $row) {
             $rowNo = $index + 1;
@@ -145,34 +157,49 @@ class OpeningStockSheetService
             }
 
             $item = ($code !== '' ? $byCode->get(strtoupper($code)) : null) ?? ($name !== '' ? $byName->get($this->key($name)) : null);
+            $unitText = trim((string) ($get('unit') ?? ''));
+            $unitCode = $this->unitCode($unitText);
+            $uom = $unitCode === '' ? null : $uoms->get($unitCode);
+            $newItem = null;
 
             if ($item === null) {
-                $problems[] = "Row {$rowNo}: no material on file matches ".($code !== '' ? "code \"{$code}\"" : "\"{$name}\"").'. Add it under the masters first, or correct the code.';
+                $refusal = $this->refuseNew($kind, $mayCreate, $code, $name, $unitText, $uom, $newMaterials);
 
-                continue;
+                if ($refusal !== null) {
+                    $problems[] = "Row {$rowNo}: {$refusal}";
+
+                    continue;
+                }
+
+                $newItem = ['code' => $code, 'name' => $name];
             }
 
+            $label = $item?->name ?? $name;
             $quantity = $this->number($quantityRaw);
 
             if ($quantity === null || (float) $quantity <= 0) {
-                $problems[] = "Row {$rowNo} ({$item->name}): the quantity \"{$quantityRaw}\" is not a number greater than zero.";
+                $problems[] = "Row {$rowNo} ({$label}): the quantity \"{$quantityRaw}\" is not a number greater than zero.";
 
                 continue;
             }
 
-            $unitCode = strtoupper(trim((string) ($get('unit') ?? '')));
-            $uom = $unitCode === '' ? null : $uoms->get($unitCode);
+            if ($item !== null && $unitText !== '' && $uom === null) {
+                $problems[] = "Row {$rowNo} ({$item->name}): the unit \"{$unitText}\" is not a unit on file; the stock unit {$item->stockUom?->code} will be used.";
+            }
 
-            if ($unitCode !== '' && $uom === null) {
-                $problems[] = "Row {$rowNo} ({$item->name}): the unit \"{$unitCode}\" is not a unit on file; the stock unit {$item->stockUom?->code} will be used.";
+            if ($newItem !== null) {
+                $key = strtoupper($code);
+                $newMaterials[$key] ??= ['code' => $code, 'name' => $name, 'unit' => $uom->code, 'rows' => []];
+                $newMaterials[$key]['rows'][] = $rowNo;
             }
 
             $lines[] = [
                 'row' => $rowNo,
-                'item_id' => $item->id,
-                'item_label' => "{$item->name} ({$item->code})",
+                'item_id' => $item?->id,
+                'new_item' => $newItem,
+                'item_label' => $item !== null ? "{$item->name} ({$item->code})" : "{$name} ({$code}) — new",
                 'quantity' => $quantity,
-                'uom_id' => $uom?->id ?? $item->stock_uom_id,
+                'uom_id' => $uom?->id ?? $item?->stock_uom_id,
                 'batch_number' => trim((string) ($get('batch') ?? '')) ?: null,
                 'manufactured_at' => $this->date($get('mfg')),
                 'expiry_at' => $this->date($get('expiry')),
@@ -181,7 +208,117 @@ class OpeningStockSheetService
             ];
         }
 
-        return ['lines' => $lines, 'problems' => $problems];
+        return ['lines' => $lines, 'problems' => $problems, 'new_materials' => array_values($newMaterials)];
+    }
+
+    /**
+     * The store kind a warehouse's sheet is for.
+     */
+    public static function kindFor(Warehouse $store): string
+    {
+        return match ($store->type) {
+            WarehouseType::Packaging, WarehouseType::PackagingStaging => 'packaging',
+            WarehouseType::FinishedGoods, WarehouseType::Marketplace => 'finished_goods',
+            default => 'raw_material',
+        };
+    }
+
+    /**
+     * What a code the masters do not know becomes when the sheet brings
+     * it: a raw material in a raw material store, a packaging material in
+     * a packaging store. Products are never made from a counting sheet.
+     */
+    public static function newItemTypeFor(string $kind): ?ItemType
+    {
+        return match ($kind) {
+            'packaging' => ItemType::PackagingMaterial,
+            'finished_goods' => null,
+            default => ItemType::RawMaterial,
+        };
+    }
+
+    /**
+     * The master class whose "create" permission adding one needs.
+     *
+     * @return class-string<Item>|null
+     */
+    public static function newItemClassFor(string $kind): ?string
+    {
+        return match (self::newItemTypeFor($kind)) {
+            ItemType::PackagingMaterial => PackagingMaterial::class,
+            ItemType::RawMaterial => RawMaterial::class,
+            default => null,
+        };
+    }
+
+    /**
+     * Why a row naming a material not on file cannot become a new one, or
+     * null when it can: it needs its own code, a name and a unit, the code
+     * must be free, and one code is one material across the sheet.
+     *
+     * @param  array<string, array{code: string, name: string, unit: string, rows: list<int>}>  $seen
+     */
+    private function refuseNew(string $kind, bool $mayCreate, string $code, string $name, string $unitText, ?Uom $uom, array $seen): ?string
+    {
+        $type = self::newItemTypeFor($kind);
+        $what = $code !== '' ? "code \"{$code}\"" : "\"{$name}\"";
+
+        if ($type === null) {
+            return "no product on file matches {$what}. Add the product under the masters first, or correct the code.";
+        }
+
+        if (! $mayCreate) {
+            return "no material on file matches {$what}, and your role cannot add materials. Ask someone who may add ".strtolower($type->label()).'s, or correct the code.';
+        }
+
+        if ($code === '' || $name === '') {
+            return "no material on file matches {$what}. To add it as a new material, fill in both its item code and its item name.";
+        }
+
+        if (mb_strlen($code) > 64) {
+            return "the item code \"{$code}\" is longer than 64 characters.";
+        }
+
+        if ($unitText === '') {
+            return "\"{$name}\" ({$code}) is new: fill in its unit (KG, G, L, ML, PCS …) so it can be added.";
+        }
+
+        if ($uom === null) {
+            return "\"{$name}\" ({$code}) is new, but the unit \"{$unitText}\" is not a unit on file. Use KG, G, L, ML or PCS.";
+        }
+
+        $earlier = $seen[strtoupper($code)] ?? null;
+
+        if ($earlier !== null && $this->key($earlier['name']) !== $this->key($name)) {
+            return "code \"{$code}\" is \"{$earlier['name']}\" on row {$earlier['rows'][0]} but \"{$name}\" here. One code can only be one material.";
+        }
+
+        $taken = Item::withTrashed()->whereRaw('upper(code) = ?', [strtoupper($code)])->first(['id', 'code', 'name', 'type', 'is_active', 'deleted_at']);
+
+        return match (true) {
+            $taken === null => null,
+            $taken->trashed() => "code \"{$code}\" belonged to a deleted material ({$taken->name}) and cannot be used again. Give this one a different code.",
+            $taken->type === $type && ! $taken->is_active => "code \"{$code}\" is {$taken->name}, which is switched off. Switch it back on under the masters, then upload again.",
+            default => "code \"{$code}\" is already {$taken->name}, a ".strtolower($taken->type->label()).'. Give this one a different code.',
+        };
+    }
+
+    /**
+     * A unit as people write it — Kg, Kgs, Ltr, gm, Nos — read as the code
+     * on file.
+     */
+    private function unitCode(string $text): string
+    {
+        $code = strtoupper(preg_replace('/[\s.]/', '', $text) ?? '');
+
+        return match ($code) {
+            'KGS', 'KILO', 'KILOS', 'KILOGRAM', 'KILOGRAMS' => 'KG',
+            'GM', 'GMS', 'GRM', 'GRMS', 'GRAM', 'GRAMS' => 'G',
+            'LTR', 'LTRS', 'LT', 'LITRE', 'LITRES', 'LITER', 'LITERS' => 'L',
+            'MLS', 'MILLILITRE', 'MILLILITRES' => 'ML',
+            'NOS', 'NO', 'PC', 'PCE', 'PIECE', 'PIECES', 'UNIT', 'UNITS' => 'PCS',
+            default => $code,
+        };
     }
 
     /**

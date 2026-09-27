@@ -9,6 +9,7 @@ use App\Domain\Inventory\Exceptions\OpeningStockException;
 use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Services\OpeningStockCorrectionService;
 use App\Domain\Inventory\Services\OpeningStockService;
+use App\Domain\Inventory\Services\OpeningStockSheetService;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\Measurement\Models\Uom;
 use App\Domain\Warehousing\Models\Facility;
@@ -67,6 +68,14 @@ class OpeningStockController extends Controller
         $store = Warehouse::query()->findOrFail($data['warehouse_id']);
         $this->access->assertCanWorkIn($request->user(), $store);
 
+        // Lines that bring a material not on file add it on posting, which
+        // takes the right to add that kind of material.
+        if (collect($data['lines'])->contains(fn (array $l) => ! empty($l['new_item']['code'] ?? null))) {
+            $class = OpeningStockSheetService::newItemClassFor(OpeningStockSheetService::kindFor($store));
+            abort_if($class === null, 422, 'Products cannot be added from opening stock.');
+            $this->authorize('create', $class);
+        }
+
         try {
             $transaction = $this->opening->book($store, $data['lines'], $request->user()->id, $data['as_of'] ?? null, $data['remarks'] ?? null);
         } catch (OpeningStockException|RuntimeException $e) {
@@ -74,9 +83,11 @@ class OpeningStockController extends Controller
         }
 
         $count = count($data['lines']);
+        $added = collect($data['lines'])->map(fn (array $l) => strtoupper(trim((string) ($l['new_item']['code'] ?? ''))))->filter()->unique()->count();
 
         return redirect()->route('stores.show', $store)
-            ->withToast('success', "Opening stock booked: {$count} line".($count === 1 ? '' : 's')." posted as {$transaction->number}.");
+            ->withToast('success', "Opening stock booked: {$count} line".($count === 1 ? '' : 's')." posted as {$transaction->number}."
+                .($added > 0 ? " {$added} new material".($added === 1 ? '' : 's').' added to the masters.' : ''));
     }
 
     /**

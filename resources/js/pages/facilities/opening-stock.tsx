@@ -33,8 +33,10 @@ type ItemOption = SelectOption & {
     standard_cost: string | null;
 };
 type StoreOption = SelectOption & { badge: string; type: string };
+type NewItem = { code: string; name: string };
 type Line = {
     item_id: string;
+    new_item: NewItem | null;
     quantity: string;
     uom_id: string;
     batch_number: string;
@@ -46,6 +48,7 @@ type Line = {
 
 const EMPTY: Line = {
     item_id: '',
+    new_item: null,
     quantity: '',
     uom_id: '',
     batch_number: '',
@@ -132,7 +135,8 @@ export default function OpeningStock({
 
             const json = (await response.json()) as {
                 lines?: {
-                    item_id: number;
+                    item_id: number | null;
+                    new_item: NewItem | null;
                     quantity: string;
                     uom_id: number | null;
                     batch_number: string | null;
@@ -156,7 +160,8 @@ export default function OpeningStock({
             }
 
             const read: Line[] = (json.lines ?? []).map((l) => ({
-                item_id: String(l.item_id),
+                item_id: l.item_id ? String(l.item_id) : '',
+                new_item: l.new_item ?? null,
                 quantity: String(l.quantity ?? ''),
                 uom_id: l.uom_id ? String(l.uom_id) : '',
                 batch_number: l.batch_number ?? '',
@@ -167,7 +172,7 @@ export default function OpeningStock({
             }));
 
             const kept = form.data.lines.filter(
-                (l) => l.item_id !== '' || l.quantity !== '',
+                (l) => l.item_id !== '' || l.new_item || l.quantity !== '',
             );
 
             form.setData(
@@ -199,6 +204,25 @@ export default function OpeningStock({
         if (store.type === 'finished_goods') return i.type === 'finished_good';
         return true;
     });
+
+    // Materials the sheet brought that are not on file yet: added, exactly
+    // as named, when the stock is posted.
+    const newMaterials = Object.values(
+        form.data.lines.reduce<
+            Record<string, NewItem & { unit: string; batches: number }>
+        >((acc, l) => {
+            if (!l.new_item) return acc;
+            const key = l.new_item.code.toUpperCase();
+            acc[key] ??= {
+                ...l.new_item,
+                unit:
+                    uoms.find((u) => String(u.value) === l.uom_id)?.label ?? '',
+                batches: 0,
+            };
+            acc[key].batches++;
+            return acc;
+        }, {}),
+    );
 
     const setLine = (i: number, patch: Partial<Line>) =>
         form.setData(
@@ -390,6 +414,46 @@ export default function OpeningStock({
                                 ))}
                             </ul>
                         )}
+                        {newMaterials.length > 0 && (
+                            <div className="mx-5 mt-4 rounded-lg border border-sky-500/40 bg-sky-500/10 p-4 text-sm">
+                                <p className="font-medium">
+                                    {newMaterials.length} new{' '}
+                                    {store?.type === 'packaging'
+                                        ? 'packaging'
+                                        : 'raw'}{' '}
+                                    material
+                                    {newMaterials.length === 1 ? '' : 's'} will
+                                    be added when you post
+                                </p>
+                                <p className="text-muted-foreground mt-1 text-xs">
+                                    These codes are not on file yet. Each is
+                                    added with the code, name and unit from your
+                                    sheet; rows with the same code are batches
+                                    of one material.
+                                </p>
+                                <ul className="mt-3 grid gap-x-6 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
+                                    {newMaterials.map((m) => (
+                                        <li
+                                            key={m.code.toUpperCase()}
+                                            className="flex min-w-0 items-baseline gap-2"
+                                        >
+                                            <span className="shrink-0 font-mono text-xs font-semibold">
+                                                {m.code}
+                                            </span>
+                                            <span className="truncate">
+                                                {m.name}
+                                            </span>
+                                            <span className="text-muted-foreground shrink-0 text-xs">
+                                                {m.unit}
+                                                {m.batches > 1
+                                                    ? ` · ${m.batches} batches`
+                                                    : ''}
+                                            </span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
                         {form.errors.lines && (
                             <p className="text-destructive px-5 pt-4 text-sm">
                                 {form.errors.lines}
@@ -409,36 +473,62 @@ export default function OpeningStock({
                                             label="Item"
                                             htmlFor={`item-${i}`}
                                             required
-                                            error={err(i, 'item_id')}
+                                            error={
+                                                err(i, 'item_id') ??
+                                                err(i, 'new_item.code') ??
+                                                err(i, 'new_item.name')
+                                            }
                                             className="lg:col-span-2"
                                         >
-                                            <SearchableSelect
-                                                id={`item-${i}`}
-                                                value={line.item_id}
-                                                onValueChange={(v) => {
-                                                    const it = items.find(
-                                                        (x) =>
-                                                            String(x.value) ===
-                                                            v,
-                                                    );
-                                                    setLine(i, {
-                                                        item_id: v,
-                                                        uom_id: it
-                                                            ? String(it.uom_id)
-                                                            : '',
-                                                        unit_cost:
-                                                            line.unit_cost ||
-                                                            (it?.standard_cost ??
-                                                                ''),
-                                                    });
-                                                }}
-                                                options={offered.map((it) => ({
-                                                    value: String(it.value),
-                                                    label: it.label,
-                                                }))}
-                                                placeholder="Choose"
-                                                searchPlaceholder="Search by code or name…"
-                                            />
+                                            {line.new_item ? (
+                                                <div
+                                                    id={`item-${i}`}
+                                                    className="flex h-9 min-w-0 items-center gap-2 rounded-md border border-sky-500/40 bg-sky-500/5 px-3 text-sm"
+                                                >
+                                                    <span className="shrink-0 rounded bg-sky-600 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-white uppercase">
+                                                        New
+                                                    </span>
+                                                    <span className="truncate">
+                                                        {line.new_item.name} (
+                                                        {line.new_item.code})
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <SearchableSelect
+                                                    id={`item-${i}`}
+                                                    value={line.item_id}
+                                                    onValueChange={(v) => {
+                                                        const it = items.find(
+                                                            (x) =>
+                                                                String(
+                                                                    x.value,
+                                                                ) === v,
+                                                        );
+                                                        setLine(i, {
+                                                            item_id: v,
+                                                            uom_id: it
+                                                                ? String(
+                                                                      it.uom_id,
+                                                                  )
+                                                                : '',
+                                                            unit_cost:
+                                                                line.unit_cost ||
+                                                                (it?.standard_cost ??
+                                                                    ''),
+                                                        });
+                                                    }}
+                                                    options={offered.map(
+                                                        (it) => ({
+                                                            value: String(
+                                                                it.value,
+                                                            ),
+                                                            label: it.label,
+                                                        }),
+                                                    )}
+                                                    placeholder="Choose"
+                                                    searchPlaceholder="Search by code or name…"
+                                                />
+                                            )}
                                         </Field>
                                         <Field
                                             label="Batch no."

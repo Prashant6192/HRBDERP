@@ -15,12 +15,12 @@ sign-in card and at the foot of the sidebar.
 
 - A parcel is checked for stock when the agency uploads it. If the store
   could not cover it then, it stayed **Short in store** until someone
-  printed, packed or pressed *Check stock again* — even after the stock
+  printed, packed or pressed _Check stock again_ — even after the stock
   was booked in. Now a short parcel is **held automatically the moment its
   product lands in the store** (opening stock, a transfer booked in, a
   receipt, a return), oldest parcel first.
 - The Online orders screen now shows a **Not enough stock** panel for the
-  day, with a *Check stock again* button, and says **why** each product is
+  day, with a _Check stock again_ button, and says **why** each product is
   short: held for other parcels, waiting for QC, past expiry, belonging to
   another owner, sitting in another store (Rudrapur's, say — transfer it),
   or booked under a **different product with nearly the same name** (then

@@ -23,7 +23,7 @@ use Illuminate\Support\Str;
  */
 class InvoiceIntakeService
 {
-    public const string DISK = 'local';
+    public const string DISK = 'files';
 
     public const int TTL_MINUTES = 180;
 

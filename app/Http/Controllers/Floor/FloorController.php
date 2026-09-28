@@ -161,7 +161,7 @@ class FloorController extends Controller
         };
 
         $path = 'floor-photos/'.now()->format('Y/m').'/'.uniqid('', true).'.'.($request->file('photo')->getClientOriginalExtension() ?: 'jpg');
-        Storage::disk('local')->put($path, (string) file_get_contents($request->file('photo')->getRealPath()));
+        Storage::disk('files')->put($path, (string) file_get_contents($request->file('photo')->getRealPath()));
 
         FloorPhoto::query()->create([
             'subject_type' => $subject->getMorphClass(),

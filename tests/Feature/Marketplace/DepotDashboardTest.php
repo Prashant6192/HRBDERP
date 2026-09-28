@@ -62,7 +62,7 @@ class DepotDashboardTest extends TestCase
 
         $this->seed(UomSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        Storage::fake('local');
+        Storage::fake('files');
         $this->app->instance(AiLabelReader::class, new FakeLabelReader(available: false));
         config(['erp.online_orders.cutoff' => '16:00', 'erp.company.timezone' => 'Asia/Kolkata']);
         $this->travelTo(CarbonImmutable::parse('2026-09-28 10:30', 'Asia/Kolkata'));

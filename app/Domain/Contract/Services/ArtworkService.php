@@ -20,7 +20,7 @@ use Illuminate\Support\Str;
  */
 class ArtworkService
 {
-    public const string DISK = 'local';
+    public const string DISK = 'files';
 
     /**
      * @param  array<string, mixed>  $data

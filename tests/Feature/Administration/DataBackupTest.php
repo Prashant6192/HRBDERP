@@ -48,7 +48,7 @@ class DataBackupTest extends TestCase
     {
         parent::setUp();
 
-        Storage::fake('local');
+        Storage::fake('files');
         $this->seed(UomSeeder::class);
         $this->seed(RolePermissionSeeder::class);
         $this->seed(ReferenceDataSeeder::class);
@@ -93,7 +93,7 @@ class DataBackupTest extends TestCase
         $storeKeeper->assignments()->create(['facility_id' => $facility->id, 'store_id' => $store->id, 'assigned_by' => $this->admin->id]);
 
         Vendor::factory()->create(['name' => 'Old Supplier']);
-        Storage::disk('local')->put('goods-receipts/bill-001.pdf', '%PDF-1.4 bill');
+        Storage::disk('files')->put('goods-receipts/bill-001.pdf', '%PDF-1.4 bill');
 
         return [$facility, $store, $item, $storeKeeper];
     }
@@ -141,7 +141,7 @@ class DataBackupTest extends TestCase
         app(InventoryLedgerService::class)->issue($item, $store, '30', $item->lots()->first(), userId: $this->admin->id);
         $storeKeeper->delete();
         $late = User::factory()->create(['name' => 'Joined later']);
-        Storage::disk('local')->delete('goods-receipts/bill-001.pdf');
+        Storage::disk('files')->delete('goods-receipts/bill-001.pdf');
         $this->assertTrue(app(StockBalanceService::class)->onHand($item, $store)->isEqualTo('95'));
 
         $this->actingAs($this->admin)->post(route('administration.data.restore'), [
@@ -166,9 +166,9 @@ class DataBackupTest extends TestCase
         $this->assertSame('Rudrapur Factory', $facility->fresh()->name);
 
         // Uploads, the audit trail, and a copy of what was there before.
-        Storage::disk('local')->assertExists('goods-receipts/bill-001.pdf');
+        Storage::disk('files')->assertExists('goods-receipts/bill-001.pdf');
         $this->assertGreaterThanOrEqual($auditBefore, DB::table('audit_logs')->count(), 'The audit trail only grows');
-        $this->assertCount(1, Storage::disk('local')->files('backups'));
+        $this->assertCount(1, Storage::disk('files')->files('backups'));
 
         // New records number on from the restored ones, not over them.
         $next = Vendor::factory()->create(['name' => 'After restore']);

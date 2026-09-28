@@ -76,7 +76,7 @@ class OnlineOrderServiceTest extends TestCase
 
         $this->seed(UomSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        Storage::fake('local');
+        Storage::fake('files');
         config(['erp.company.brand' => 'Rahat Rooh']);
         $this->app->instance(AiLabelReader::class, new FakeLabelReader(available: false));
 
@@ -165,7 +165,7 @@ class OnlineOrderServiceTest extends TestCase
         $this->assertMatchesRegularExpression('/^LB-\d{4}-00001$/', $batch->number);
         $this->assertSame($this->depot->id, $batch->facility_id);
         $this->assertCount(1, $batch->files);
-        Storage::disk('local')->assertExists($batch->files->first()->path);
+        Storage::disk('files')->assertExists($batch->files->first()->path);
         $this->assertSame('meesho', $batch->files->first()->read_with);
 
         $shipments = $batch->shipments()->with('lines')->orderBy('id')->get();
@@ -517,7 +517,7 @@ class OnlineOrderServiceTest extends TestCase
 
         $this->assertSame(0, Shipment::query()->count());
         $this->assertSame('23', $this->free());
-        Storage::disk('local')->assertMissing($file->path);
+        Storage::disk('files')->assertMissing($file->path);
 
         $batch = $this->orders->upload($this->rahatRooh, $this->meesho, $this->depotFg, [
             LabelFixtures::meesho([$this->parcel('VL0000000000001')], 'again.pdf'),

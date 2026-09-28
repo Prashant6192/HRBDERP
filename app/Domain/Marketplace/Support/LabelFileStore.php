@@ -16,7 +16,7 @@ use Throwable;
  */
 final class LabelFileStore
 {
-    public const string DISK = 'local';
+    public const string DISK = 'files';
 
     public function put(LabelFile $file, string $contents): void
     {

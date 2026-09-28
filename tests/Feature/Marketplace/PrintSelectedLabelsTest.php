@@ -57,7 +57,7 @@ class PrintSelectedLabelsTest extends TestCase
 
         $this->seed(UomSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        Storage::fake('local');
+        Storage::fake('files');
         $this->app->instance(AiLabelReader::class, new FakeLabelReader(available: false));
         config(['erp.company.timezone' => 'Asia/Kolkata']);
 
@@ -153,18 +153,18 @@ class PrintSelectedLabelsTest extends TestCase
     public function a_label_file_wiped_from_the_disk_by_a_deploy_is_served_from_the_database(): void
     {
         $file = $this->rr->files()->sole();
-        Storage::disk('local')->delete($file->path);
+        Storage::disk('files')->delete($file->path);
 
         $response = $this->actingAs($this->dispatcher)->get(route('online-orders.files.show', $file))->assertOk();
         $this->assertSame($this->rrPdf, $response->streamedContent());
-        $this->assertTrue(Storage::disk('local')->exists($file->path), 'Put back on the disk.');
+        $this->assertTrue(Storage::disk('files')->exists($file->path), 'Put back on the disk.');
     }
 
     #[Test]
     public function a_file_lost_before_the_fix_stops_printing_until_the_same_pdf_is_uploaded_again(): void
     {
         $file = $this->rr->files()->sole();
-        Storage::disk('local')->delete($file->path);
+        Storage::disk('files')->delete($file->path);
         DB::table('label_file_contents')->where('label_file_id', $file->id)->delete();
 
         $ids = Shipment::query()->where('label_batch_id', $this->rr->id)->pluck('id')->all();

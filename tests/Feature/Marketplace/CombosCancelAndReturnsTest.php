@@ -87,7 +87,7 @@ class CombosCancelAndReturnsTest extends TestCase
 
         $this->seed(UomSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        Storage::fake('local');
+        Storage::fake('files');
         config(['erp.company.brand' => 'Rahat Rooh', 'erp.online_orders.cutoff' => '16:00', 'erp.company.timezone' => 'Asia/Kolkata']);
         $this->app->instance(AiLabelReader::class, new FakeLabelReader(available: false));
 

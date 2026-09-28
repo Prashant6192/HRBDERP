@@ -11,6 +11,18 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Changed — Uploaded files are kept in the Laravel Cloud storage bucket
+
+- Every uploaded document — supplier bills, label PDFs, artwork, dispatch
+  papers, transfer invoices, documents, floor photos and backup copies — is
+  now kept on one **files** disk. When a Laravel Cloud **Object Storage**
+  bucket is attached to the environment (under any name), the ERP uses it
+  automatically; until then it uses the app's own disk, as before, which
+  Laravel Cloud wipes on every deploy.
+- Backups read and write through the same disk, so they work on the bucket.
+- The S3 driver (`league/flysystem-aws-s3-v3`) the bucket needs is
+  installed.
+
 ### Fixed — "A label file could not be fetched" after a deploy
 
 - Label PDFs were kept only on the app's own disk, which Laravel Cloud

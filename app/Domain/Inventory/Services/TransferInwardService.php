@@ -22,7 +22,7 @@ use Illuminate\Support\Str;
  */
 class TransferInwardService
 {
-    public const string DISK = 'local';
+    public const string DISK = 'files';
 
     public function __construct(private readonly ChallanReader $reader) {}
 

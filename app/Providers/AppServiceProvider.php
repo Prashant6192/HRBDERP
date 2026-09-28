@@ -50,9 +50,36 @@ class AppServiceProvider extends ServiceProvider
             return $this;
         });
 
+        $this->configureFilesDisk();
         $this->configureDefaults();
         $this->configureModels();
         $this->assertDatabaseIsPostgres();
+    }
+
+    /**
+     * Every uploaded document — bills, labels, artwork, dispatch papers,
+     * floor photos, backups — lives on the 'files' disk: the Laravel Cloud
+     * bucket once one is attached (named 'files', or as the default disk),
+     * the app's own disk until then. The app's own disk is wiped on every
+     * deploy on Laravel Cloud, so a bucket is what keeps them.
+     */
+    private function configureFilesDisk(): void
+    {
+        if (config('filesystems.disks.files') !== null) {
+            return;
+        }
+
+        // A bucket attached in Laravel Cloud under another name: use it,
+        // the default one first, whatever FILESYSTEM_DISK says.
+        $cloud = collect(json_decode((string) ($_SERVER['LARAVEL_CLOUD_DISK_CONFIG'] ?? '[]'), true) ?: [])
+            ->filter(fn ($d) => is_array($d) && isset($d['disk']) && empty($d['scoped_disk']))
+            ->sortByDesc(fn (array $d) => (bool) ($d['is_default'] ?? false))
+            ->pluck('disk')
+            ->first(fn (string $name) => config("filesystems.disks.{$name}.driver") === 's3');
+
+        $disk = $cloud ?? (string) config('filesystems.default', 'local');
+
+        config(['filesystems.disks.files' => config("filesystems.disks.{$disk}") ?? config('filesystems.disks.local')]);
     }
 
     /**

@@ -14,9 +14,13 @@ import {
     Upload,
     X,
 } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
+import { toast } from 'sonner';
 import { CancelOrderDialog } from '@/components/online-orders/cancel-order-dialog';
-import { ParcelTable } from '@/components/online-orders/parcel-table';
+import {
+    ParcelTable,
+    printable,
+} from '@/components/online-orders/parcel-table';
 import {
     ShortfallPanel,
     type Shortfall,
@@ -36,13 +40,22 @@ import {
     canCancel,
     courierName,
     describeParcel,
+    postJson,
+    printPlan,
     type Abilities,
     type Batch,
     type Parcel,
+    type PrintPlan,
 } from '@/lib/online-orders';
 import { cn } from '@/lib/utils';
 import { pdf as sheetPdf } from '@/routes/handover-sheets';
-import { create, holdAll, index, show } from '@/routes/online-orders';
+import {
+    create,
+    holdAll,
+    index,
+    printSelected,
+    show,
+} from '@/routes/online-orders';
 import {
     create as receiveReturn,
     index as returnsIndex,
@@ -269,6 +282,59 @@ export default function OnlineOrdersIndex({
     const pick = (next: Show, courier: string | null = null) =>
         go({ show: next === 'all' ? null : next, courier });
     const mayCancelAny = can.print || can.pack || can.manage;
+
+    // Labels ticked for printing: one by one, or a courier at a time.
+    const [selected, setSelected] = useState<Set<number>>(new Set());
+    const [printing, setPrinting] = useState(false);
+    const visible = useMemo(
+        () => new Set(parcels.filter(printable).map((p) => p.id)),
+        [parcels],
+    );
+    const ticked = [...selected].filter((id) => visible.has(id));
+    const notPrinted = parcels
+        .filter((p) => p.status === 'uploaded')
+        .map((p) => p.id);
+    const toggle = (ids: number[], on: boolean) =>
+        setSelected((prev) => {
+            const next = new Set(prev);
+            ids.forEach((id) => (on ? next.add(id) : next.delete(id)));
+
+            return next;
+        });
+    const printLabels = async (ids: number[]) => {
+        if (ids.length === 0) {
+            return;
+        }
+
+        setPrinting(true);
+
+        try {
+            const { ok, data } = await postJson<
+                PrintPlan & { message?: string }
+            >(printSelected().url, { shipment_ids: ids });
+
+            if (!ok) {
+                toast.error(data.message ?? 'The labels could not be printed.');
+
+                return;
+            }
+
+            await printPlan(data);
+            toast.success(
+                `${data.shipments} label(s), ${data.pages} page(s) sent to print and marked printed.`,
+            );
+            setSelected(new Set());
+            router.reload();
+        } catch (e) {
+            toast.error(
+                e instanceof Error
+                    ? e.message
+                    : 'The labels could not be printed.',
+            );
+        } finally {
+            setPrinting(false);
+        }
+    };
 
     const onSearch = (e: FormEvent) => {
         e.preventDefault();
@@ -689,9 +755,67 @@ export default function OnlineOrdersIndex({
                             </Button>
                         )}
                     </div>
+                    {can.print && visible.size > 0 && (
+                        <div className="bg-muted/30 flex flex-wrap items-center gap-2 border-b px-4 py-2 text-sm">
+                            <Printer className="text-muted-foreground size-4" />
+                            {ticked.length > 0 ? (
+                                <span className="font-medium">
+                                    {ticked.length} label
+                                    {ticked.length === 1 ? '' : 's'} selected
+                                </span>
+                            ) : (
+                                <span className="text-muted-foreground">
+                                    Tick labels, or a courier's box to take all
+                                    of its labels, then print.
+                                </span>
+                            )}
+                            <div className="ml-auto flex flex-wrap gap-2">
+                                {ticked.length > 0 && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setSelected(new Set())}
+                                    >
+                                        Clear
+                                    </Button>
+                                )}
+                                {notPrinted.length > 0 && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={printing}
+                                        onClick={() => printLabels(notPrinted)}
+                                    >
+                                        Print all not printed (
+                                        {notPrinted.length})
+                                    </Button>
+                                )}
+                                <Button
+                                    size="sm"
+                                    disabled={printing || ticked.length === 0}
+                                    onClick={() => printLabels(ticked)}
+                                >
+                                    <Printer className="size-4" />
+                                    {printing
+                                        ? 'Preparing…'
+                                        : `Print selected${ticked.length > 0 ? ` (${ticked.length})` : ''}`}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                     <ParcelTable
                         parcels={parcels}
                         showBatch
+                        selection={
+                            can.print
+                                ? {
+                                      selected,
+                                      toggle,
+                                      printGroup: printLabels,
+                                      busy: printing,
+                                  }
+                                : undefined
+                        }
                         empty="No parcels here for this day."
                         actions={(p) => (
                             <>

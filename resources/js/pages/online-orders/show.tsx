@@ -882,7 +882,9 @@ export default function OnlineOrderBatch({
                                                   ? ' · not yet printed'
                                                   : p.scope === 'one'
                                                     ? ' · one label'
-                                                    : ' · all'}
+                                                    : p.scope === 'selected'
+                                                      ? ' · picked on the day screen'
+                                                      : ' · all'}
                                         </span>
                                         <span className="text-muted-foreground text-xs">
                                             {p.by ?? '—'}, {when(p.at)}

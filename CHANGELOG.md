@@ -11,6 +11,15 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Added — Print labels in bulk from the day's Online orders screen
+
+- Tick labels one by one, or tick a **courier's box** to take every one of
+  its labels still to pack, then **Print selected**. Labels from all of the
+  day's batches come out in one PDF, courier by courier, and are marked
+  printed. **Print all not printed** and a **Print N not printed** button on
+  each courier's row do the same in one click. Packed, handed-over and
+  cancelled labels cannot be ticked. Each run is logged against its batch.
+
 ### Fixed — Parcels left "Short in store" after the stock was put in
 
 - A parcel is checked for stock when the agency uploads it. If the store

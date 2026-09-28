@@ -68,7 +68,7 @@ class StockTransferInwardTest extends TestCase
 
         $this->seed(UomSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        Storage::fake('local');
+        Storage::fake('files');
 
         $this->transfers = app(StockTransferService::class);
         $this->balances = app(StockBalanceService::class);
@@ -355,7 +355,7 @@ class StockTransferInwardTest extends TestCase
         $this->assertSame('LR-778', $transfer->transport_reference);
         $this->assertSame('UK-06-AB-1234', $transfer->vehicle_ref, 'The vehicle the source recorded is not overwritten.');
 
-        $stored = Storage::disk('local')->allFiles('stock-transfers/inward');
+        $stored = Storage::disk('files')->allFiles('stock-transfers/inward');
         $this->assertCount(1, $stored);
         $this->assertSame($stored[0], $transfer->transport_document_path);
 
@@ -389,7 +389,7 @@ class StockTransferInwardTest extends TestCase
 
         $this->assertStringContainsString('TRF-2601-00099', session('errors')->first('code'));
         $this->assertNull($transfer->fresh()->scanned_at);
-        $this->assertSame([], Storage::disk('local')->allFiles('stock-transfers/inward'));
+        $this->assertSame([], Storage::disk('files')->allFiles('stock-transfers/inward'));
     }
 
     #[Test]
@@ -408,7 +408,7 @@ class StockTransferInwardTest extends TestCase
 
         $this->assertStringContainsString('inward code', session('errors')->first('code'));
         $this->assertNull($transfer->fresh()->scanned_at);
-        $this->assertSame([], Storage::disk('local')->allFiles('stock-transfers/inward'));
+        $this->assertSame([], Storage::disk('files')->allFiles('stock-transfers/inward'));
 
         // The code still works without any reader.
         $this->actingAs($this->delhiStorekeeper)
@@ -434,7 +434,7 @@ class StockTransferInwardTest extends TestCase
         $transfer->refresh();
         $this->assertNotNull($transfer->scanned_at);
         $this->assertSame('photo.pdf', $transfer->transport_document_name);
-        $this->assertCount(1, Storage::disk('local')->allFiles('stock-transfers/inward'));
+        $this->assertCount(1, Storage::disk('files')->allFiles('stock-transfers/inward'));
     }
 
     #[Test]

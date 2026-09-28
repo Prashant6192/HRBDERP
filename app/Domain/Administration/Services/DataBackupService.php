@@ -38,7 +38,7 @@ class DataBackupService
     /** Locked at the database: rows are only ever added. */
     public const array APPEND_ONLY = ['audit_logs', 'formula_access_logs'];
 
-    public const string DISK = 'local';
+    public const string DISK = 'files';
 
     /** Where the copy taken before a restore is kept, on the same disk. */
     public const string COPIES_DIR = 'backups';
@@ -89,7 +89,8 @@ class DataBackupService
                     continue;
                 }
 
-                $zip->addFile($disk->path($relative), 'storage/'.$relative);
+                // The disk may be a bucket: read the file, not a local path.
+                $zip->addFromString('storage/'.$relative, (string) $disk->get($relative));
                 $files++;
             }
 
@@ -184,8 +185,19 @@ class DataBackupService
 
         if ($keepCopy) {
             $copy = self::COPIES_DIR.'/before-restore-'.now()->format('Y-m-d-His').'.zip';
-            Storage::disk(self::DISK)->makeDirectory(self::COPIES_DIR);
-            $this->export(Storage::disk(self::DISK)->path($copy));
+            $local = (string) tempnam(sys_get_temp_dir(), 'hrbd-copy-');
+
+            try {
+                $this->export($local);
+                $stream = fopen($local, 'rb');
+                Storage::disk(self::DISK)->writeStream($copy, $stream);
+
+                if (is_resource($stream)) {
+                    fclose($stream);
+                }
+            } finally {
+                @unlink($local);
+            }
         }
 
         $zip = $this->openForReading($path);

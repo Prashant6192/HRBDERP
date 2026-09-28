@@ -275,7 +275,7 @@ class ControlsTest extends TestCase
     #[Test]
     public function documents_are_versioned_and_approved_by_someone_other_than_their_author(): void
     {
-        Storage::fake('local');
+        Storage::fake('files');
         $author = $this->user(RoleName::QcManager);
         $approver = $this->user(RoleName::FactoryManager);
         $product = Product::factory()->create();

@@ -49,7 +49,7 @@ use Illuminate\Support\Str;
  */
 class DispatchService
 {
-    public const string DISK = 'local';
+    public const string DISK = 'files';
 
     private const int MONEY_SCALE = 2;
 

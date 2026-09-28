@@ -99,7 +99,7 @@ class ThirdPartyManufacturingTest extends TestCase
 
         $this->seed(UomSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        Storage::fake('local');
+        Storage::fake('files');
 
         $this->plans = app(ProductionPlanService::class);
         $this->orders = app(ManufacturingOrderService::class);
@@ -477,7 +477,7 @@ class ThirdPartyManufacturingTest extends TestCase
 
         $v1 = ClientArtwork::query()->sole();
         $this->assertSame(ArtworkStatus::Approved, $v1->status);
-        $this->assertCount(1, Storage::disk('local')->allFiles('clients/artworks'));
+        $this->assertCount(1, Storage::disk('files')->allFiles('clients/artworks'));
 
         $this->actingAs($this->factoryManager)->post(route('clients.artworks.store', $this->abc), [
             'product_id' => $this->shampoo->id, 'kind' => 'label', 'title' => 'Front label', 'version' => 'v2',

@@ -378,7 +378,7 @@ class ShopFloorTest extends TestCase
     #[Test]
     public function a_photo_taken_on_the_floor_is_kept_against_the_batch(): void
     {
-        Storage::fake('local');
+        Storage::fake('files');
         $this->stockTheStores();
         $lot = InventoryLot::query()->where('batch_number', 'SURF-001')->firstOrFail();
 
@@ -392,6 +392,6 @@ class ShopFloorTest extends TestCase
         $this->assertSame($lot->id, $photo->subject_id);
         $this->assertSame('Drum dented on arrival', $photo->note);
         $this->assertSame($this->factoryManager->id, $photo->taken_by);
-        Storage::disk('local')->assertExists($photo->path);
+        Storage::disk('files')->assertExists($photo->path);
     }
 }

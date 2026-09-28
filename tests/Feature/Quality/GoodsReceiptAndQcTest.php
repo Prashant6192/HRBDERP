@@ -352,7 +352,7 @@ class GoodsReceiptAndQcTest extends TestCase
                 'rate' => '118.50', 'batch' => 'SUP-001', 'expiry_at' => now()->addYear()->toDateString(),
             ]],
         ]));
-        Storage::fake('local');
+        Storage::fake('files');
 
         $bill = UploadedFile::fake()->createWithContent('inv-1.pdf', "%PDF-1.4\n");
         $bill->mimeTypeToReport = 'application/pdf';

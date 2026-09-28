@@ -110,6 +110,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/', 'index')->name('index');
         Route::get('production', 'production')->name('production');
         Route::get('materials', 'materials')->name('materials');
+        Route::get('depot', 'depot')->name('depot');
         Route::get('ordering', 'ordering')->name('ordering');
         Route::get('formulas', 'formulas')->name('formulas');
         Route::get('clients', 'clients')->name('clients');

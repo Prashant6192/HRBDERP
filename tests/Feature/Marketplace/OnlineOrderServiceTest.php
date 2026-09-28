@@ -329,15 +329,19 @@ class OnlineOrderServiceTest extends TestCase
         $this->assertSame(StockState::Short, $short->stock_state);
         $this->assertSame(StockState::Reserved, Shipment::query()->where('awb', 'VL0000000000001')->sole()->stock_state);
 
-        $this->assertSame([[
+        $shortfall = $this->orders->shortfall($batch);
+        $this->assertCount(1, $shortfall);
+        $this->assertSame([
             'item_id' => $this->oil->id,
             'code' => $this->oil->code,
             'name' => 'Rahat Rooh Hair Oil 200 ml',
             'unit' => 'PCS',
+            'store' => $this->depotFg->name,
             'needed' => '10',
             'free' => '3',
             'short' => '7',
-        ]], $this->orders->shortfall($batch));
+        ], array_diff_key($shortfall[0], ['why' => true]));
+        $this->assertSame(["20 PCS in {$this->depotFg->name} is already held for other parcels or orders."], $shortfall[0]['why']);
 
         try {
             $this->orders->pack($short, $this->packer);
@@ -349,7 +353,9 @@ class OnlineOrderServiceTest extends TestCase
         $lot = InventoryLot::factory()->forItem($this->oil)->create(['qc_status' => LotQcStatus::Approved, 'expiry_at' => now()->addYears(2)]);
         app(InventoryLedgerService::class)->receive($this->oil, $this->depotFg, '10', $lot, InventoryTransactionType::StockAdjustmentIn);
 
-        $this->assertSame(['held' => 1, 'short' => 0, 'unmapped' => 0], $this->orders->holdAgain($batch));
+        // Held the moment the stock landed, without anyone checking again.
+        $this->assertSame(StockState::Reserved, $short->refresh()->stock_state);
+        $this->assertSame(['held' => 0, 'short' => 0, 'unmapped' => 0], $this->orders->holdAgain($batch));
         $this->assertSame([], $this->orders->shortfall($batch));
     }
 

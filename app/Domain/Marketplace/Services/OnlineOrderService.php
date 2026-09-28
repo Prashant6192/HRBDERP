@@ -10,7 +10,9 @@ use App\Domain\Inventory\DTOs\LedgerPosting;
 use App\Domain\Inventory\Enums\InventoryTransactionType;
 use App\Domain\Inventory\Enums\ReservationStatus;
 use App\Domain\Inventory\Exceptions\InsufficientStockException;
+use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Models\InventoryTransaction;
+use App\Domain\Inventory\Models\StockBalance;
 use App\Domain\Inventory\Models\StockReservation;
 use App\Domain\Inventory\Services\InventoryLedgerService;
 use App\Domain\Inventory\Services\InventoryReservationService;
@@ -38,6 +40,7 @@ use App\Domain\Warehousing\Enums\FacilityCapability;
 use App\Domain\Warehousing\Enums\WarehouseType;
 use App\Domain\Warehousing\Models\Warehouse;
 use App\Models\User;
+use App\Support\Math\Decimal;
 use Brick\Math\BigDecimal;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
@@ -482,50 +485,206 @@ class OnlineOrderService
      * What the batch needs against what the store has, product by product —
      * so a transfer can be raised before anyone starts packing.
      *
-     * @return list<array{item_id: int, code: string, name: string, unit: string|null, needed: string, free: string, short: string}>
+     * @return list<array{item_id: int, code: string, name: string, unit: string|null, store: string|null, needed: string, free: string, short: string, why: list<string>}>
      */
     public function shortfall(LabelBatch $batch): array
     {
+        return $this->shortfallFor(collect([$batch]));
+    }
+
+    /**
+     * The same, across several batches, one row per store and product, with
+     * the reasons the store cannot cover it: where the stock is instead.
+     *
+     * @param  Collection<int, LabelBatch>  $batches
+     * @return list<array{item_id: int, code: string, name: string, unit: string|null, store: string|null, needed: string, free: string, short: string, why: list<string>}>
+     */
+    public function shortfallFor(Collection $batches): array
+    {
+        if ($batches->isEmpty()) {
+            return [];
+        }
+
         $needed = ShipmentPick::query()
             ->join('shipments', 'shipments.id', '=', 'shipment_picks.shipment_id')
-            ->where('shipments.label_batch_id', $batch->id)
+            ->whereIn('shipments.label_batch_id', $batches->pluck('id'))
             ->where('shipments.stock_state', StockState::Short->value)
             ->whereIn('shipments.status', ShipmentStatus::awaitingPacking())
-            ->groupBy('shipment_picks.item_id')
-            ->selectRaw('shipment_picks.item_id, SUM(shipment_picks.units) AS units')
-            ->pluck('units', 'item_id');
+            ->groupBy('shipments.warehouse_id', 'shipments.brand_id', 'shipment_picks.item_id')
+            ->selectRaw('shipments.warehouse_id, shipments.brand_id, shipment_picks.item_id, SUM(shipment_picks.units) AS units')
+            ->toBase()
+            ->get();
 
         if ($needed->isEmpty()) {
             return [];
         }
 
-        $batch->loadMissing(['warehouse', 'brand']);
-        $items = Item::query()->with('stockUom:id,code')->whereIn('id', $needed->keys())->get()->keyBy('id');
+        $items = Item::query()->with('stockUom:id,code')->whereIn('id', $needed->pluck('item_id')->unique())->get()->keyBy('id');
+        $stores = Warehouse::query()->with('facility:id,name')->whereIn('id', $needed->pluck('warehouse_id')->unique())->get()->keyBy('id');
+        $owners = Brand::query()->whereIn('id', $needed->pluck('brand_id')->unique())->pluck('client_id', 'id');
         $rows = [];
 
-        foreach ($needed as $itemId => $units) {
-            $item = $items->get($itemId);
+        // One row per store and product; brands of one owner share stock.
+        foreach ($needed->groupBy(fn ($r) => $r->warehouse_id.'-'.$r->item_id.'-'.($owners[$r->brand_id] ?? '')) as $group) {
+            $first = $group->first();
+            $item = $items->get($first->item_id);
+            $store = $stores->get($first->warehouse_id);
 
-            if ($item === null) {
+            if ($item === null || $store === null) {
                 continue;
             }
 
-            $free = $this->balances->releasableBalances($item, [$batch->warehouse_id], ownerClientId: $batch->brand->client_id)
+            $owner = $owners[$first->brand_id] ?? null;
+            $free = $this->balances->releasableBalances($item, [$store->id], ownerClientId: $owner)
                 ->reduce(fn (BigDecimal $c, $b) => $c->plus($b->available()), BigDecimal::zero());
-            $need = BigDecimal::of((string) $units);
+            $need = $group->reduce(fn (BigDecimal $c, $r) => $c->plus(BigDecimal::of((string) $r->units)), BigDecimal::zero());
 
             $rows[] = [
                 'item_id' => $item->id,
                 'code' => $item->code,
                 'name' => $item->name,
                 'unit' => $item->stockUom?->code,
+                'store' => $store->name,
                 'needed' => (string) $need->strippedOfTrailingZeros(),
                 'free' => (string) $free->strippedOfTrailingZeros(),
                 'short' => (string) ($need->isGreaterThan($free) ? $need->minus($free) : BigDecimal::zero())->strippedOfTrailingZeros(),
+                'why' => $this->whyShort($item, $store, $owner, $free, $need),
             ];
         }
 
         return $rows;
+    }
+
+    /**
+     * Where the product is, if not free in this store: held for other
+     * parcels, waiting for QC, past expiry, someone else's, in another
+     * store — or booked under a product with nearly the same name.
+     *
+     * @return list<string>
+     */
+    private function whyShort(Item $item, Warehouse $store, ?int $owner, BigDecimal $free, BigDecimal $need): array
+    {
+        $unit = $item->stockUom?->code ?? '';
+        $fmt = fn (BigDecimal $q): string => trim(Decimal::strip((string) $q).' '.$unit);
+        $why = [];
+
+        if ($free->isPositive() && $free->isGreaterThanOrEqualTo($need)) {
+            $why[] = 'There is enough now — press Check stock again.';
+        }
+
+        $here = StockBalance::query()->where('item_id', $item->id)->where('warehouse_id', $store->id)->where('on_hand', '>', 0)->get();
+        $lots = InventoryLot::query()->whereIn('id', $here->pluck('lot_id')->filter()->unique())->get()->keyBy('id');
+
+        $held = BigDecimal::zero();
+        $qc = BigDecimal::zero();
+        $expired = BigDecimal::zero();
+        $others = BigDecimal::zero();
+
+        foreach ($here as $balance) {
+            $lot = $balance->lot_id === null ? null : $lots->get($balance->lot_id);
+
+            if ($lot !== null && ! $lot->qc_status->isReleasable()) {
+                $qc = $qc->plus($balance->onHand());
+            } elseif ($lot !== null && $lot->isExpired()) {
+                $expired = $expired->plus($balance->onHand());
+            } elseif (($lot?->owner_client_id ?? null) !== $owner) {
+                $others = $others->plus($balance->onHand());
+            } else {
+                $held = $held->plus($balance->reserved());
+            }
+        }
+
+        if ($held->isPositive()) {
+            $why[] = "{$fmt($held)} in {$store->name} is already held for other parcels or orders.";
+        }
+
+        if ($qc->isPositive()) {
+            $why[] = "{$fmt($qc)} in {$store->name} is waiting for QC — pass the batch to use it.";
+        }
+
+        if ($expired->isPositive()) {
+            $why[] = "{$fmt($expired)} in {$store->name} is past its expiry date.";
+        }
+
+        if ($others->isPositive()) {
+            $why[] = "{$fmt($others)} in {$store->name} belongs to another owner (a 3P client or the company), not this brand.";
+        }
+
+        $elsewhere = StockBalance::query()
+            ->where('item_id', $item->id)
+            ->where('warehouse_id', '!=', $store->id)
+            ->where('on_hand', '>', 0)
+            ->selectRaw('warehouse_id, SUM(on_hand) AS qty')
+            ->groupBy('warehouse_id')
+            ->orderByDesc('qty')
+            ->limit(3)
+            ->toBase()
+            ->get();
+
+        if ($elsewhere->isNotEmpty()) {
+            $names = Warehouse::query()->with('facility:id,name')->whereIn('id', $elsewhere->pluck('warehouse_id'))->get()->keyBy('id');
+            $where = $elsewhere->map(function ($r) use ($names, $fmt): string {
+                $w = $names->get($r->warehouse_id);
+
+                return $fmt(BigDecimal::of((string) $r->qty)).' in '.($w?->name ?? 'another store').($w?->facility ? " ({$w->facility->name})" : '');
+            })->implode('; ');
+            $why[] = "Stock is in another store: {$where}. Move it here with a stock transfer.";
+        }
+
+        foreach ($this->lookAlikes($item, $store) as $alike) {
+            $why[] = "{$alike['name']} ({$alike['code']}) has {$alike['qty']} in {$store->name}. If that is the same product, the SKU is mapped to the wrong one — fix it in SKU mapping, or book the stock under {$item->code}.";
+        }
+
+        if ($why === []) {
+            $why[] = "No stock of {$item->code} anywhere yet. Book it in, or transfer it from the factory.";
+        }
+
+        return $why;
+    }
+
+    /**
+     * Other products with stock in the store whose name reads the same:
+     * the same pack size and a shared word, or one name inside the other.
+     *
+     * @return list<array{code: string, name: string, qty: string}>
+     */
+    private function lookAlikes(Item $item, Warehouse $store): array
+    {
+        $normal = fn (string $name): string => (string) preg_replace('/[^a-z0-9]/', '', strtolower($name));
+        $size = fn (string $name): ?string => preg_match('/(\d+(?:\.\d+)?)\s*(ml|l|ltr|litre|g|gm|gms|kg)\b/i', $name, $m) ? $m[1].strtolower(rtrim($m[2], 's')) : null;
+        $words = fn (string $name): array => array_values(array_filter(
+            preg_split('/[^a-z]+/', strtolower($name)) ?: [],
+            fn (string $w) => strlen($w) >= 4,
+        ));
+
+        $mine = $normal($item->name);
+        $mySize = $size($item->name);
+        $myWords = $words($item->name);
+
+        return StockBalance::query()
+            ->join('items as i', 'i.id', '=', 'stock_balances.item_id')
+            ->where('stock_balances.warehouse_id', $store->id)
+            ->where('stock_balances.item_id', '!=', $item->id)
+            ->where('stock_balances.on_hand', '>', 0)
+            ->whereNull('i.deleted_at')
+            ->groupBy('i.id', 'i.code', 'i.name')
+            ->selectRaw('i.code, i.name, SUM(stock_balances.on_hand) AS qty')
+            ->toBase()
+            ->get()
+            ->filter(function ($r) use ($normal, $size, $words, $mine, $mySize, $myWords): bool {
+                $theirs = $normal((string) $r->name);
+
+                if ($mine !== '' && $theirs !== '' && (str_contains($theirs, $mine) || str_contains($mine, $theirs))) {
+                    return true;
+                }
+
+                return $mySize !== null && $size((string) $r->name) === $mySize
+                    && array_intersect($myWords, $words((string) $r->name)) !== [];
+            })
+            ->take(2)
+            ->map(fn ($r) => ['code' => (string) $r->code, 'name' => (string) $r->name, 'qty' => Decimal::strip((string) $r->qty)])
+            ->values()
+            ->all();
     }
 
     // ---- Print ------------------------------------------------------------

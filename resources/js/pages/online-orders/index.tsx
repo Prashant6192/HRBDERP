@@ -17,6 +17,10 @@ import {
 import { useState, type FormEvent } from 'react';
 import { CancelOrderDialog } from '@/components/online-orders/cancel-order-dialog';
 import { ParcelTable } from '@/components/online-orders/parcel-table';
+import {
+    ShortfallPanel,
+    type Shortfall,
+} from '@/components/online-orders/shortfall-panel';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
@@ -38,7 +42,7 @@ import {
 } from '@/lib/online-orders';
 import { cn } from '@/lib/utils';
 import { pdf as sheetPdf } from '@/routes/handover-sheets';
-import { create, index, show } from '@/routes/online-orders';
+import { create, holdAll, index, show } from '@/routes/online-orders';
 import {
     create as receiveReturn,
     index as returnsIndex,
@@ -212,6 +216,7 @@ export default function OnlineOrdersIndex({
     past_cutoff,
     batches,
     totals,
+    shortfall,
     couriers,
     parcels,
     show: showing,
@@ -229,6 +234,7 @@ export default function OnlineOrdersIndex({
     past_cutoff: boolean;
     batches: (Batch & { counts: Counts })[];
     totals: Omit<Counts, 'total'> & { parcels: number };
+    shortfall: Shortfall[];
     couriers: CourierRow[];
     parcels: Parcel[];
     show: Show;
@@ -514,6 +520,14 @@ export default function OnlineOrdersIndex({
                         onClick={() => pick('attention')}
                     />
                 </div>
+
+                <ShortfallPanel
+                    rows={shortfall}
+                    checkUrl={
+                        can.print || can.manage ? holdAll().url : undefined
+                    }
+                    checkData={{ date, facility }}
+                />
 
                 {couriers.length > 0 && (
                     <section className="bg-card rounded-xl border">

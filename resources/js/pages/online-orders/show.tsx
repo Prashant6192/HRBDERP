@@ -18,6 +18,10 @@ import { toast } from 'sonner';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import InputError from '@/components/input-error';
 import { ParcelTable } from '@/components/online-orders/parcel-table';
+import {
+    ShortfallPanel,
+    type Shortfall,
+} from '@/components/online-orders/shortfall-panel';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
@@ -76,16 +80,6 @@ type LabelFileRow = {
     shipments: number;
     uploaded_by: string | null;
     uploaded_at: string | null;
-};
-
-type Shortfall = {
-    item_id: number;
-    code: string;
-    name: string;
-    unit: string | null;
-    needed: string;
-    free: string;
-    short: string;
 };
 
 type PrintRow = {
@@ -689,57 +683,12 @@ export default function OnlineOrderBatch({
                     </section>
                 )}
 
-                {shortfall.length > 0 && (
-                    <section className="rounded-xl border border-red-600/30 bg-red-500/5 p-4">
-                        <h2 className="flex items-center gap-2 font-semibold">
-                            <AlertTriangle className="size-4" />
-                            Not enough stock in {batch.store}
-                        </h2>
-                        <p className="text-muted-foreground text-sm">
-                            Bring stock in (a transfer from the factory), then
-                            press <b>Check stock again</b>.
-                        </p>
-                        <table className="mt-3 w-full text-sm">
-                            <thead className="text-muted-foreground text-left text-xs uppercase">
-                                <tr>
-                                    <th className="py-1 font-medium">
-                                        Product
-                                    </th>
-                                    <th className="py-1 text-right font-medium">
-                                        Needed
-                                    </th>
-                                    <th className="py-1 text-right font-medium">
-                                        Free
-                                    </th>
-                                    <th className="py-1 text-right font-medium">
-                                        Short
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {shortfall.map((r) => (
-                                    <tr key={r.item_id} className="border-t">
-                                        <td className="py-2">
-                                            {r.name}{' '}
-                                            <span className="text-muted-foreground font-mono text-xs">
-                                                {r.code}
-                                            </span>
-                                        </td>
-                                        <td className="py-2 text-right tabular-nums">
-                                            {r.needed} {r.unit}
-                                        </td>
-                                        <td className="py-2 text-right tabular-nums">
-                                            {r.free}
-                                        </td>
-                                        <td className="py-2 text-right font-semibold text-red-700 tabular-nums dark:text-red-300">
-                                            {r.short}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </section>
-                )}
+                <ShortfallPanel
+                    rows={shortfall}
+                    checkUrl={
+                        can.print || can.manage ? hold(batch.id).url : undefined
+                    }
+                />
 
                 {warnings.length > 0 && (
                     <section className="rounded-xl border border-amber-600/30 bg-amber-500/5 p-4 text-sm">

@@ -193,6 +193,7 @@ class OnlineOrderController extends Controller
                 ],
             ])->all(),
             'totals' => $totals,
+            'shortfall' => $this->brands->isRestricted($user) ? [] : $this->orders->shortfallFor($batches),
             'couriers' => $couriers,
             'parcels' => $parcels,
             'show' => $show,
@@ -367,6 +368,35 @@ class OnlineOrderController extends Controller
     }
 
     /**
+     * Check stock again for every parcel of the day still waiting on it.
+     */
+    public function holdAll(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('marketplace.print') || $user->can('marketplace.manage'), 403);
+
+        $day = $this->day($request->string('date')->toString());
+        $facilityId = $request->integer('facility') ?: null;
+        $counts = ['held' => 0, 'short' => 0, 'unmapped' => 0];
+
+        $this->visibleBatches($user)
+            ->whereDate('for_date', $day->toDateString())
+            ->when($facilityId, fn (Builder $q) => $q->where('facility_id', $facilityId))
+            ->orderBy('id')
+            ->get()
+            ->each(function (LabelBatch $batch) use (&$counts): void {
+                foreach ($this->orders->holdAgain($batch) as $key => $n) {
+                    $counts[$key] += $n;
+                }
+            });
+
+        return back()->withToast(
+            $counts['short'] + $counts['unmapped'] > 0 ? 'warning' : 'success',
+            "Stock checked again: {$counts['held']} now held, {$counts['short']} still short, {$counts['unmapped']} not mapped.",
+        );
+    }
+
+    /**
      * Record a print run and hand the browser the pages to assemble.
      */
     public function print(Request $request, LabelBatch $batch): JsonResponse
@@ -383,6 +413,35 @@ class OnlineOrderController extends Controller
 
         try {
             $plan = $this->orders->print($batch, $data['scope'], $user, $data['courier'] ?? null, $data['shipment_id'] ?? null);
+        } catch (OnlineOrderException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        $files = collect($plan['parts'])->pluck('file_id')->unique()->values()
+            ->mapWithKeys(fn (int $id) => [$id => route('online-orders.files.show', $id)])
+            ->all();
+
+        return response()->json([...$plan, 'files' => $files]);
+    }
+
+    /**
+     * Print the labels ticked on the day's screen, across batches, and mark
+     * them printed.
+     */
+    public function printSelected(Request $request): JsonResponse
+    {
+        $this->authorize('marketplace.print');
+        $user = $request->user();
+
+        $data = $request->validate([
+            'shipment_ids' => ['required', 'array', 'min:1', 'max:1000'],
+            'shipment_ids.*' => ['integer'],
+        ]);
+
+        $visible = Shipment::query()->whereIn('label_batch_id', $this->visibleBatches($user)->select('id'));
+
+        try {
+            $plan = $this->orders->printSelected($visible, array_map('intval', $data['shipment_ids']), $user);
         } catch (OnlineOrderException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }

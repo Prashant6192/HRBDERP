@@ -7,6 +7,7 @@ namespace App\Domain\Inventory\Services;
 use App\Domain\Inventory\DTOs\LedgerLine;
 use App\Domain\Inventory\DTOs\LedgerPosting;
 use App\Domain\Inventory\Enums\InventoryTransactionType;
+use App\Domain\Inventory\Events\StockArrived;
 use App\Domain\Inventory\Exceptions\InsufficientStockException;
 use App\Domain\Inventory\Exceptions\LedgerIntegrityException;
 use App\Domain\Inventory\Models\InventoryLot;
@@ -38,7 +39,7 @@ class InventoryLedgerService
     {
         $this->assertWellFormed($posting);
 
-        return DB::transaction(function () use ($posting): InventoryTransaction {
+        $transaction = DB::transaction(function () use ($posting): InventoryTransaction {
             $transactedAt = $posting->transactedAt ?? now();
 
             $transaction = InventoryTransaction::create([
@@ -59,6 +60,20 @@ class InventoryLedgerService
 
             return $transaction;
         });
+
+        $arrived = [];
+
+        foreach ($posting->lines as $line) {
+            if ($line->quantity->isPositive()) {
+                $arrived[$line->warehouseId][$line->itemId] = $line->itemId;
+            }
+        }
+
+        if ($arrived !== []) {
+            StockArrived::dispatch(array_map(array_values(...), $arrived));
+        }
+
+        return $transaction;
     }
 
     /**

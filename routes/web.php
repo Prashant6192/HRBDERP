@@ -236,6 +236,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('online-orders/files/{file}', [OnlineOrderController::class, 'file'])->name('online-orders.files.show');
     Route::delete('online-orders/files/{file}', [OnlineOrderController::class, 'removeFile'])->name('online-orders.files.destroy');
     Route::patch('online-orders/parcels/{shipment}', [OnlineOrderController::class, 'correct'])->name('online-orders.parcels.update');
+    Route::post('online-orders/print', [OnlineOrderController::class, 'printSelected'])->name('online-orders.print-selected');
+    Route::post('online-orders/check-stock', [OnlineOrderController::class, 'holdAll'])->name('online-orders.hold-all');
     Route::get('online-orders/lookup', [OnlineOrderController::class, 'lookup'])->name('online-orders.lookup');
     Route::get('online-orders/returns', [ReturnController::class, 'index'])->name('online-orders.returns.index');
     Route::get('online-orders/returns/receive', [ReturnController::class, 'create'])->name('online-orders.returns.create');

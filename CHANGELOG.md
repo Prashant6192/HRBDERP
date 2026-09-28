@@ -11,6 +11,17 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Fixed — "A label file could not be fetched" after a deploy
+
+- Label PDFs were kept only on the app's own disk, which Laravel Cloud
+  wipes on every deploy, so labels uploaded before a deploy could no
+  longer be printed. Each label PDF is now also kept in the database and
+  served from there if the disk has lost it.
+- A PDF lost before this fix is put back by **uploading the same PDF
+  again**: the ERP recognises it, restores the file and adds no orders.
+- Printing now stops with a clear message naming the missing file — and
+  marks nothing printed — instead of failing halfway in the browser.
+
 ### Added — Print labels in bulk from the day's Online orders screen
 
 - Tick labels one by one, or tick a **courier's box** to take every one of

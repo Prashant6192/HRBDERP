@@ -34,6 +34,7 @@ use App\Domain\Marketplace\Models\MarketplaceListing;
 use App\Domain\Marketplace\Models\Shipment;
 use App\Domain\Marketplace\Models\ShipmentLine;
 use App\Domain\Marketplace\Models\ShipmentPick;
+use App\Domain\Marketplace\Support\LabelFileStore;
 use App\Domain\MasterData\Enums\ItemType;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\Warehousing\Enums\FacilityCapability;
@@ -65,7 +66,7 @@ use Throwable;
  */
 class OnlineOrderService
 {
-    public const string DISK = 'local';
+    public const string DISK = LabelFileStore::DISK;
 
     public function __construct(
         private readonly LabelReaderService $reader,
@@ -73,6 +74,7 @@ class OnlineOrderService
         private readonly InventoryReservationService $reservations,
         private readonly InventoryLedgerService $ledger,
         private readonly StockBalanceService $balances,
+        private readonly LabelFileStore $files,
     ) {}
 
     // ---- Upload -----------------------------------------------------------
@@ -124,6 +126,38 @@ class OnlineOrderService
     }
 
     /**
+     * A label PDF uploaded before whose copy has been lost is put back when
+     * the same file is uploaded again, instead of being refused as a
+     * duplicate. Returns the files put back; the rest are left to upload.
+     *
+     * @param  list<UploadedFile>  $uploads
+     * @return array{restored: list<LabelFile>, rest: list<UploadedFile>}
+     */
+    public function restoreMissing(array $uploads): array
+    {
+        $restored = [];
+        $rest = [];
+
+        foreach ($uploads as $upload) {
+            $contents = (string) file_get_contents($upload->getRealPath());
+            $earlier = str_starts_with($contents, '%PDF')
+                ? LabelFile::query()->with('batch:id,number,for_date')->where('sha256', hash('sha256', $contents))->first()
+                : null;
+
+            if ($earlier !== null && ! $this->files->has($earlier)) {
+                $this->files->put($earlier, $contents);
+                $restored[] = $earlier;
+
+                continue;
+            }
+
+            $rest[] = $upload;
+        }
+
+        return ['restored' => $restored, 'rest' => $rest];
+    }
+
+    /**
      * Read one PDF into parcels and hold their stock.
      */
     public function addFile(LabelBatch $batch, UploadedFile $upload, User $user): LabelFile
@@ -155,10 +189,9 @@ class OnlineOrderService
         $reading = $this->reader->read($contents, $name, $batch->marketplace);
 
         $path = sprintf('online-orders/%s/%s.pdf', now()->format('Y/m'), Str::uuid());
-        Storage::disk(self::DISK)->put($path, $contents);
 
         try {
-            $file = DB::transaction(function () use ($batch, $upload, $user, $reading, $path, $name, $hash): LabelFile {
+            $file = DB::transaction(function () use ($batch, $upload, $user, $reading, $path, $name, $hash, $contents): LabelFile {
                 $warnings = $reading->warnings;
 
                 $file = LabelFile::create([
@@ -173,6 +206,10 @@ class OnlineOrderService
                     'read_at' => now(),
                     'uploaded_by' => $user->id,
                 ]);
+
+                // Kept on the disk and in the database: the disk does not
+                // survive a deploy.
+                $this->files->put($file, $contents);
 
                 $duplicates = [];
                 $created = collect();
@@ -206,7 +243,7 @@ class OnlineOrderService
                 return $file;
             });
         } catch (Throwable $e) {
-            Storage::disk(self::DISK)->delete($path);
+            Storage::disk(LabelFileStore::DISK)->delete($path);
 
             throw $e;
         }
@@ -237,10 +274,9 @@ class OnlineOrderService
                 $shipment->delete();
             }
 
+            $this->files->forget($file);
             $file->delete();
         });
-
-        Storage::disk(self::DISK)->delete($file->path);
     }
 
     /**
@@ -764,6 +800,22 @@ class OnlineOrderService
     private function printRun(Collection $byBatch, string $scope, User $user, ?string $courier, ?Collection $ordered = null): array
     {
         $shipments = $ordered ?? $byBatch->flatten(1)->values();
+
+        // Nothing is marked printed if a label's PDF is not there to print.
+        $missing = LabelFile::query()
+            ->with('batch:id,number')
+            ->whereKey($shipments->pluck('label_file_id')->unique())
+            ->get()
+            ->reject(fn (LabelFile $f) => $this->files->has($f));
+
+        if ($missing->isNotEmpty()) {
+            throw new OnlineOrderException(sprintf(
+                'The label file%s %s %s missing from the server. Upload the same PDF again (Online orders → Upload labels) to put it back — no orders are added twice — then print.',
+                $missing->count() === 1 ? '' : 's',
+                $missing->map(fn (LabelFile $f) => "{$f->original_name} ({$f->batch?->number})")->implode(', '),
+                $missing->count() === 1 ? 'is' : 'are',
+            ));
+        }
 
         DB::transaction(function () use ($byBatch, $scope, $courier, $user): void {
             $now = now();

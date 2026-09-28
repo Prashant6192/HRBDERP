@@ -19,6 +19,7 @@ use App\Domain\Marketplace\Models\ShipmentLine;
 use App\Domain\Marketplace\Services\BrandAccess;
 use App\Domain\Marketplace\Services\OnlineOrderService;
 use App\Domain\Marketplace\Support\Cutoff;
+use App\Domain\Marketplace\Support\LabelFileStore;
 use App\Domain\Warehousing\Enums\WarehouseType;
 use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Models\Warehouse;
@@ -273,8 +274,22 @@ class OnlineOrderController extends Controller
 
         $store = Warehouse::query()->with('facility')->findOrFail($storeId);
 
+        // A file uploaded before whose copy was lost is put back, not refused.
+        ['restored' => $restored, 'rest' => $rest] = $this->orders->restoreMissing(array_values($request->file('files')));
+
+        if ($rest === []) {
+            $first = $restored[0];
+
+            return to_route('online-orders.show', $first->label_batch_id)->withToast(
+                'success',
+                count($restored) === 1
+                    ? "{$first->original_name} was put back in {$first->batch->number}. Its labels can be printed again; no orders were added."
+                    : count($restored).' label files were put back. Their labels can be printed again; no orders were added.',
+            );
+        }
+
         try {
-            $batch = $this->orders->upload($brand, $marketplace, $store, array_values($request->file('files')), $user);
+            $batch = $this->orders->upload($brand, $marketplace, $store, $rest, $user);
         } catch (OnlineOrderException $e) {
             throw ValidationException::withMessages(['files' => $e->getMessage()]);
         }
@@ -463,7 +478,8 @@ class OnlineOrderController extends Controller
         $file->loadMissing('batch');
         $this->assertCanSee($user, $file->batch);
 
-        abort_unless(Storage::disk(OnlineOrderService::DISK)->exists($file->path), 404);
+        // Back from the database onto the disk if a deploy wiped it.
+        abort_if(app(LabelFileStore::class)->get($file) === null, 404, "{$file->original_name} is missing from the server. Upload the same PDF again to put it back.");
 
         // The framework writes the filename into the header safely.
         return Storage::disk(OnlineOrderService::DISK)->response($file->path, $file->original_name, [

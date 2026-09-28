@@ -9,6 +9,7 @@ use App\Domain\Marketplace\Contracts\AiLabelReader;
 use App\Domain\Marketplace\Enums\ShipmentStatus;
 use App\Domain\Marketplace\Models\Brand;
 use App\Domain\Marketplace\Models\LabelBatch;
+use App\Domain\Marketplace\Models\LabelFile;
 use App\Domain\Marketplace\Models\LabelPrint;
 use App\Domain\Marketplace\Models\Marketplace;
 use App\Domain\Marketplace\Models\Shipment;
@@ -21,6 +22,8 @@ use Database\Seeders\ReferenceDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\UomSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\FakeLabelReader;
@@ -45,6 +48,8 @@ class PrintSelectedLabelsTest extends TestCase
     private LabelBatch $rr;
 
     private LabelBatch $ca;
+
+    private string $rrPdf;
 
     protected function setUp(): void
     {
@@ -72,11 +77,13 @@ class PrintSelectedLabelsTest extends TestCase
             'order' => sprintf('20000000000%04d', $n), 'invoice' => sprintf('abcde%04d', $n), 'total' => '199.00', 'name' => "Customer {$n}", 'state' => 'Delhi',
         ];
 
-        $this->rr = $orders->upload(Brand::query()->where('code', 'RR')->sole(), $meesho, $this->depotFg, [LabelFixtures::meesho([
+        $rrFile = LabelFixtures::meesho([
             $label('VL0000000000001', 'Valmo', 1),
             $label('DL0000000000002', 'Delhivery', 2),
             $label('VL0000000000003', 'Valmo', 3),
-        ], 'rr.pdf')], $this->agency);
+        ], 'rr.pdf');
+        $this->rrPdf = (string) file_get_contents($rrFile->getRealPath());
+        $this->rr = $orders->upload(Brand::query()->where('code', 'RR')->sole(), $meesho, $this->depotFg, [$rrFile], $this->agency);
         $this->ca = $orders->upload(Brand::query()->where('code', 'CA')->sole(), $meesho, $this->depotFg, [LabelFixtures::meesho([
             $label('DL0000000000004', 'Delhivery', 4),
             $label('VL0000000000005', 'Valmo', 5),
@@ -140,5 +147,45 @@ class PrintSelectedLabelsTest extends TestCase
         $this->actingAs($this->agency)->postJson(route('online-orders.print-selected'), ['shipment_ids' => [$this->id('VL0000000000001')]])
             ->assertForbidden();
         $this->assertSame(0, LabelPrint::query()->count());
+    }
+
+    #[Test]
+    public function a_label_file_wiped_from_the_disk_by_a_deploy_is_served_from_the_database(): void
+    {
+        $file = $this->rr->files()->sole();
+        Storage::disk('local')->delete($file->path);
+
+        $response = $this->actingAs($this->dispatcher)->get(route('online-orders.files.show', $file))->assertOk();
+        $this->assertSame($this->rrPdf, $response->streamedContent());
+        $this->assertTrue(Storage::disk('local')->exists($file->path), 'Put back on the disk.');
+    }
+
+    #[Test]
+    public function a_file_lost_before_the_fix_stops_printing_until_the_same_pdf_is_uploaded_again(): void
+    {
+        $file = $this->rr->files()->sole();
+        Storage::disk('local')->delete($file->path);
+        DB::table('label_file_contents')->where('label_file_id', $file->id)->delete();
+
+        $ids = Shipment::query()->where('label_batch_id', $this->rr->id)->pluck('id')->all();
+        $this->actingAs($this->dispatcher)->postJson(route('online-orders.print-selected'), ['shipment_ids' => $ids])
+            ->assertStatus(422)
+            ->assertJsonPath('message', "The label file rr.pdf ({$this->rr->number}) is missing from the server. Upload the same PDF again (Online orders → Upload labels) to put it back — no orders are added twice — then print.");
+        $this->assertSame(0, Shipment::query()->where('status', ShipmentStatus::Printed->value)->count(), 'Nothing is marked printed.');
+        $this->actingAs($this->dispatcher)->get(route('online-orders.files.show', $file))->assertNotFound();
+
+        // The agency uploads the same PDF again: put back, not refused, nothing doubled.
+        $this->agency->brands()->attach(Brand::query()->where('code', 'RR')->sole());
+        $this->actingAs($this->agency)->post(route('online-orders.store'), [
+            'brand_id' => $this->rr->brand_id,
+            'marketplace_id' => $this->rr->marketplace_id,
+            'files' => [UploadedFile::fake()->createWithContent('rr.pdf', $this->rrPdf)],
+        ])->assertRedirect(route('online-orders.show', $this->rr->id))->assertSessionHasNoErrors();
+
+        $this->assertSame(5, Shipment::query()->count());
+        $this->assertSame(2, LabelFile::query()->count());
+
+        $this->actingAs($this->dispatcher)->postJson(route('online-orders.print-selected'), ['shipment_ids' => $ids])->assertOk();
+        $this->assertSame(3, Shipment::query()->where('status', ShipmentStatus::Printed->value)->count());
     }
 }

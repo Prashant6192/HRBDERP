@@ -8,6 +8,7 @@ use App\Domain\Inventory\DTOs\LedgerLine;
 use App\Domain\Inventory\DTOs\LedgerPosting;
 use App\Domain\Inventory\Enums\InventoryTransactionType;
 use App\Domain\Inventory\Enums\ReservationStatus;
+use App\Domain\Inventory\Events\StockArrived;
 use App\Domain\Inventory\Exceptions\OpeningStockException;
 use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Models\InventoryTransaction;
@@ -216,6 +217,10 @@ class OpeningStockCorrectionService
                 'unit_cost' => $newCost?->__toString(),
                 'initial_quantity' => $quantity->__toString(),
             ])->save();
+
+            // A corrected expiry or batch can make the stock usable again:
+            // whoever was waiting on it in this store tries again.
+            StockArrived::dispatch([$store->id => [$lot->item_id]]);
 
             return $posting;
         });

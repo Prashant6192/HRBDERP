@@ -139,4 +139,31 @@ class ShortStockReasonsTest extends TestCase
 
         $this->assertSame(StockState::Reserved, Shipment::query()->sole()->stock_state);
     }
+
+    #[Test]
+    public function correcting_a_wrong_expiry_on_opening_stock_frees_the_parcels(): void
+    {
+        $depot = $this->depotFg->facility;
+        $depot->forceFill(['opening_stock_enabled' => true])->save();
+        $admin = User::factory()->create();
+        $admin->assignRole(RoleName::SuperAdmin->value);
+
+        // Booked with the expiry typed in the past.
+        $this->actingAs($admin)->post(route('facilities.opening-stock.store', $depot), [
+            'warehouse_id' => $this->depotFg->id,
+            'lines' => [['item_id' => $this->oil->id, 'quantity' => '100', 'batch_number' => 'RRMO-2409', 'manufactured_at' => '2024-09-01', 'expiry_at' => '2025-08-31']],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(StockState::Short, Shipment::query()->sole()->stock_state);
+        $this->actingAs($this->dispatcher)->get(route('online-orders.index'))
+            ->assertInertia(fn (Assert $page) => $page->where('shortfall.0.why.0', "100 PCS in {$this->depotFg->name} is past its expiry date."));
+
+        $lot = InventoryLot::query()->where('batch_number', 'RRMO-2409')->sole();
+        $this->actingAs($admin)->patch(route('facilities.opening-stock.update', [$depot, $lot]), [
+            'quantity' => '100', 'batch_number' => 'RRMO-2409', 'manufactured_at' => '2024-09-01', 'expiry_at' => '2027-08-31',
+            'reason' => 'Expiry typed wrong on the sheet',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(StockState::Reserved, Shipment::query()->sole()->stock_state);
+    }
 }

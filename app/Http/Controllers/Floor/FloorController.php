@@ -183,6 +183,11 @@ class FloorController extends Controller
         $parsed = ScanCode::parse($code);
         $user = $request->user();
 
+        // A carton sticker names its batch; on the floor it opens that batch.
+        if ($parsed['type'] === ScanCode::CARTON && ($carton = ScanCode::parseCarton($parsed['value'])) !== null) {
+            $parsed = ['type' => ScanCode::LOT, 'value' => $carton['batch']];
+        }
+
         $tryLot = fn () => InventoryLot::query()->with(['item:id,code,name,type,stock_uom_id', 'item.stockUom:id,code', 'ownerClient:id,name'])->where('batch_number', $parsed['value'])->first();
         $tryOrder = fn () => ManufacturingOrder::query()->with('product:id,name')->where('number', $parsed['value'])->first();
         $tryItem = fn () => Item::query()->with('stockUom:id,code')->where('code', $parsed['value'])->first();

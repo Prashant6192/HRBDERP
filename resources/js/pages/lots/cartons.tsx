@@ -1,5 +1,4 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import { Printer } from 'lucide-react';
 import { Field, FormSection } from '@/components/form-field';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -7,6 +6,12 @@ import { Input } from '@/components/ui/input';
 import { dashboard } from '@/routes';
 import cartons from '@/routes/lots/cartons';
 import { index, show } from '@/routes/lots';
+import {
+    CartonPrintPanel,
+    StickerPreview,
+    type Sticker,
+    type PrintRow,
+} from '@/components/inventory/carton-sticker';
 import type { InventoryLot } from '@/types';
 
 type LotWithPack = InventoryLot & {
@@ -31,10 +36,16 @@ export default function CartonLabels({
     lot,
     plan,
     printable,
+    suggested,
+    sticker,
+    prints,
 }: {
     lot: LotWithPack;
     plan: Plan | null;
     printable: boolean;
+    suggested: { units_per_box: number | null; boxes: number | null };
+    sticker: Sticker | null;
+    prints: PrintRow[];
 }) {
     const netDefault =
         lot.item?.net_content && lot.item?.net_content_uom?.code
@@ -42,8 +53,16 @@ export default function CartonLabels({
             : '';
 
     const form = useForm({
-        boxes: plan ? String(plan.boxes) : '',
-        units_per_box: plan ? String(plan.units_per_box) : '',
+        boxes: plan
+            ? String(plan.boxes)
+            : suggested.boxes
+              ? String(suggested.boxes)
+              : '',
+        units_per_box: plan
+            ? String(plan.units_per_box)
+            : suggested.units_per_box
+              ? String(suggested.units_per_box)
+              : '',
         gross_weight_kg: plan?.gross_weight_kg ?? '',
         start_box: plan ? String(plan.start_box) : '1',
         net_quantity: plan?.net_quantity ?? netDefault,
@@ -61,24 +80,19 @@ export default function CartonLabels({
             <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
                 <PageHeader
                     title="Carton labels"
-                    description={`${lot.item?.name ?? ''} · batch ${lot.batch_number}. Record how the batch is boxed once; every print after that is identical, so box 7 is always box 7.`}
-                    actions={
-                        plan &&
-                        printable && (
-                            <Button asChild>
-                                <a
-                                    href={cartons.print(lot.id).url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                >
-                                    <Printer className="size-4" />
-                                    Print {plan.boxes} A5 label
-                                    {plan.boxes === 1 ? '' : 's'}
-                                </a>
-                            </Button>
-                        )
-                    }
+                    description={`${lot.item?.name ?? ''} · batch ${lot.batch_number}. Record how the batch is boxed once; the sticker fills itself in from the product, the batch and the factory, and box 7 is always box 7.`}
                 />
+
+                {sticker && (
+                    <div className="grid gap-6 xl:grid-cols-[auto_1fr]">
+                        <StickerPreview sticker={sticker} />
+                        <CartonPrintPanel
+                            lotId={lot.id}
+                            sticker={sticker}
+                            prints={prints}
+                        />
+                    </div>
+                )}
 
                 {!printable && (
                     <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
@@ -215,17 +229,11 @@ export default function CartonLabels({
                     </div>
                 </form>
 
-                <section className="bg-card rounded-xl border p-6 text-sm">
-                    <h2 className="font-semibold">
-                        What prints on each A5 label
-                    </h2>
-                    <p className="text-muted-foreground mt-1">
-                        Product name, net quantity, batch number, manufacturing
-                        date, expiry, gross weight, MRP and the box number
-                        (&ldquo;Box 3 of 12&rdquo;). One page per box, sized for
-                        A5 landscape.
-                    </p>
-                </section>
+                {!sticker && printable && (
+                    <section className="bg-card text-muted-foreground rounded-xl border p-6 text-sm">
+                        Save the carton plan to see the sticker and print it.
+                    </section>
+                )}
             </div>
         </>
     );

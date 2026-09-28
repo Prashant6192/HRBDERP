@@ -27,6 +27,8 @@ export default function ManagementMaterials({
     total_value,
     quarantine_value,
     by_type,
+    place,
+    places,
 }: {
     type: string;
     type_label: string;
@@ -35,7 +37,12 @@ export default function ManagementMaterials({
     total_value: string;
     quarantine_value: string;
     by_type: Record<string, { value: string; items: number }>;
+    place: number | null;
+    places: { id: number; short: string }[];
 }) {
+    const url = (t: string, p: number | null) =>
+        `${materials().url}?type=${t}${p ? `&facility=${p}` : ''}`;
+
     return (
         <>
             <Head title="Stock" />
@@ -57,11 +64,31 @@ export default function ManagementMaterials({
                 />
             </div>
 
-            <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+            {places.length > 0 && (
+                <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+                    {[{ id: null, short: 'All places' }, ...places].map((p) => (
+                        <Link
+                            key={p.id ?? 'all'}
+                            href={url(type, p.id)}
+                            preserveScroll
+                            className={cn(
+                                'shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium',
+                                p.id === place
+                                    ? 'bg-foreground text-background border-foreground'
+                                    : 'bg-card',
+                            )}
+                        >
+                            {p.short}
+                        </Link>
+                    ))}
+                </div>
+            )}
+
+            <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
                 {types.map((t) => (
                     <Link
                         key={t.value}
-                        href={`${materials().url}?type=${t.value}`}
+                        href={url(t.value, place)}
                         preserveScroll
                         className={cn(
                             'shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium',

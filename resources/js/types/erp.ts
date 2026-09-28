@@ -137,6 +137,7 @@ export type Facility = {
     code: string;
     name: string;
     legal_name?: string | null;
+    manufacturing_licence?: string | null;
     facility_type_id: number;
     type?: { id: number; code: string; name: string } | null;
     manager_id: number | null;

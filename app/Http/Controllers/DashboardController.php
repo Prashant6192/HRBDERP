@@ -8,6 +8,7 @@ use App\Domain\Audit\Models\AuditLog;
 use App\Domain\Intelligence\DTOs\FactoryException;
 use App\Domain\Intelligence\Services\ExceptionService;
 use App\Domain\Reporting\Services\DashboardService;
+use App\Domain\Reporting\Services\DepotDashboardService;
 use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Services\FacilityAccess;
 use App\Models\User;
@@ -40,6 +41,11 @@ class DashboardController extends Controller
         // facility see only that one in the picker.
         $facilities = $this->access->facilitiesFor($user);
         $facility = $request->integer('facility') > 0 ? $facilities->firstWhere('id', $request->integer('facility')) : null;
+
+        // Someone who works at one place only opens on that place.
+        if ($facility === null && ! $request->has('facility') && $facilities->count() === 1) {
+            $facility = $facilities->first();
+        }
         $manufacturing = $facility === null || $facility->can_manufacture;
 
         $kpis = $this->dashboard->kpis($user, $facility);
@@ -60,6 +66,10 @@ class DashboardController extends Controller
             'period' => ['days' => $days],
             'facilities' => $facilities->map(fn (Facility $f) => ['id' => $f->id, 'code' => $f->code, 'name' => $f->name, 'can_manufacture' => $f->can_manufacture])->values()->all(),
             'facility' => $facility === null ? null : ['id' => $facility->id, 'code' => $facility->code, 'name' => $facility->name, 'can_manufacture' => $facility->can_manufacture],
+
+            // A depot opens on its own day: today's online orders, the lorry
+            // on its way, what is running low.
+            'depot' => $facility !== null && ! $facility->can_manufacture ? app(DepotDashboardService::class)->summary($user, $facility) : null,
 
             'stores' => fn () => $user->can('inventory.view') ? $this->dashboard->storeLevels($facility) : null,
             'attention' => fn () => $user->can('inventory.view') ? $this->dashboard->attention(8, $facility) : null,
@@ -93,6 +103,12 @@ class DashboardController extends Controller
     {
         return Cache::remember('dashboard.exceptions.'.($facility?->id ?? 'all'), now()->addMinutes(5), function () use ($facility): array {
             $all = $this->exceptionEngine->detect($facility);
+
+            // A depot hears about its own business — its parcels, its
+            // lorries — not the factory's materials.
+            if ($facility !== null && ! $facility->can_manufacture) {
+                $all = $all->filter(fn (FactoryException $e) => $e->facilityId === $facility->id)->values();
+            }
 
             return [
                 'total' => $all->count(),

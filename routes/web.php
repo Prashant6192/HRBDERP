@@ -35,6 +35,7 @@ use App\Http\Controllers\Inventory\LedgerController;
 use App\Http\Controllers\Inventory\LotController;
 use App\Http\Controllers\Inventory\OpeningStockController;
 use App\Http\Controllers\Inventory\OpeningStockSheetController;
+use App\Http\Controllers\Inventory\ReceiveByScanController;
 use App\Http\Controllers\Inventory\StockController;
 use App\Http\Controllers\Inventory\StockCountController;
 use App\Http\Controllers\Inventory\StockTransferController;
@@ -45,6 +46,7 @@ use App\Http\Controllers\MasterData\ProductArtworkController;
 use App\Http\Controllers\MasterData\ProductController;
 use App\Http\Controllers\MasterData\ProductPackagingController;
 use App\Http\Controllers\MasterData\RawMaterialController;
+use App\Http\Controllers\Navigation\NavigationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OnlineOrders\BrandController;
 use App\Http\Controllers\OnlineOrders\ListingController;
@@ -83,6 +85,8 @@ Route::get('/', fn (Request $request) => redirect()->route($request->user() ? 'd
 Route::middleware(['auth', 'verified'])->group(function (): void {
 
     Route::get('dashboard', DashboardController::class)->name('dashboard');
+    Route::get('nav/counts', [NavigationController::class, 'counts'])->name('nav.counts');
+    Route::get('nav/search', [NavigationController::class, 'search'])->name('nav.search');
     Route::get('command-centre', CommandCentreController::class)->name('command-centre');
     Route::get('scorecards', ScorecardController::class)->name('scorecards');
     Route::get('assistant', [AssistantController::class, 'index'])->name('assistant.index');
@@ -106,6 +110,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
         Route::get('/', 'index')->name('index');
         Route::get('production', 'production')->name('production');
         Route::get('materials', 'materials')->name('materials');
+        Route::get('depot', 'depot')->name('depot');
         Route::get('ordering', 'ordering')->name('ordering');
         Route::get('formulas', 'formulas')->name('formulas');
         Route::get('clients', 'clients')->name('clients');
@@ -164,6 +169,10 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::delete('employee-assignments/{assignment}', [EmployeeAssignmentController::class, 'destroy'])->name('employee-assignments.destroy');
     Route::post('employee-assignments/{assignment}/primary', [EmployeeAssignmentController::class, 'primary'])->name('employee-assignments.primary');
 
+    // Receive by scan: cartons off the lorry at the depot.
+    Route::get('receive', [ReceiveByScanController::class, 'index'])->name('receive.index');
+    Route::post('receive/scan', [ReceiveByScanController::class, 'scan'])->name('receive.scan');
+    Route::post('receive/{transfer}/book', [ReceiveByScanController::class, 'book'])->name('receive.book');
     Route::get('transfers', [StockTransferController::class, 'index'])->name('transfers.index');
     Route::get('transfers/create', [StockTransferController::class, 'create'])->name('transfers.create');
     Route::get('transfers/lots', [StockTransferController::class, 'lots'])->name('transfers.lots');
@@ -280,6 +289,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('lots/{lot}/cartons', [LotController::class, 'cartons'])->name('lots.cartons');
     Route::post('lots/{lot}/cartons', [LotController::class, 'storeCartons'])->name('lots.cartons.store');
     Route::get('lots/{lot}/cartons/print', [LotController::class, 'printCartons'])->name('lots.cartons.print');
+    Route::get('lots/{lot}/cartons/tspl', [LotController::class, 'cartonsTspl'])->name('lots.cartons.tspl');
+    Route::post('lots/{lot}/cartons/printed', [LotController::class, 'cartonsPrinted'])->name('lots.cartons.printed');
 
     // ---- Planning & Purchase ----------------------------------------------
     Route::get('plans', [ProductionPlanController::class, 'index'])->name('plans.index');

@@ -34,7 +34,7 @@ class Brand extends Model
     use RecordsAuditTrail;
 
     protected $fillable = [
-        'code', 'name', 'legal_name', 'gstin', 'client_id', 'default_warehouse_id', 'is_active', 'created_by', 'updated_by',
+        'code', 'name', 'legal_name', 'gstin', 'marketed_by', 'consumer_care', 'client_id', 'default_warehouse_id', 'is_active', 'created_by', 'updated_by',
     ];
 
     protected function casts(): array

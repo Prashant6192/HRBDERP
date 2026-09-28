@@ -17,7 +17,11 @@ use App\Domain\Intelligence\Services\StockOutlookService;
 use App\Domain\Inventory\Enums\LotQcStatus;
 use App\Domain\Manufacturing\Enums\ManufacturingOrderStatus;
 use App\Domain\Manufacturing\Models\ManufacturingOrder;
+use App\Domain\Marketplace\Models\LabelBatch;
+use App\Domain\Marketplace\Models\Shipment;
+use App\Domain\Marketplace\Support\Cutoff;
 use App\Domain\MasterData\Enums\ItemType;
+use App\Domain\Navigation\Services\PlaceService;
 use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Services\FacilityAccess;
 use App\Models\User;
@@ -29,10 +33,11 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * The factory on a phone, for the people who run it: what is being made,
+ * The business on a phone, for the people who run it: what is being made,
  * what is on the shelf and what it is worth, what to order, which recipes
  * are live, who the third-party clients are, which batches are ready,
- * what is still to be billed, and how each batch's pack must look.
+ * what is still to be billed, how each batch's pack must look — and at
+ * each depot, its stock, today's online orders and its dispatches.
  *
  * Everything here is read straight from the same tables the floor writes
  * to; nothing is entered on these screens.
@@ -45,6 +50,8 @@ class ManagementDashboardService
         private readonly StockOutlookService $outlook,
         private readonly JobCostingService $costing,
         private readonly ArtworkService $artworks,
+        private readonly DepotDashboardService $depot,
+        private readonly PlaceService $places,
     ) {}
 
     // ---- Overview -------------------------------------------------------
@@ -105,6 +112,7 @@ class ManagementDashboardService
                 'dispatches_total' => $billing['dispatches_total'],
                 'total' => $billing['total'],
             ],
+            'depots' => $this->depotFacilities($user)->map(fn (Facility $f) => $this->depotSummary($f))->values()->all(),
         ];
     }
 
@@ -137,13 +145,60 @@ class ManagementDashboardService
     }
 
     /**
+     * One depot in full: its stock, today's online orders, the week's
+     * parcels, and its dispatches.
+     *
+     * @return array<string, mixed>
+     */
+    public function depot(User $user, ?int $facilityId = null): array
+    {
+        $depots = $this->depotFacilities($user);
+        $facility = ($facilityId !== null ? $depots->firstWhere('id', $facilityId) : null) ?? $depots->first();
+
+        $detail = null;
+
+        if ($facility !== null) {
+            $items = $this->stockRows([$facility->id])->sortByDesc(fn (array $r) => (float) $r['value'])->values();
+
+            $detail = [
+                ...$this->depotSummary($facility),
+                'items' => $items->all(),
+                'recent_dispatches' => Dispatch::query()
+                    ->where('facility_id', $facility->id)
+                    ->where('status', '!=', DispatchStatus::Cancelled->value)
+                    ->with('customer:id,name')
+                    ->orderByDesc('id')
+                    ->limit(10)
+                    ->get()
+                    ->map(fn (Dispatch $d) => [
+                        'id' => $d->id,
+                        'number' => $d->number,
+                        'customer' => $d->customer?->name ?? $d->ship_to_name,
+                        'status' => $d->status->value,
+                        'status_label' => $d->status->label(),
+                        'total_value' => (string) ($d->total_value ?? '0'),
+                        'date' => ($d->dispatched_at ?? $d->invoice_date ?? $d->created_at)?->toIso8601String(),
+                        'href' => route('dispatches.show', $d),
+                    ])->all(),
+            ];
+        }
+
+        return [
+            'depots' => $depots->map(fn (Facility $f) => ['id' => $f->id, 'name' => $f->name, 'short' => $this->places->short($f)])->values()->all(),
+            'depot' => $detail,
+        ];
+    }
+
+    /**
      * What is on the shelf, by material, with what it is worth.
      *
      * @return array<string, mixed>
      */
-    public function materials(User $user, string $type = 'raw_material'): array
+    public function materials(User $user, string $type = 'raw_material', ?int $facilityId = null): array
     {
-        $ids = $this->facilityIds($user);
+        $places = $this->access->facilitiesFor($user);
+        $place = $facilityId !== null ? $places->firstWhere('id', $facilityId) : null;
+        $ids = $place !== null ? [$place->id] : $this->facilityIds($user);
         $type = ItemType::tryFrom($type) ?? ItemType::RawMaterial;
 
         $rows = $this->stockRows($ids)
@@ -159,6 +214,10 @@ class ManagementDashboardService
             'total_value' => $this->sum($rows->pluck('value')),
             'quarantine_value' => $this->sum($rows->pluck('quarantine_value')),
             'by_type' => $this->stockValueByType($ids),
+            'place' => $place?->id,
+            'places' => $places->count() > 1
+                ? $places->map(fn (Facility $f) => ['id' => $f->id, 'short' => $this->places->short($f)])->values()->all()
+                : [],
         ];
     }
 
@@ -495,6 +554,83 @@ class ManagementDashboardService
             ItemType::PackagingMaterial->value => route('packaging-materials.show', $id),
             default => route('products.show', $id),
         };
+    }
+
+    /**
+     * The places that keep and send stock without making it, that this
+     * person may see.
+     *
+     * @return Collection<int, Facility>
+     */
+    private function depotFacilities(User $user): Collection
+    {
+        return $this->access->facilitiesFor($user)->reject(fn (Facility $f) => $f->can_manufacture)->values();
+    }
+
+    /**
+     * A depot in one card: stock, today's online orders, the week's
+     * parcels, lorries on the way, and dispatches.
+     *
+     * @return array<string, mixed>
+     */
+    private function depotSummary(Facility $facility): array
+    {
+        $now = CarbonImmutable::now();
+        $today = Cutoff::today();
+        $rows = $this->stockRows([$facility->id]);
+        $fg = $rows->where('type', ItemType::FinishedGood->value);
+        $levels = $this->depot->store($facility);
+
+        $dispatches = Dispatch::query()->where('facility_id', $facility->id);
+        $pending = (clone $dispatches)->whereIn('status', [DispatchStatus::Draft->value, DispatchStatus::Invoiced->value]);
+        $sent = (clone $dispatches)->whereIn('status', [DispatchStatus::Dispatched->value, DispatchStatus::Delivered->value])
+            ->where('dispatched_at', '>=', $today->startOfMonth()->utc());
+
+        return [
+            'id' => $facility->id,
+            'name' => $facility->name,
+            'short' => $this->places->short($facility),
+            'stock' => [
+                'value' => $this->sum($rows->pluck('value')),
+                'finished_goods_value' => $this->sum($fg->pluck('value')),
+                'items' => $rows->count(),
+                'units' => Decimal::strip((string) $this->sum($fg->pluck('on_hand'), 3)),
+                'below_reorder' => $rows->where('below_reorder', true)->count(),
+                'critical' => $levels['critical'] ?? 0,
+                'low' => $levels['low'] ?? 0,
+            ],
+            'online' => $this->depot->online($facility, $today->toDateString()),
+            'week' => $this->parcelsShipped($facility, $today),
+            'incoming' => $this->depot->incoming($facility),
+            'dispatches' => [
+                'pending' => (clone $pending)->count(),
+                'pending_value' => $this->sum((clone $pending)->pluck('total_value')),
+                'this_month' => (clone $sent)->count(),
+                'this_month_value' => $this->sum((clone $sent)->pluck('total_value')),
+            ],
+            'as_of' => $now->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Parcels handed to the couriers on each of the last seven days.
+     *
+     * @return list<array{date: string, shipped: int}>
+     */
+    private function parcelsShipped(Facility $facility, CarbonImmutable $today): array
+    {
+        $from = $today->subDays(6);
+
+        $days = Shipment::query()
+            ->whereIn('label_batch_id', LabelBatch::query()->select('id')->where('facility_id', $facility->id))
+            ->where('handed_over_at', '>=', $from->utc())
+            ->pluck('handed_over_at')
+            ->countBy(fn ($at) => CarbonImmutable::instance($at)->timezone(Cutoff::timezone())->toDateString());
+
+        return collect(range(0, 6))
+            ->map(fn (int $i) => $from->addDays($i)->toDateString())
+            ->map(fn (string $d) => ['date' => $d, 'shipped' => (int) ($days[$d] ?? 0)])
+            ->all();
     }
 
     private function facilityFor(User $user): ?Facility

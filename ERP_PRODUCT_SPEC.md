@@ -590,7 +590,16 @@ Every list shares one component: search, sort, filter, paginate, choose columns.
 Every figure a user is not entitled to see is absent from the payload, not
 merely hidden.
 
-The left menu carries destinations, not tables. Anything that has a natural
+The navigation is arranged by place (Rail + Search). A rail of places —
+each factory, each depot, contract (3P) work and the company's back office
+— comes from the facility records; choosing one shows its departments and
+pages in a column, with live counts beside pages that have work waiting.
+The place follows the page opened. Ctrl K searches pages across every place
+and records by what people call them (a material code, a batch, a transfer
+or dispatch number, an AWB), returning only what the person may open. On a
+phone the places run along the bottom with Scan in the middle.
+
+The menu carries destinations, not tables. Anything that has a natural
 home elsewhere is reached from there instead of taking a line of its own: a
 material's batches are on the material's page, and a delivery is received
 from the store it arrives into, with that store already filled in. Screens

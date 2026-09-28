@@ -43,6 +43,7 @@ use App\Models\User;
 use App\Support\Math\Decimal;
 use Brick\Math\BigDecimal;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -714,26 +715,78 @@ class OnlineOrderService
             throw new OnlineOrderException($scope === 'unprinted' ? 'Every label in this batch has been printed already.' : 'There are no labels to print for that choice.');
         }
 
-        DB::transaction(function () use ($batch, $shipments, $scope, $courier, $user): void {
+        return $this->printRun(collect([$batch->id => $shipments]), $scope, $user, $scope === 'courier' ? $courier : null);
+    }
+
+    /**
+     * Print the labels picked on the day's screen, from any of the day's
+     * batches: by courier, then in page order within each file.
+     *
+     * @param  list<int>  $shipmentIds
+     * @return array{shipments: int, pages: int, parts: list<array{file_id: int, pages: list<int>, courier: string|null, shipment_id: int}>}
+     */
+    public function printSelected(Builder $visible, array $shipmentIds, User $user): array
+    {
+        $shipments = $visible
+            ->whereKey($shipmentIds)
+            ->where('status', '<>', ShipmentStatus::Cancelled->value)
+            ->whereIn('status', ShipmentStatus::awaitingPacking())
+            ->get()
+            ->sortBy([
+                fn (Shipment $a, Shipment $b) => strcmp((string) $a->courier, (string) $b->courier),
+                fn (Shipment $a, Shipment $b) => [$a->label_file_id, $a->pages[0] ?? 0] <=> [$b->label_file_id, $b->pages[0] ?? 0],
+            ])
+            ->values();
+
+        if ($shipments->isEmpty()) {
+            throw new OnlineOrderException('None of those labels can be printed: they are packed, with the courier or cancelled.');
+        }
+
+        $couriers = $shipments->pluck('courier')->unique();
+
+        return $this->printRun(
+            $shipments->groupBy('label_batch_id'),
+            $couriers->count() === 1 ? 'courier' : 'selected',
+            $user,
+            $couriers->count() === 1 ? $couriers->first() : null,
+            $shipments,
+        );
+    }
+
+    /**
+     * Mark the labels printed, log the run against each batch, and say which
+     * pages of which files to send to the printer.
+     *
+     * @param  Collection<int|string, Collection<int, Shipment>>  $byBatch
+     * @param  Collection<int, Shipment>|null  $ordered
+     * @return array{shipments: int, pages: int, parts: list<array{file_id: int, pages: list<int>, courier: string|null, shipment_id: int}>}
+     */
+    private function printRun(Collection $byBatch, string $scope, User $user, ?string $courier, ?Collection $ordered = null): array
+    {
+        $shipments = $ordered ?? $byBatch->flatten(1)->values();
+
+        DB::transaction(function () use ($byBatch, $scope, $courier, $user): void {
             $now = now();
 
-            foreach ($shipments as $shipment) {
-                $shipment->fill([
-                    'status' => $shipment->status === ShipmentStatus::Uploaded ? ShipmentStatus::Printed : $shipment->status,
-                    'printed_at' => $shipment->printed_at ?? $now,
-                    'printed_by' => $shipment->printed_by ?? $user->id,
-                    'print_count' => $shipment->print_count + 1,
-                ])->save();
-            }
+            foreach ($byBatch as $batchId => $shipments) {
+                foreach ($shipments as $shipment) {
+                    $shipment->fill([
+                        'status' => $shipment->status === ShipmentStatus::Uploaded ? ShipmentStatus::Printed : $shipment->status,
+                        'printed_at' => $shipment->printed_at ?? $now,
+                        'printed_by' => $shipment->printed_by ?? $user->id,
+                        'print_count' => $shipment->print_count + 1,
+                    ])->save();
+                }
 
-            LabelPrint::create([
-                'label_batch_id' => $batch->id,
-                'printed_by' => $user->id,
-                'scope' => $scope,
-                'courier' => $scope === 'courier' ? $courier : null,
-                'shipment_count' => $shipments->count(),
-                'page_count' => $shipments->sum(fn (Shipment $s) => count($s->pages)),
-            ]);
+                LabelPrint::create([
+                    'label_batch_id' => $batchId,
+                    'printed_by' => $user->id,
+                    'scope' => $scope,
+                    'courier' => $courier,
+                    'shipment_count' => $shipments->count(),
+                    'page_count' => $shipments->sum(fn (Shipment $s) => count($s->pages)),
+                ]);
+            }
         });
 
         // Stock may have come in since the upload.

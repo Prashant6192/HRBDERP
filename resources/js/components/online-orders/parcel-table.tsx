@@ -1,6 +1,9 @@
 import { Link } from '@inertiajs/react';
+import { Printer } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { StatusBadge } from '@/components/status-badge';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { TONE_VARIANT, rupees, when } from '@/lib/dispatch';
 import { courierName, needsAttention, type Parcel } from '@/lib/online-orders';
 import { cn } from '@/lib/utils';
@@ -107,23 +110,39 @@ function Progress({ p }: { p: Parcel }) {
     return <>Not printed</>;
 }
 
+/** A label that can still be printed: not yet packed, not cancelled. */
+export function printable(p: Parcel): boolean {
+    return p.status === 'uploaded' || p.status === 'printed';
+}
+
+export type Selection = {
+    selected: Set<number>;
+    toggle: (ids: number[], on: boolean) => void;
+    /** Print these labels now (a courier's labels not yet printed). */
+    printGroup?: (ids: number[]) => void;
+    busy?: boolean;
+};
+
 /**
  * One table for every courier's parcels, so the columns line up from one
- * courier to the next; each courier opens with its own header row.
+ * courier to the next; each courier opens with its own header row. With a
+ * selection, labels can be ticked one by one or a courier at a time.
  */
 export function ParcelTable({
     parcels,
     actions,
     showBatch: withBatch = false,
     empty = 'Nothing here.',
+    selection,
 }: {
     parcels: Parcel[];
     actions?: (p: Parcel) => ReactNode;
     showBatch?: boolean;
     empty?: string;
+    selection?: Selection;
 }) {
     const groups = byCourier(parcels);
-    const columns = 5 + (actions ? 1 : 0);
+    const columns = 5 + (actions ? 1 : 0) + (selection ? 1 : 0);
 
     if (groups.length === 0) {
         return (
@@ -137,6 +156,7 @@ export function ParcelTable({
         <div className="overflow-x-auto">
             <table className="w-full min-w-[52rem] table-fixed text-sm">
                 <colgroup>
+                    {selection && <col className="w-[2.75rem]" />}
                     <col className="w-[13.5rem]" />
                     <col />
                     <col className="w-[7rem]" />
@@ -146,6 +166,7 @@ export function ParcelTable({
                 </colgroup>
                 <thead className="text-muted-foreground text-left text-xs uppercase">
                     <tr className="border-b">
+                        {selection && <th className="py-2 pl-4" />}
                         <th className="px-4 py-2 font-medium">Parcel</th>
                         <th className="px-4 py-2 font-medium">What goes in</th>
                         <th className="px-4 py-2 font-medium">Payment</th>
@@ -154,104 +175,175 @@ export function ParcelTable({
                         {actions && <th className="px-4 py-2" />}
                     </tr>
                 </thead>
-                {groups.map(([courier, list]) => (
-                    <tbody key={courier} className="divide-y border-b">
-                        <tr className="bg-muted/50">
-                            <td
-                                colSpan={columns}
-                                className="px-4 py-2 text-xs font-semibold tracking-wide uppercase"
-                            >
-                                <span>{courier}</span>
-                                <span className="text-muted-foreground ml-2 font-normal normal-case">
-                                    {list.length} parcel
-                                    {list.length === 1 ? '' : 's'}
-                                </span>
-                            </td>
-                        </tr>
-                        {list.map((p) => (
-                            <tr
-                                key={p.id}
-                                className={cn(
-                                    'align-top',
-                                    needsAttention(p) && 'bg-red-500/5',
-                                    (p.status === 'cancelled' ||
-                                        p.status === 'returned') &&
-                                        'opacity-70',
-                                )}
-                            >
-                                <td className="px-4 py-3">
-                                    <div className="truncate font-mono font-medium">
-                                        {p.awb ?? (
-                                            <span className="text-red-700 dark:text-red-300">
-                                                No AWB
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="text-muted-foreground truncate font-mono text-xs">
-                                        {p.order_number ?? '—'}
-                                    </div>
-                                    <div className="text-muted-foreground truncate text-xs">
-                                        {withBatch ? (
-                                            <Link
-                                                href={showBatch(p.batch_id)}
-                                                className="underline-offset-4 hover:underline"
-                                            >
-                                                {p.brand} · {p.marketplace}
-                                            </Link>
-                                        ) : (
-                                            <>page {p.pages.join(', ')}</>
-                                        )}
-                                    </div>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <Contents p={p} />
-                                </td>
-                                <td className="px-4 py-3">
-                                    <div>{p.payment_label}</div>
-                                    <div className="text-muted-foreground text-xs">
-                                        {p.payable_amount
-                                            ? rupees(p.payable_amount)
-                                            : ''}
-                                    </div>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <div className="flex flex-col items-start gap-1">
-                                        <StatusBadge
-                                            variant={
-                                                TONE_VARIANT[p.status_tone]
+                {groups.map(([courier, list]) => {
+                    const open = list.filter(printable).map((p) => p.id);
+                    const unprinted = list
+                        .filter((p) => p.status === 'uploaded')
+                        .map((p) => p.id);
+                    const ticked = open.filter((id) =>
+                        selection?.selected.has(id),
+                    ).length;
+
+                    return (
+                        <tbody key={courier} className="divide-y border-b">
+                            <tr className="bg-muted/50">
+                                {selection && (
+                                    <td className="py-2 pl-4">
+                                        <Checkbox
+                                            aria-label={`Select every ${courier} label`}
+                                            disabled={open.length === 0}
+                                            checked={
+                                                ticked === 0
+                                                    ? false
+                                                    : ticked === open.length
+                                                      ? true
+                                                      : 'indeterminate'
                                             }
-                                        >
-                                            {p.status_label}
-                                        </StatusBadge>
-                                        {p.stock_label &&
-                                            p.stock_tone &&
-                                            p.status !== 'cancelled' && (
-                                                <StatusBadge
-                                                    variant={
-                                                        TONE_VARIANT[
-                                                            p.stock_tone
-                                                        ]
+                                            onCheckedChange={(v) =>
+                                                selection.toggle(
+                                                    open,
+                                                    v === true,
+                                                )
+                                            }
+                                        />
+                                    </td>
+                                )}
+                                <td
+                                    colSpan={columns - (selection ? 1 : 0)}
+                                    className="px-4 py-2 text-xs font-semibold tracking-wide uppercase"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <span>{courier}</span>
+                                        <span className="text-muted-foreground font-normal normal-case">
+                                            {list.length} parcel
+                                            {list.length === 1 ? '' : 's'}
+                                            {unprinted.length > 0 &&
+                                                ` · ${unprinted.length} not printed`}
+                                        </span>
+                                        {selection?.printGroup &&
+                                            unprinted.length > 0 && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="ml-auto h-7 normal-case"
+                                                    disabled={selection.busy}
+                                                    onClick={() =>
+                                                        selection.printGroup?.(
+                                                            unprinted,
+                                                        )
                                                     }
                                                 >
-                                                    {p.stock_label}
-                                                </StatusBadge>
+                                                    <Printer className="size-3.5" />
+                                                    Print {unprinted.length} not
+                                                    printed
+                                                </Button>
                                             )}
                                     </div>
                                 </td>
-                                <td className="text-muted-foreground px-4 py-3 text-xs">
-                                    <Progress p={p} />
-                                </td>
-                                {actions && (
+                            </tr>
+                            {list.map((p) => (
+                                <tr
+                                    key={p.id}
+                                    className={cn(
+                                        'align-top',
+                                        needsAttention(p) && 'bg-red-500/5',
+                                        (p.status === 'cancelled' ||
+                                            p.status === 'returned') &&
+                                            'opacity-70',
+                                    )}
+                                >
+                                    {selection && (
+                                        <td className="py-3 pl-4">
+                                            {printable(p) && (
+                                                <Checkbox
+                                                    aria-label={`Select label ${p.awb ?? p.id}`}
+                                                    checked={selection.selected.has(
+                                                        p.id,
+                                                    )}
+                                                    onCheckedChange={(v) =>
+                                                        selection.toggle(
+                                                            [p.id],
+                                                            v === true,
+                                                        )
+                                                    }
+                                                />
+                                            )}
+                                        </td>
+                                    )}
                                     <td className="px-4 py-3">
-                                        <div className="flex justify-end gap-1">
-                                            {actions(p)}
+                                        <div className="truncate font-mono font-medium">
+                                            {p.awb ?? (
+                                                <span className="text-red-700 dark:text-red-300">
+                                                    No AWB
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="text-muted-foreground truncate font-mono text-xs">
+                                            {p.order_number ?? '—'}
+                                        </div>
+                                        <div className="text-muted-foreground truncate text-xs">
+                                            {withBatch ? (
+                                                <Link
+                                                    href={showBatch(p.batch_id)}
+                                                    className="underline-offset-4 hover:underline"
+                                                >
+                                                    {p.brand} · {p.marketplace}
+                                                </Link>
+                                            ) : (
+                                                <>page {p.pages.join(', ')}</>
+                                            )}
                                         </div>
                                     </td>
-                                )}
-                            </tr>
-                        ))}
-                    </tbody>
-                ))}
+                                    <td className="px-4 py-3">
+                                        <Contents p={p} />
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div>{p.payment_label}</div>
+                                        <div className="text-muted-foreground text-xs">
+                                            {p.payable_amount
+                                                ? rupees(p.payable_amount)
+                                                : ''}
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex flex-col items-start gap-1">
+                                            <StatusBadge
+                                                variant={
+                                                    TONE_VARIANT[p.status_tone]
+                                                }
+                                            >
+                                                {p.status_label}
+                                            </StatusBadge>
+                                            {p.stock_label &&
+                                                p.stock_tone &&
+                                                p.status !== 'cancelled' && (
+                                                    <StatusBadge
+                                                        variant={
+                                                            TONE_VARIANT[
+                                                                p.stock_tone
+                                                            ]
+                                                        }
+                                                    >
+                                                        {p.stock_label}
+                                                    </StatusBadge>
+                                                )}
+                                        </div>
+                                    </td>
+                                    <td className="text-muted-foreground px-4 py-3 text-xs">
+                                        <Progress p={p} />
+                                    </td>
+                                    {actions && (
+                                        <td className="px-4 py-3">
+                                            <div className="flex justify-end gap-1">
+                                                {actions(p)}
+                                            </div>
+                                        </td>
+                                    )}
+                                </tr>
+                            ))}
+                        </tbody>
+                    );
+                })}
             </table>
         </div>
     );

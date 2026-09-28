@@ -425,6 +425,35 @@ class OnlineOrderController extends Controller
     }
 
     /**
+     * Print the labels ticked on the day's screen, across batches, and mark
+     * them printed.
+     */
+    public function printSelected(Request $request): JsonResponse
+    {
+        $this->authorize('marketplace.print');
+        $user = $request->user();
+
+        $data = $request->validate([
+            'shipment_ids' => ['required', 'array', 'min:1', 'max:1000'],
+            'shipment_ids.*' => ['integer'],
+        ]);
+
+        $visible = Shipment::query()->whereIn('label_batch_id', $this->visibleBatches($user)->select('id'));
+
+        try {
+            $plan = $this->orders->printSelected($visible, array_map('intval', $data['shipment_ids']), $user);
+        } catch (OnlineOrderException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        $files = collect($plan['parts'])->pluck('file_id')->unique()->values()
+            ->mapWithKeys(fn (int $id) => [$id => route('online-orders.files.show', $id)])
+            ->all();
+
+        return response()->json([...$plan, 'files' => $files]);
+    }
+
+    /**
      * The label file as the marketplace gave it.
      */
     public function file(Request $request, LabelFile $file): StreamedResponse

@@ -41,6 +41,10 @@ import {
 } from '@/routes/manufacturing';
 import { show as showPlan } from '@/routes/plans';
 import { index as stockIndex } from '@/routes/stock';
+import {
+    DepotToday,
+    type DepotSummary,
+} from '@/components/dashboard/depot-today';
 import type { DashboardException } from '@/components/dashboard/exception-list';
 import type {
     ActivityEntry,
@@ -111,6 +115,7 @@ export default function Dashboard({
     recentActivity,
     exceptions,
     quickActions,
+    depot,
 }: {
     greeting: {
         name: string;
@@ -146,6 +151,7 @@ export default function Dashboard({
         qc: boolean;
         formulas: boolean;
     };
+    depot: DepotSummary | null;
 }) {
     const cards = useDashboardCards();
 
@@ -161,7 +167,13 @@ export default function Dashboard({
         if (upcoming) keys.push('upcoming');
         if (recentActivity) keys.push('activity');
         if (exceptions) keys.push('exceptions');
-        return keys;
+
+        // A depot's screen is its own day; the factory's cards stay away.
+        return depot
+            ? keys.filter((k) =>
+                  ['expiring', 'activity', 'exceptions'].includes(k),
+              )
+            : keys;
     }, [
         kpis,
         stores,
@@ -173,6 +185,7 @@ export default function Dashboard({
         upcoming,
         recentActivity,
         exceptions,
+        depot,
     ]);
 
     const show = (key: DashboardCardKey) =>
@@ -245,15 +258,25 @@ export default function Dashboard({
                     </div>
                 </div>
 
-                <Hero
-                    firstName={greeting.first_name}
-                    date={greeting.date}
-                    timezone={greeting.timezone}
-                    signedInAt={greeting.signed_in_at}
-                    signedInFrom={greeting.signed_in_from}
-                    headlines={headlines}
-                    actions={quickActions}
-                />
+                {depot && facility && (
+                    <DepotToday
+                        facility={facility}
+                        firstName={greeting.first_name}
+                        depot={depot}
+                    />
+                )}
+
+                {!depot && (
+                    <Hero
+                        firstName={greeting.first_name}
+                        date={greeting.date}
+                        timezone={greeting.timezone}
+                        signedInAt={greeting.signed_in_at}
+                        signedInFrom={greeting.signed_in_from}
+                        headlines={headlines}
+                        actions={quickActions}
+                    />
+                )}
 
                 {nothing && (
                     <div className="bg-card rounded-2xl border p-10 text-center">

@@ -11,6 +11,26 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Changed — The depot opens on its own day; management sees the depot
+
+- **Paper Market's dashboard** no longer shows the factory's materials and
+  batches. It leads with today's online orders: while the agency is still
+  uploading it says so; once every upload of the day is closed ("Ready to
+  print") it shows, highlighted, **"N online orders to pack today"**, who
+  finished uploading and when, and a **Start processing** button that
+  opens today's orders. Below: packed and handed-over progress, parcels by
+  courier, the lorry on its way from Rudrapur, finished goods running low
+  and dispatches to finish. Alerts on it are the depot's own.
+- Someone who works at one place only now opens the dashboard on that
+  place.
+- **Management on a phone (/m)** now shows each depot under the factory:
+  its stock value and items running low, today's online orders, parcels
+  shipped over the last seven days, and dispatches waiting and sent this
+  month. A new **Depot** tab gives the detail — today's uploads, the week's
+  parcels, the latest dispatches and the depot's stock item by item. The
+  **Stock** tab can be narrowed to one place (All places, Rudrapur, Paper
+  Market).
+
 ### Changed — The ERP is arranged by place: Rail + Search
 
 - The long left menu is replaced by a **rail of places**: Rudrapur (the

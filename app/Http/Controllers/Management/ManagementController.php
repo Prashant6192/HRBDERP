@@ -39,7 +39,18 @@ class ManagementController extends Controller
     {
         $this->guard($request);
 
-        return Inertia::render('management/materials', $this->dashboard->materials($request->user(), (string) $request->query('type', 'raw_material')));
+        return Inertia::render('management/materials', $this->dashboard->materials(
+            $request->user(),
+            (string) $request->query('type', 'raw_material'),
+            $request->integer('facility') > 0 ? $request->integer('facility') : null,
+        ));
+    }
+
+    public function depot(Request $request): Response
+    {
+        $this->guard($request);
+
+        return Inertia::render('management/depot', $this->dashboard->depot($request->user(), $request->integer('facility') > 0 ? $request->integer('facility') : null));
     }
 
     public function ordering(Request $request): Response

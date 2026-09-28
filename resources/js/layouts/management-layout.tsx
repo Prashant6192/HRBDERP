@@ -6,6 +6,7 @@ import {
     IndianRupee,
     LayoutGrid,
     PackageCheck,
+    Warehouse,
     type LucideIcon,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -15,6 +16,7 @@ import { dashboard } from '@/routes';
 import {
     batches,
     billing,
+    depot,
     index as home,
     materials,
     production,
@@ -35,6 +37,12 @@ const TABS: { href: string; icon: LucideIcon; label: string; match: string }[] =
             icon: Boxes,
             label: 'Stock',
             match: '/m/materials',
+        },
+        {
+            href: depot().url,
+            icon: Warehouse,
+            label: 'Depot',
+            match: '/m/depot',
         },
         {
             href: batches().url,
@@ -91,7 +99,7 @@ export default function ManagementLayout({
                 {children}
             </main>
             <nav className="bg-card fixed inset-x-0 bottom-0 z-20 border-t pb-[env(safe-area-inset-bottom)]">
-                <ul className="mx-auto grid max-w-lg grid-cols-5">
+                <ul className="mx-auto grid max-w-lg grid-cols-6">
                     {TABS.map((t) => {
                         const active =
                             t.match === '/m'

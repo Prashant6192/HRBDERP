@@ -7,11 +7,20 @@ import {
     IndianRupee,
     PackageCheck,
     ShoppingCart,
+    Send,
+    Warehouse,
 } from 'lucide-react';
+import {
+    type DepotSummary,
+    LorryLine,
+    OnlineTodayCard,
+    WeekBars,
+} from '@/components/management/depot-card';
 import {
     batches,
     billing,
     clients,
+    depot,
     formulas,
     materials,
     ordering,
@@ -45,6 +54,7 @@ type Overview = {
         dispatches_total: string;
         total: string;
     };
+    depots: DepotSummary[];
 };
 
 export default function ManagementHome({ overview }: { overview: Overview }) {
@@ -125,6 +135,59 @@ export default function ManagementHome({ overview }: { overview: Overview }) {
                     href={clients().url}
                 />
             </div>
+
+            {o.depots.map((d) => {
+                const href = `${depot().url}?facility=${d.id}`;
+                const shipped = d.week.reduce((n, w) => n + w.shipped, 0);
+
+                return (
+                    <section key={d.id} className="mt-6">
+                        <Title hint="Stock, today's online orders and dispatches.">
+                            {d.short} today
+                        </Title>
+                        <OnlineTodayCard online={d.online} href={href} />
+                        <div className="mt-3 grid grid-cols-2 gap-3">
+                            <Stat
+                                label={`Stock at ${d.short}`}
+                                value={rupees(d.stock.value)}
+                                hint={`${d.stock.items} item${d.stock.items === 1 ? '' : 's'} · ${Number(d.stock.units).toLocaleString('en-IN')} units`}
+                                icon={Warehouse}
+                                href={href}
+                            />
+                            <Stat
+                                label="Running low"
+                                value={d.stock.critical + d.stock.low}
+                                hint={`${d.stock.critical} critical · ${d.stock.low} low`}
+                                icon={Boxes}
+                                href={href}
+                                tone={d.stock.critical > 0 ? 'warn' : 'default'}
+                            />
+                            <Stat
+                                label="Dispatches to send"
+                                value={d.dispatches.pending}
+                                hint={`${rupees(d.dispatches.pending_value)} · ${d.dispatches.this_month} sent this month`}
+                                icon={Send}
+                                href={href}
+                                tone={
+                                    d.dispatches.pending > 0
+                                        ? 'warn'
+                                        : 'default'
+                                }
+                            />
+                            <div className="bg-card rounded-2xl border p-4">
+                                <div className="text-muted-foreground text-xs">
+                                    Parcels shipped, 7 days
+                                </div>
+                                <div className="mt-1 text-2xl font-semibold tabular-nums">
+                                    {shipped}
+                                </div>
+                                <WeekBars week={d.week} />
+                            </div>
+                        </div>
+                        <LorryLine incoming={d.incoming} />
+                    </section>
+                );
+            })}
 
             <p className="text-muted-foreground mt-4 text-xs">
                 {o.production.completed_this_month} batch

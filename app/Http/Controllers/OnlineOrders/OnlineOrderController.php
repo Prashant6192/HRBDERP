@@ -193,6 +193,7 @@ class OnlineOrderController extends Controller
                 ],
             ])->all(),
             'totals' => $totals,
+            'shortfall' => $this->brands->isRestricted($user) ? [] : $this->orders->shortfallFor($batches),
             'couriers' => $couriers,
             'parcels' => $parcels,
             'show' => $show,
@@ -359,6 +360,35 @@ class OnlineOrderController extends Controller
         $this->assertCanSee($user, $batch);
 
         $counts = $this->orders->holdAgain($batch);
+
+        return back()->withToast(
+            $counts['short'] + $counts['unmapped'] > 0 ? 'warning' : 'success',
+            "Stock checked again: {$counts['held']} now held, {$counts['short']} still short, {$counts['unmapped']} not mapped.",
+        );
+    }
+
+    /**
+     * Check stock again for every parcel of the day still waiting on it.
+     */
+    public function holdAll(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('marketplace.print') || $user->can('marketplace.manage'), 403);
+
+        $day = $this->day($request->string('date')->toString());
+        $facilityId = $request->integer('facility') ?: null;
+        $counts = ['held' => 0, 'short' => 0, 'unmapped' => 0];
+
+        $this->visibleBatches($user)
+            ->whereDate('for_date', $day->toDateString())
+            ->when($facilityId, fn (Builder $q) => $q->where('facility_id', $facilityId))
+            ->orderBy('id')
+            ->get()
+            ->each(function (LabelBatch $batch) use (&$counts): void {
+                foreach ($this->orders->holdAgain($batch) as $key => $n) {
+                    $counts[$key] += $n;
+                }
+            });
 
         return back()->withToast(
             $counts['short'] + $counts['unmapped'] > 0 ? 'warning' : 'success',

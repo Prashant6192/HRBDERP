@@ -11,6 +11,22 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Fixed — Parcels left "Short in store" after the stock was put in
+
+- A parcel is checked for stock when the agency uploads it. If the store
+  could not cover it then, it stayed **Short in store** until someone
+  printed, packed or pressed _Check stock again_ — even after the stock
+  was booked in. Now a short parcel is **held automatically the moment its
+  product lands in the store** (opening stock, a transfer booked in, a
+  receipt, a return), oldest parcel first.
+- The Online orders screen now shows a **Not enough stock** panel for the
+  day, with a _Check stock again_ button, and says **why** each product is
+  short: held for other parcels, waiting for QC, past expiry, belonging to
+  another owner, sitting in another store (Rudrapur's, say — transfer it),
+  or booked under a **different product with nearly the same name** (then
+  the SKU is mapped to the wrong product, or the stock was booked under the
+  twin). The batch screen shows the same reasons.
+
 ### Changed — The depot opens on its own day; management sees the depot
 
 - **Paper Market's dashboard** no longer shows the factory's materials and

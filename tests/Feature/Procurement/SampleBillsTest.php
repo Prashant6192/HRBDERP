@@ -51,7 +51,7 @@ class SampleBillsTest extends TestCase
 
         $this->seed(UomSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        Storage::fake('local');
+        Storage::fake('files');
         config(['erp.company.gstin' => self::OUR_GSTIN]);
 
         $this->rmStore = Warehouse::factory()->create(['code' => 'WH-RM']);

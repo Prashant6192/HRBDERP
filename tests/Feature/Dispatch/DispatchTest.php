@@ -76,7 +76,7 @@ class DispatchTest extends TestCase
 
         $this->seed(UomSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        Storage::fake('local');
+        Storage::fake('files');
 
         config(['erp.company.brand' => 'Rahat Rooh', 'erp.dispatch.einvoice_mandatory' => true]);
 
@@ -257,7 +257,7 @@ class DispatchTest extends TestCase
         ])->assertRedirect()->assertSessionHasNoErrors();
 
         $this->assertCount(1, $dispatch->fresh()->attachments);
-        Storage::disk('local')->assertExists($dispatch->fresh()->attachments->first()->path);
+        Storage::disk('files')->assertExists($dispatch->fresh()->attachments->first()->path);
 
         // Now it goes, and the stock goes with it.
         $this->actingAs($this->dispatcher)->post(route('dispatches.dispatch', $dispatch), [

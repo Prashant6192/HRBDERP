@@ -128,7 +128,7 @@ class LaunchRehearsalTest extends TestCase
 
         $this->seed(UomSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        Storage::fake('local');
+        Storage::fake('files');
         config(['erp.company.name' => 'HRBD', 'erp.company.brand' => 'Rahat Rooh', 'erp.dispatch.einvoice_mandatory' => true]);
 
         $this->kg = Uom::where('code', 'KG')->sole();

@@ -51,7 +51,7 @@ class GoodsReceiptIntakeTest extends TestCase
 
         $this->seed(UomSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        Storage::fake('local');
+        Storage::fake('files');
 
         $this->rmStore = Warehouse::factory()->create(['code' => 'WH-RM']);
         Warehouse::factory()->quarantine()->create(['code' => 'WH-QA']);
@@ -192,7 +192,7 @@ class GoodsReceiptIntakeTest extends TestCase
         $this->assertSame('GS-0451.pdf', $reader->calls[0]['filename']);
         $this->assertGreaterThan(0, $reader->calls[0]['bytes']);
 
-        $stored = Storage::disk('local')->allFiles('goods-receipts/intake');
+        $stored = Storage::disk('files')->allFiles('goods-receipts/intake');
         $this->assertCount(1, $stored, 'The bill is kept as uploaded.');
 
         $this->actingAs($this->storekeeper)
@@ -416,7 +416,7 @@ class GoodsReceiptIntakeTest extends TestCase
             ->assertRedirect(route('goods-receipts.create'))
             ->assertSessionHasErrors('invoice');
 
-        $this->assertSame([], Storage::disk('local')->allFiles('goods-receipts/intake'));
+        $this->assertSame([], Storage::disk('files')->allFiles('goods-receipts/intake'));
     }
 
     #[Test]

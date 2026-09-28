@@ -315,7 +315,7 @@ class ManufacturingOrderTest extends TestCase
     #[Test]
     public function own_brand_artwork_is_filed_on_the_product_and_shown_on_the_batch_and_the_floor(): void
     {
-        Storage::fake('local');
+        Storage::fake('files');
         $this->stockTheStores();
 
         $tube = UploadedFile::fake()->image('tube-v1.png', 400, 900);
@@ -332,7 +332,7 @@ class ManufacturingOrderTest extends TestCase
         $this->assertNull($artwork->client_id, 'Own-brand artwork carries no client');
         $this->assertSame($this->product->id, $artwork->product_id);
         $this->assertSame(ArtworkStatus::Approved, $artwork->status);
-        Storage::disk('local')->assertExists($artwork->document_path);
+        Storage::disk('files')->assertExists($artwork->document_path);
 
         // A second tube version awaits approval; it is shown but flagged.
         $this->actingAs($brand)->post(route('products.artworks.store', $this->product), [

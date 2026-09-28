@@ -22,7 +22,7 @@ use InvalidArgumentException;
  */
 class DocumentService
 {
-    public const DISK = 'local';
+    public const DISK = 'files';
 
     /**
      * @param  array{code?: string|null, kind: string, title: string, item_id?: int|null, client_id?: int|null, change_summary?: string|null, notes?: string|null, effective_from?: string|null}  $data

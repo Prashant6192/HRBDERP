@@ -56,7 +56,7 @@ class GoodsReceiptPostingTest extends TestCase
 
         $this->seed(UomSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        Storage::fake('local');
+        Storage::fake('files');
 
         $this->plant = Facility::factory()->manufacturing()->withStores([WarehouseType::RawMaterial, WarehouseType::Packaging, WarehouseType::Quarantine, WarehouseType::FinishedGoods])->create(['name' => 'Main Plant']);
         $this->rmStore = $this->plant->stores()->where('type', WarehouseType::RawMaterial->value)->firstOrFail();

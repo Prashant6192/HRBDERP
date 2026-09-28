@@ -324,7 +324,7 @@ class DataResetService
 
     private function forgetDirectory(string $directory): void
     {
-        $disk = Storage::disk('local');
+        $disk = Storage::disk('files');
 
         if ($disk->exists($directory)) {
             $disk->deleteDirectory($directory);

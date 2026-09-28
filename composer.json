@@ -19,6 +19,7 @@
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0",
         "laravel/wayfinder": "^0.1.14",
+        "league/flysystem-aws-s3-v3": "^3.25",
         "maatwebsite/excel": "^4.0",
         "smalot/pdfparser": "^2.12",
         "spatie/laravel-permission": "^8.3"

@@ -56,7 +56,7 @@ class ShortStockReasonsTest extends TestCase
 
         $this->seed(UomSeeder::class);
         $this->seed(RolePermissionSeeder::class);
-        Storage::fake('local');
+        Storage::fake('files');
         $this->app->instance(AiLabelReader::class, new FakeLabelReader(available: false));
         config(['erp.company.timezone' => 'Asia/Kolkata']);
 

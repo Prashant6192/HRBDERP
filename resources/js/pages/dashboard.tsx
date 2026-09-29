@@ -194,7 +194,7 @@ export default function Dashboard({
     const changePeriod = (days: number) =>
         router.get(
             dashboard().url,
-            { days, facility: facility?.id },
+            { days, facility: facility?.id ?? 'all' },
             {
                 preserveState: true,
                 preserveScroll: true,
@@ -205,9 +205,7 @@ export default function Dashboard({
     const changeFacility = (value: string) =>
         router.get(
             dashboard().url,
-            value === 'all'
-                ? { days: period.days }
-                : { days: period.days, facility: value },
+            { days: period.days, facility: value },
             { preserveState: true, preserveScroll: true },
         );
 

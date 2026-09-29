@@ -42,9 +42,17 @@ class DashboardController extends Controller
         $facilities = $this->access->facilitiesFor($user);
         $facility = $request->integer('facility') > 0 ? $facilities->firstWhere('id', $request->integer('facility')) : null;
 
-        // Someone who works at one place only opens on that place.
-        if ($facility === null && ! $request->has('facility') && $facilities->count() === 1) {
-            $facility = $facilities->first();
+        // Someone who works at one place opens on that place; someone with
+        // a primary place (a depot manager who also holds a company-wide
+        // role) opens on that one. "All facilities" is one click away.
+        if ($facility === null && ! $request->has('facility')) {
+            $primary = $user->isSuperAdmin() ? null : $this->access->primaryFacility($user);
+
+            $facility = match (true) {
+                $facilities->count() === 1 => $facilities->first(),
+                $primary !== null => $facilities->firstWhere('id', $primary->id),
+                default => null,
+            };
         }
         $manufacturing = $facility === null || $facility->can_manufacture;
 

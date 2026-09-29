@@ -231,4 +231,24 @@ class DepotDashboardTest extends TestCase
         $this->actingAs($boss)->get(route('management.materials', ['type' => 'finished_good', 'facility' => $this->factory->id]))
             ->assertInertia(fn (Assert $page) => $page->where('items', [])->where('total_value', '0.00'));
     }
+
+    #[Test]
+    public function a_depot_manager_with_a_company_wide_role_opens_on_the_depot(): void
+    {
+        // Shanu: Delhi's manager, who also runs dispatch for the company.
+        $shanu = User::factory()->create(['name' => 'Shanu Kumar']);
+        $shanu->syncRoles([RoleName::WarehouseManager->value, RoleName::DispatchManager->value, RoleName::Management->value]);
+        app(EmployeeAssignmentService::class)->assign($shanu, $this->depot, null, ['is_primary' => true], null);
+
+        $batch = $this->upload(2);
+
+        $this->dashboard($shanu)->assertInertia(fn (Assert $page) => $page
+            ->where('facility.id', $this->depot->id)
+            ->where('depot.online.state', 'uploading')
+            ->where('depot.online.to_pack', 2));
+
+        // "All facilities" stays all facilities.
+        $this->actingAs($shanu)->get(route('dashboard', ['facility' => 'all']))->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('facility', null)->where('depot', null));
+    }
 }

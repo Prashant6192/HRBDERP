@@ -170,13 +170,20 @@ export function DepotToday({
                                         {o.total === 1 ? '' : 's'} in so far ·{' '}
                                         {o.open_uploads} upload
                                         {o.open_uploads === 1 ? '' : 's'} still
-                                        open. Packing starts once they close
-                                        them.
+                                        open. You can start on what is in now;
+                                        more may follow.
                                     </p>
                                 </div>
                             </div>
-                            <Button asChild variant="outline">
-                                <Link href={todays}>See what is in so far</Link>
+                            <Button
+                                asChild
+                                size="lg"
+                                className="h-12 rounded-xl"
+                            >
+                                <Link href={todays}>
+                                    Start processing {n(o.to_pack)} now
+                                    <ArrowRight className="size-5" />
+                                </Link>
                             </Button>
                         </div>
                     )}

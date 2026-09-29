@@ -11,6 +11,21 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Changed — The depot's day in three steps; the Warehouse Manager's full menu
+
+- The Online orders screen opens with the day's three steps, each with its
+  count and button: **1 Print the labels**, **2 Scan to pack**, **3 Courier
+  pickup** (hand over by scan, with the handover sheet for the courier to
+  sign). A packed parcel now reads **Packed · ready for pickup**, and the
+  pack screen says which courier's pile it goes on.
+- The depot's menu gains **Scan to pack**, **Courier pickup**, **Stock
+  counts** and **Send stock**.
+- The Warehouse Manager and Store Executive roles on the live site are
+  given every permission their defaults carry (stock, receiving,
+  transfers, counts), not only the online-order ones.
+- The dashboard opens on a person's primary place, so a depot manager who
+  also holds a company-wide role lands on the depot's day.
+
 ### Changed — Uploaded files are kept in the Laravel Cloud storage bucket
 
 - Every uploaded document — supplier bills, label PDFs, artwork, dispatch

@@ -1,6 +1,9 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import {
+    AlertTriangle,
     Building2,
+    CheckCircle2,
+    PackageOpen,
     Pencil,
     ShieldCheck,
     Star,
@@ -332,6 +335,7 @@ export default function ShowUser({
     assignments,
     companyWide,
     facilities,
+    onlineOrdersAccess,
     can,
 }: {
     user: ErpUser;
@@ -340,6 +344,7 @@ export default function ShowUser({
     assignments: EmployeeAssignmentRow[];
     companyWide: boolean;
     facilities: FacilityOption[];
+    onlineOrdersAccess: { ok: boolean; text: string }[] | null;
     can: {
         update: boolean;
         delete: boolean;
@@ -478,6 +483,37 @@ export default function ShowUser({
                         </div>
                     </section>
                 </div>
+
+                {onlineOrdersAccess && (
+                    <section className="bg-card rounded-xl border">
+                        <div className="flex items-center gap-2 border-b px-5 py-4">
+                            <PackageOpen className="text-muted-foreground size-4" />
+                            <h2 className="font-semibold">
+                                Today's online orders: what {user.name} can see
+                            </h2>
+                        </div>
+                        <ul className="space-y-2 p-5 text-sm">
+                            {onlineOrdersAccess.map((line, i) => (
+                                <li key={i} className="flex gap-2">
+                                    {line.ok ? (
+                                        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+                                    ) : (
+                                        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-red-600" />
+                                    )}
+                                    <span
+                                        className={
+                                            line.ok
+                                                ? ''
+                                                : 'font-medium text-red-700 dark:text-red-300'
+                                        }
+                                    >
+                                        {line.text}
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+                )}
 
                 <AssignmentsSection
                     user={user}

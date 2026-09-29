@@ -8,13 +8,14 @@ import {
     FileText,
     PackageCheck,
     Printer,
+    ScanLine,
     Search,
     Truck,
     Undo2,
     Upload,
     X,
 } from 'lucide-react';
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { CancelOrderDialog } from '@/components/online-orders/cancel-order-dialog';
 import {
@@ -48,6 +49,7 @@ import {
     type PrintPlan,
 } from '@/lib/online-orders';
 import { cn } from '@/lib/utils';
+import { handover as courierPickup, pack as scanToPack } from '@/routes/floor';
 import { pdf as sheetPdf } from '@/routes/handover-sheets';
 import {
     create,
@@ -219,6 +221,53 @@ function CourierLight({ state }: { state: 'done' | 'waiting' | 'late' }) {
                 )}
             />
         </span>
+    );
+}
+
+/** One step of the depot's day: how many parcels wait at it, and its button. */
+function FlowStep({
+    n,
+    title,
+    count,
+    hint,
+    active,
+    children,
+}: {
+    n: number;
+    title: string;
+    count: number;
+    hint: string;
+    active: boolean;
+    children?: ReactNode;
+}) {
+    return (
+        <div
+            className={cn(
+                'bg-card flex items-center gap-3 rounded-xl border p-4',
+                active && 'border-orange-400 ring-1 ring-orange-400/40',
+            )}
+        >
+            <span
+                className={cn(
+                    'flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold',
+                    active
+                        ? 'bg-orange-500 text-white'
+                        : 'bg-muted text-muted-foreground',
+                )}
+            >
+                {n}
+            </span>
+            <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold">{title}</p>
+                <p className="text-muted-foreground text-xs">
+                    <span className="text-foreground text-base font-semibold tabular-nums">
+                        {count}
+                    </span>{' '}
+                    {hint}
+                </p>
+            </div>
+            {children}
+        </div>
     );
 }
 
@@ -533,6 +582,83 @@ export default function OnlineOrdersIndex({
                         )}
                     </section>
                 )}
+
+                {!can.restricted &&
+                    (can.print || can.pack || can.handover) &&
+                    totals.parcels > 0 && (
+                        <section
+                            aria-label="Today's steps"
+                            className="grid gap-3 md:grid-cols-3"
+                        >
+                            <FlowStep
+                                n={1}
+                                title="Print the labels"
+                                count={totals.not_printed}
+                                hint={
+                                    totals.not_printed > 0
+                                        ? 'not printed yet'
+                                        : 'all printed'
+                                }
+                                active={totals.not_printed > 0}
+                            >
+                                {can.print && totals.not_printed > 0 && (
+                                    <Button
+                                        disabled={printing}
+                                        onClick={() => printLabels(notPrinted)}
+                                    >
+                                        <Printer className="size-4" />
+                                        Print {totals.not_printed}
+                                    </Button>
+                                )}
+                            </FlowStep>
+                            <FlowStep
+                                n={2}
+                                title="Scan to pack"
+                                count={totals.printed}
+                                hint={`printed, to pack by ${cutoff}`}
+                                active={totals.printed > 0}
+                            >
+                                {can.pack && (
+                                    <Button
+                                        asChild
+                                        variant={
+                                            totals.printed > 0
+                                                ? 'default'
+                                                : 'outline'
+                                        }
+                                    >
+                                        <Link href={scanToPack()}>
+                                            <ScanLine className="size-4" />
+                                            Scan to pack
+                                        </Link>
+                                    </Button>
+                                )}
+                            </FlowStep>
+                            <FlowStep
+                                n={3}
+                                title="Courier pickup"
+                                count={totals.packed}
+                                hint="packed, ready for pickup"
+                                active={totals.packed > 0}
+                            >
+                                {can.handover && (
+                                    <Button
+                                        asChild
+                                        variant={
+                                            totals.packed > 0
+                                                ? 'default'
+                                                : 'outline'
+                                        }
+                                    >
+                                        <Link href={courierPickup()}>
+                                            <Truck className="size-4" />
+                                            Hand over by scan
+                                        </Link>
+                                    </Button>
+                                )}
+                            </FlowStep>
+                        </section>
+                    )}
 
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
                     <Tile

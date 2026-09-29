@@ -267,6 +267,15 @@ export default function PackParcels({
                                     · {s.marketplace} · {courierName(s.courier)}{' '}
                                     · {s.payment_label}
                                 </p>
+                                {outcome.ok && (
+                                    <p className="rounded-xl bg-emerald-500/10 px-3 py-2 text-sm font-medium">
+                                        Ready for {courierName(s.courier)}{' '}
+                                        pickup. Put it with the{' '}
+                                        {courierName(s.courier)} parcels; when
+                                        the courier comes, open Courier pickup
+                                        and scan them out.
+                                    </p>
+                                )}
                             </div>
                         )}
                     </section>

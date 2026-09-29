@@ -10,6 +10,7 @@ import {
     CalendarX2,
     CircleDollarSign,
     ClipboardCheck,
+    ClipboardList,
     ClipboardPen,
     DatabaseZap,
     Factory,
@@ -23,6 +24,7 @@ import {
     Package,
     PackageCheck,
     PackageX,
+    ScanLine,
     ScrollText,
     ShieldCheck,
     ShoppingBag,
@@ -48,10 +50,12 @@ import {
     index as clientsIndex,
     profitability as clientsProfitability,
 } from '@/routes/clients';
+import { index as countsIndex } from '@/routes/counts';
 import { index as customersIndex } from '@/routes/customers';
 import { index as dispatchesIndex } from '@/routes/dispatches';
 import { index as documentsIndex } from '@/routes/documents';
 import { index as facilitiesIndex } from '@/routes/facilities';
+import { handover as courierPickup, pack as scanToPack } from '@/routes/floor';
 import { index as formulasIndex } from '@/routes/formulas';
 import { index as listingsIndex } from '@/routes/listings';
 import { index as lotsIndex } from '@/routes/lots';
@@ -353,6 +357,22 @@ export function placeGroups(place: Place, places: Place[]): ErpNavGroup[] {
                             icon: CalendarX2,
                             permission: 'inventory.view',
                         },
+                        {
+                            title: 'Stock counts',
+                            href: countsIndex().url,
+                            icon: ClipboardList,
+                            permission: 'inventory.count',
+                            keywords: 'physical count audit',
+                        },
+                        {
+                            title: 'Send stock',
+                            href: transfersIndex({
+                                query: { ...fq, direction: 'out' },
+                            }).url,
+                            icon: ArrowUpFromLine,
+                            permission: 'inventory.transfer',
+                            keywords: 'stock transfer out return to factory',
+                        },
                     ],
                 },
                 {
@@ -365,6 +385,21 @@ export function placeGroups(place: Place, places: Place[]): ErpNavGroup[] {
                             permission: 'marketplace.view',
                             count: 'online',
                             keywords: 'meesho amazon flipkart labels pack',
+                        },
+                        {
+                            title: 'Scan to pack',
+                            href: scanToPack().url,
+                            icon: ScanLine,
+                            permission: 'marketplace.pack',
+                            keywords: 'pack parcel label barcode',
+                        },
+                        {
+                            title: 'Courier pickup',
+                            href: courierPickup().url,
+                            icon: Truck,
+                            permission: 'marketplace.handover',
+                            keywords:
+                                'hand over handover sheet delhivery valmo',
                         },
                         {
                             title: 'Returns',

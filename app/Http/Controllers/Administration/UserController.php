@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Administration;
 
 use App\Domain\Access\Models\Role;
+use App\Domain\Access\Services\OnlineOrdersAccessCheck;
 use App\Domain\Audit\Enums\AuditAction;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Identity\Enums\UserStatus;
@@ -139,6 +140,10 @@ class UserController extends Controller
                 'effective_to' => $a->effective_to?->toDateString(),
             ])->values()->all(),
             'companyWide' => app(FacilityAccess::class)->isCompanyWide($user),
+            // Why a person does or does not see today's online orders.
+            'onlineOrdersAccess' => $request->user()->can('marketplace.manage') || $request->user()->isSuperAdmin()
+                ? app(OnlineOrdersAccessCheck::class)->for($user)
+                : null,
             'facilities' => Facility::query()->active()->ordered()->with(['stores' => fn ($q) => $q->where('is_active', true)])->get()
                 ->map(static fn (Facility $f): array => [
                     'value' => $f->id, 'label' => $f->name,

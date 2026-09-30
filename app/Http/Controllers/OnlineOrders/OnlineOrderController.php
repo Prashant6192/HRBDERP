@@ -35,11 +35,12 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\HeaderUtils;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
@@ -311,6 +312,16 @@ class OnlineOrderController extends Controller
             $batch = $this->orders->upload($brand, $marketplace, $store, $rest, $user, seen: $this->seen($data['seen'] ?? []));
         } catch (OnlineOrderException $e) {
             throw ValidationException::withMessages(['files' => $e->getMessage()]);
+        } catch (Throwable $e) {
+            // Say what went wrong on the page, not as a bare server error:
+            // the office sees the reason itself, everyone else a reference.
+            report($e);
+            $at = now()->format('j M H:i:s');
+
+            throw ValidationException::withMessages(['files' => $user->can('marketplace.manage')
+                ? "The upload stopped on an error ({$at}): ".Str::limit(class_basename($e).': '.$e->getMessage(), 400).' Files uploaded before it in this batch are kept.'
+                : "The upload stopped on an error ({$at}). Try again; if it happens again, tell the office the time shown here.",
+            ]);
         }
 
         $parcels = $batch->shipments()->count();
@@ -519,14 +530,20 @@ class OnlineOrderController extends Controller
         $file->loadMissing('batch');
         $this->assertCanSee($user, $file->batch);
 
-        // Back from the database onto the disk if a deploy wiped it.
-        abort_if(app(LabelFileStore::class)->get($file) === null, 404, "{$file->original_name} is missing from the server. Upload the same PDF again to put it back.");
+        // From the disk, or from the database copy when the disk has lost
+        // it or cannot be reached.
+        $contents = app(LabelFileStore::class)->get($file);
+        abort_if($contents === null, 404, "{$file->original_name} is missing from the server. Upload the same PDF again to put it back.");
 
-        // The framework writes the filename into the header safely.
-        return Storage::disk(OnlineOrderService::DISK)->response($file->path, $file->original_name, [
+        $fallback = preg_replace('/[^A-Za-z0-9._-]+/', '_', $file->original_name) ?: 'labels.pdf';
+
+        return response()->stream(function () use ($contents): void {
+            echo $contents;
+        }, 200, [
             'Content-Type' => 'application/pdf',
+            'Content-Disposition' => HeaderUtils::makeDisposition('inline', $file->original_name, $fallback),
             'Cache-Control' => 'private, no-store',
-        ], 'inline');
+        ]);
     }
 
     public function removeFile(Request $request, LabelFile $file): RedirectResponse

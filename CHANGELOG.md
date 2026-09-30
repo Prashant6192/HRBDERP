@@ -11,6 +11,15 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Fixed — Upload labels no longer ends in a bare server error
+
+- Label files are kept in the database first; the storage bucket is a
+  convenience. A bucket that is down or not set up right is written to the
+  log and no longer stops an upload, a print or opening a label file.
+- Any other unexpected error during an upload is said on the Upload labels
+  page instead of a "500" page: the office sees the reason itself, the
+  agency is told to try again and quote the time shown.
+
 ### Changed — Myntra labels are read on the uploader's computer, not by AI
 
 - Myntra's label and invoice PDFs are pictures. They no longer go to the

@@ -11,6 +11,7 @@ use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Services\InventoryLedgerService;
 use App\Domain\Marketplace\Contracts\AiLabelReader;
 use App\Domain\Marketplace\DTOs\BrowserPages;
+use App\Domain\Marketplace\DTOs\LabelReading;
 use App\Domain\Marketplace\Enums\ShipmentStatus;
 use App\Domain\Marketplace\Enums\StockState;
 use App\Domain\Marketplace\Exceptions\OnlineOrderException;
@@ -18,7 +19,9 @@ use App\Domain\Marketplace\Models\Brand;
 use App\Domain\Marketplace\Models\LabelFile;
 use App\Domain\Marketplace\Models\Marketplace;
 use App\Domain\Marketplace\Models\Shipment;
+use App\Domain\Marketplace\Services\LabelReaderService;
 use App\Domain\Marketplace\Services\OnlineOrderService;
+use App\Domain\Marketplace\Support\LabelFileStore;
 use App\Domain\MasterData\Models\Product;
 use App\Domain\Measurement\Models\Uom;
 use App\Domain\Warehousing\Enums\WarehouseType;
@@ -30,9 +33,12 @@ use Carbon\CarbonImmutable;
 use Database\Seeders\ReferenceDataSeeder;
 use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\UomSeeder;
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
+use Mockery;
 use PHPUnit\Framework\Attributes\Test;
+use RuntimeException;
 use Tests\Support\FakeLabelReader;
 use Tests\Support\LabelFixtures;
 use Tests\Support\MyntraPages;
@@ -266,5 +272,73 @@ class MyntraSplitLabelsTest extends TestCase
         $this->assertSame(2, Shipment::query()->whereNull('awb')->count());
         $file = LabelFile::query()->sole();
         $this->assertTrue(collect($file->warnings)->contains(fn ($w) => str_contains($w, 'did not bring their reading')));
+    }
+
+    #[Test]
+    public function a_storage_bucket_that_fails_does_not_stop_the_upload_or_the_print(): void
+    {
+        $broken = Mockery::mock(Filesystem::class);
+        $broken->shouldReceive('put', 'exists', 'get', 'delete')->andThrow(new RuntimeException('The bucket is not reachable.'));
+        Storage::set('files', $broken);
+
+        $this->upload('myntra-labels.pdf', 1, $this->labels());
+        $this->upload('myntra-invoices.pdf', 2, $this->invoices());
+
+        $ravi = Shipment::query()->where('awb', '219100000000011')->sole();
+        $this->assertSame('1000001-2000002-3000003', $ravi->order_number);
+
+        // Printing reads the database copy.
+        $file = LabelFile::query()->where('original_name', 'myntra-labels.pdf')->sole();
+        $this->assertStringStartsWith('%PDF', (string) app(LabelFileStore::class)->get($file));
+        $this->actingAs($this->shanu)->get(route('online-orders.files.show', $file))->assertOk();
+    }
+
+    #[Test]
+    public function an_unexpected_error_on_upload_is_said_on_the_page_not_as_a_server_error(): void
+    {
+        $this->app->instance(LabelReaderService::class, new class extends LabelReaderService
+        {
+            public function __construct() {}
+
+            public function read(string $contents, string $filename, Marketplace $marketplace, array $seen = []): LabelReading
+            {
+                throw new RuntimeException('Something broke inside.');
+            }
+        });
+
+        $office = User::factory()->create();
+        $office->assignRole(RoleName::SuperAdmin->value);
+
+        $post = fn (User $as, string $name) => $this->actingAs($as)->from(route('online-orders.create'))->post(route('online-orders.store'), [
+            'brand_id' => $this->brand->id,
+            'marketplace_id' => $this->myntra->id,
+            'files' => [LabelFixtures::imageOnly(1, $name, 7)],
+        ]);
+
+        $post($office, 'a.pdf')->assertRedirect(route('online-orders.create'))
+            ->assertInvalid(['files' => 'The upload stopped on an error'])
+            ->assertInvalid(['files' => 'RuntimeException: Something broke inside.']);
+    }
+
+    #[Test]
+    public function the_agency_is_told_to_try_again_not_shown_the_inside_of_the_erp(): void
+    {
+        $this->app->instance(LabelReaderService::class, new class extends LabelReaderService
+        {
+            public function __construct() {}
+
+            public function read(string $contents, string $filename, Marketplace $marketplace, array $seen = []): LabelReading
+            {
+                throw new RuntimeException('Something broke inside.');
+            }
+        });
+
+        $this->actingAs($this->agency)->from(route('online-orders.create'))->post(route('online-orders.store'), [
+            'brand_id' => $this->brand->id,
+            'marketplace_id' => $this->myntra->id,
+            'files' => [LabelFixtures::imageOnly(1, 'b.pdf', 8)],
+        ])->assertRedirect(route('online-orders.create'))->assertInvalid(['files' => 'tell the office the time']);
+
+        $this->assertStringNotContainsString('Something broke', (string) session('errors')->first('files'));
     }
 }

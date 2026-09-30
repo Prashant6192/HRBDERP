@@ -48,7 +48,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -254,7 +253,7 @@ class OnlineOrderService
                 return $file;
             });
         } catch (Throwable $e) {
-            Storage::disk(LabelFileStore::DISK)->delete($path);
+            $this->files->discard($path);
 
             throw $e;
         }

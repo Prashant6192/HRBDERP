@@ -23,8 +23,8 @@ enum ShipmentStatus: string
         return match ($this) {
             self::Uploaded => 'Not printed',
             self::Printed => 'Printed, not packed',
-            self::Packed => 'Left behind · next pickup',
-            self::HandedOver => 'Scanned · with courier',
+            self::Packed => 'Scanned',
+            self::HandedOver => 'Dispatched',
             self::Cancelled => 'Cancelled',
             self::Returned => 'Returned',
         };

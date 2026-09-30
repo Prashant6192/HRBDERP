@@ -24,6 +24,13 @@ class FakeLabelReader implements AiLabelReader
      */
     public function __construct(private array $parcels = [], private bool $available = true, private ?string $failWith = null, private array $ignoredPages = []) {}
 
+    /**
+     * What each file says, by its name, for tests that upload more than one.
+     *
+     * @var array<string, list<array<string, mixed>>>
+     */
+    public array $byFile = [];
+
     public function available(): bool
     {
         return $this->available;
@@ -38,7 +45,7 @@ class FakeLabelReader implements AiLabelReader
         }
 
         return new LabelReading(
-            parcels: array_map(fn (array $p) => LabelExtraction::fromArray($p), $this->parcels),
+            parcels: array_map(fn (array $p) => LabelExtraction::fromArray($p), $this->byFile[$filename] ?? $this->parcels),
             readWith: 'ai',
             model: 'fake-reader',
             ignoredPages: $this->ignoredPages,

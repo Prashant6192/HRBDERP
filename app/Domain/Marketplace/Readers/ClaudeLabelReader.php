@@ -32,7 +32,12 @@ Rules:
 - payable_amount: the amount to collect for COD, else the invoice total, as a plain number.
 - invoice_number, invoice_date (YYYY-MM-DD; Indian documents print DD.MM.YYYY or DD-MM-YYYY), seller_gstin (the seller's 15-character GSTIN), customer_name, customer_state (the delivery state).
 - lines: one per product in the parcel, from the label's product table or the invoice. seller_sku is the seller's own SKU: on Amazon invoices it is the text in parentheses after the ASIN, e.g. "B0XXXXXXXX ( Hair_Oil_500ml )" gives "Hair_Oil_500ml"; on other labels it is the "SKU" column. description is the product title as printed. quantity is the number of units ordered. Skip shipping charges, handling fees, COD fees and totals. If the label names no product at all, return an empty list.
+- customer_pincode: the 6-digit PIN code of the delivery address.
 - warnings: anything unclear, cut off or unreadable on a parcel's pages.
+
+Myntra sends a day's courier labels and its tax invoices as two separate PDFs, so a file may hold only labels or only invoices; return each page's parcel as it stands and the ERP pairs them by the buyer's name and PIN code.
+- A Myntra courier label (a large courier barcode, "Buyer's Name And Address", "If undelivered, please return to"): awb is the number under the large barcode; there is no product on it, so lines is empty; order_number is null unless printed.
+- A Myntra "Tax Invoice" page on its own: awb is null; alt_code is the PacketID (printed as "PacketID:" and under the invoice's barcode); order_number is the "Order Number"; customer_name is the "Bill to / Ship to" name; lines come from the invoice table, where seller_sku is the code before the first parenthesis (e.g. "RTTHHROL100835002(Medicated-500ml) - RAHAT ROOH Medicated Hair Oil" gives "RTTHHROL100835002") and description is the rest; payable_amount is the invoice total.
 PROMPT;
 
     private const LINE = [
@@ -46,7 +51,7 @@ PROMPT;
         ],
     ];
 
-    private const PARCEL_FIELDS = ['awb', 'alt_code', 'order_number', 'courier', 'payment_mode', 'payable_amount', 'invoice_number', 'invoice_date', 'seller_gstin', 'customer_name', 'customer_state'];
+    private const PARCEL_FIELDS = ['awb', 'alt_code', 'order_number', 'courier', 'payment_mode', 'payable_amount', 'invoice_number', 'invoice_date', 'seller_gstin', 'customer_name', 'customer_state', 'customer_pincode'];
 
     public function __construct(private readonly ClaudeDocuments $documents) {}
 

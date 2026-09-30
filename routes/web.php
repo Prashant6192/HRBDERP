@@ -128,7 +128,6 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('floor/photo', [FloorController::class, 'photo'])->name('floor.photo');
     Route::get('floor/pack', [ParcelController::class, 'pack'])->name('floor.pack');
     Route::post('floor/pack', [ParcelController::class, 'scan'])->name('floor.pack.scan');
-    Route::post('floor/pack/{shipment}/left-behind', [ParcelController::class, 'leftBehind'])->name('floor.pack.left-behind');
     Route::post('floor/pack/{shipment}/cancel', [ParcelController::class, 'cancelInHand'])->name('floor.pack.cancel');
     Route::get('floor/handover', [ParcelController::class, 'handover'])->name('floor.handover');
     Route::post('floor/handover', [ParcelController::class, 'storeHandover'])->name('floor.handover.store');
@@ -241,6 +240,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::patch('online-orders/parcels/{shipment}', [OnlineOrderController::class, 'correct'])->name('online-orders.parcels.update');
     Route::get('online-orders/report', [OnlineOrderReportController::class, 'index'])->name('online-orders.report');
     Route::get('online-orders/report/excel', [OnlineOrderReportController::class, 'export'])->name('online-orders.report.excel');
+    Route::post('online-orders/dispatch', [OnlineOrderController::class, 'dispatch'])->name('online-orders.dispatch');
     Route::post('online-orders/print', [OnlineOrderController::class, 'printSelected'])->name('online-orders.print-selected');
     Route::post('online-orders/check-stock', [OnlineOrderController::class, 'holdAll'])->name('online-orders.hold-all');
     Route::get('online-orders/lookup', [OnlineOrderController::class, 'lookup'])->name('online-orders.lookup');

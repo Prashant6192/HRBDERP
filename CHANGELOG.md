@@ -11,6 +11,29 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Changed — Orders, In packing, Scanned, Dispatched; Myntra's two PDFs
+
+- The Online orders screen opens with four boxes: **Orders**, **In
+  packing** (with _Print_ while labels are unprinted, then _Start
+  scanning_), **Scanned** (with _Mark all dispatched_) and **Dispatched**.
+  The step strip and the other tiles are gone; Cancelled, Returned and
+  Need attention show as tabs only when there are any.
+- **Scan = Scanned.** A scan packs the parcel (stock out) and it waits on
+  its courier's pile. When the courier leaves, **Valmo picked up (70)** on
+  the courier's card — or _Mark all dispatched_ — marks them
+  **Dispatched**. A second scan says _Already scanned_ or _Already
+  dispatched_ with one button, **Order cancelled**, which puts the stock
+  back. The "left behind" button is gone.
+- Parcels the previous version marked "with the courier" without a
+  courier's signature are back to Scanned, to be marked Dispatched.
+- **Myntra** sends labels and invoices as two PDFs. Each label is now
+  joined to its invoice by the buyer's name and PIN code, whichever file
+  comes first: one parcel with the label's AWB and the invoice's product,
+  order and PacketID. Either barcode scans it, and printing puts the
+  invoice right after its label. A label still waiting for its invoice
+  says so, and an invoice for an order already in is not added twice.
+  The upload screen reminds to add both PDFs for Myntra.
+
 ### Changed — One scan per parcel; reports for online orders
 
 - **One scan = packed and with the courier.** The depot seals the parcel

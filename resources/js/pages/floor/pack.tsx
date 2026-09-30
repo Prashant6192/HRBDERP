@@ -21,27 +21,23 @@ import {
 } from '@/lib/online-orders';
 import { cn } from '@/lib/utils';
 import { pack as packPage } from '@/routes/floor';
-import {
-    cancel as cancelRoute,
-    leftBehind as leftBehindRoute,
-    scan as scanRoute,
-} from '@/routes/floor/pack';
+import { cancel as cancelRoute, scan as scanRoute } from '@/routes/floor/pack';
 
-type Result = 'scanned' | 'rescanned' | 'already' | 'stop';
+type Result = 'scanned' | 'already' | 'dispatched' | 'stop';
 
 type Outcome = {
     result: Result;
     message: string;
     shipment?: Parcel;
     code: string;
-    /** What happened after "already scanned": left behind or cancelled. */
+    /** What happened after "already scanned": cancelled. */
     settled?: string;
 };
 
 type Counts = {
     to_scan: number;
     scanned: number;
-    left_behind: number;
+    dispatched: number;
     cancelled: number;
 };
 
@@ -118,7 +114,7 @@ export default function ScanParcels({
         try {
             const { ok, data } = await postJson<{
                 ok: boolean;
-                result?: 'scanned' | 'rescanned' | 'already';
+                result?: 'scanned' | 'already' | 'dispatched';
                 message: string;
                 shipment?: Parcel;
             }>(scanRoute().url, { code });
@@ -131,7 +127,7 @@ export default function ScanParcels({
                 shipment: data.shipment,
                 code,
             });
-            signal(result === 'scanned' || result === 'rescanned');
+            signal(result === 'scanned');
 
             if (result === 'scanned' && data.shipment) {
                 const parcel = data.shipment;
@@ -139,14 +135,6 @@ export default function ScanParcels({
                 setN((c) => ({
                     ...c,
                     to_scan: Math.max(0, c.to_scan - 1),
-                    scanned: c.scanned + 1,
-                }));
-            }
-
-            if (result === 'rescanned') {
-                setN((c) => ({
-                    ...c,
-                    left_behind: Math.max(0, c.left_behind - 1),
                     scanned: c.scanned + 1,
                 }));
             }
@@ -162,7 +150,7 @@ export default function ScanParcels({
         }
     }, []);
 
-    const settle = async (kind: 'left' | 'cancel') => {
+    const cancelIt = async () => {
         const parcel = outcome?.shipment;
 
         if (!parcel) {
@@ -176,12 +164,7 @@ export default function ScanParcels({
                 ok: boolean;
                 message: string;
                 shipment?: Parcel;
-            }>(
-                kind === 'left'
-                    ? leftBehindRoute(parcel.id).url
-                    : cancelRoute(parcel.id).url,
-                {},
-            );
+            }>(cancelRoute(parcel.id).url, {});
 
             if (ok && data.ok) {
                 setOutcome((o) =>
@@ -193,19 +176,15 @@ export default function ScanParcels({
                           }
                         : o,
                 );
-                setN((c) =>
-                    kind === 'left'
-                        ? {
-                              ...c,
-                              scanned: Math.max(0, c.scanned - 1),
-                              left_behind: c.left_behind + 1,
-                          }
-                        : {
-                              ...c,
-                              scanned: Math.max(0, c.scanned - 1),
-                              cancelled: c.cancelled + 1,
-                          },
-                );
+                setN((c) => ({
+                    ...c,
+                    scanned: Math.max(0, c.scanned - 1),
+                    dispatched:
+                        outcome?.result === 'dispatched'
+                            ? Math.max(0, c.dispatched - 1)
+                            : c.dispatched,
+                    cancelled: c.cancelled + 1,
+                }));
             } else {
                 setOutcome((o) =>
                     o ? { ...o, result: 'stop', message: data.message } : o,
@@ -289,10 +268,7 @@ export default function ScanParcels({
                             {n.scanned}
                         </p>
                         <p className="text-muted-foreground text-xs">
-                            {n.left_behind > 0
-                                ? `${n.left_behind} left behind · `
-                                : ''}
-                            {n.cancelled} cancelled
+                            {n.dispatched} dispatched · {n.cancelled} cancelled
                         </p>
                     </div>
                 </div>
@@ -309,10 +285,10 @@ export default function ScanParcels({
                         aria-live="assertive"
                         className={cn(
                             'rounded-2xl border-2 p-4',
-                            (outcome.result === 'scanned' ||
-                                outcome.result === 'rescanned') &&
+                            outcome.result === 'scanned' &&
                                 'border-emerald-600 bg-emerald-500/15',
-                            outcome.result === 'already' &&
+                            (outcome.result === 'already' ||
+                                outcome.result === 'dispatched') &&
                                 'border-amber-500 bg-amber-400/20',
                             outcome.result === 'stop' &&
                                 'border-red-600 bg-red-500/15',
@@ -321,7 +297,8 @@ export default function ScanParcels({
                         <div className="flex items-center gap-3">
                             {outcome.result === 'stop' ? (
                                 <OctagonX className="size-12 shrink-0 text-red-600" />
-                            ) : outcome.result === 'already' ? (
+                            ) : outcome.result === 'already' ||
+                              outcome.result === 'dispatched' ? (
                                 <AlertTriangle className="size-12 shrink-0 text-amber-600" />
                             ) : (
                                 <CheckCircle2 className="size-12 shrink-0 text-emerald-600" />
@@ -332,10 +309,10 @@ export default function ScanParcels({
                                         'text-3xl font-bold tracking-wide',
                                         outcome.result === 'stop' &&
                                             'text-red-700 dark:text-red-300',
-                                        outcome.result === 'already' &&
+                                        (outcome.result === 'already' ||
+                                            outcome.result === 'dispatched') &&
                                             'text-amber-800 dark:text-amber-200',
-                                        (outcome.result === 'scanned' ||
-                                            outcome.result === 'rescanned') &&
+                                        outcome.result === 'scanned' &&
                                             'text-emerald-700 dark:text-emerald-300',
                                     )}
                                 >
@@ -343,44 +320,37 @@ export default function ScanParcels({
                                         ? 'STOP'
                                         : outcome.result === 'already'
                                           ? 'ALREADY SCANNED'
-                                          : 'SCANNED'}
+                                          : outcome.result === 'dispatched'
+                                            ? 'ALREADY DISPATCHED'
+                                            : 'SCANNED'}
                                 </p>
                                 <p className="text-sm">{outcome.message}</p>
                             </div>
                         </div>
 
-                        {outcome.result === 'already' && s && (
-                            <div className="mt-4">
-                                {outcome.settled ? (
-                                    <p className="rounded-xl bg-white/60 px-3 py-2 text-sm font-semibold dark:bg-black/20">
-                                        {outcome.settled}
-                                    </p>
-                                ) : (
-                                    <div className="grid gap-2 sm:grid-cols-2">
-                                        <Button
-                                            size="lg"
-                                            variant="outline"
-                                            className="h-14 text-base"
-                                            disabled={busy}
-                                            onClick={() => settle('left')}
-                                        >
-                                            Courier left it behind
-                                        </Button>
-                                        {can_cancel && (
+                        {(outcome.result === 'already' ||
+                            outcome.result === 'dispatched') &&
+                            s && (
+                                <div className="mt-4">
+                                    {outcome.settled ? (
+                                        <p className="rounded-xl bg-white/60 px-3 py-2 text-sm font-semibold dark:bg-black/20">
+                                            {outcome.settled}
+                                        </p>
+                                    ) : (
+                                        can_cancel && (
                                             <Button
                                                 size="lg"
                                                 variant="destructive"
-                                                className="h-14 text-base"
+                                                className="h-14 w-full text-base"
                                                 disabled={busy}
-                                                onClick={() => settle('cancel')}
+                                                onClick={cancelIt}
                                             >
                                                 Order cancelled
                                             </Button>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                                        )
+                                    )}
+                                </div>
+                            )}
 
                         {s && (
                             <div className="mt-4 space-y-3">
@@ -483,7 +453,7 @@ export default function ScanParcels({
                                     </span>
                                     <span className="text-muted-foreground text-xs">
                                         {courierName(p.courier)} ·{' '}
-                                        {when(p.handed_over_at ?? p.packed_at)}
+                                        {when(p.packed_at)}
                                     </span>
                                 </li>
                             ))}

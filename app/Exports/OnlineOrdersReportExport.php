@@ -23,8 +23,8 @@ final class OnlineOrdersReportExport implements Export, WithMultipleSheets
 
     public function sheets(): array
     {
-        $counts = ['Uploaded', 'To scan', 'Scanned (with courier)', 'Left behind', 'Cancelled', 'Returned'];
-        $row = fn (array $r) => [$r['key'], $r['uploaded'], $r['to_scan'], $r['scanned'], $r['left_behind'], $r['cancelled'], $r['returned']];
+        $counts = ['Orders', 'In packing', 'Scanned', 'Dispatched', 'Cancelled', 'Returned'];
+        $row = fn (array $r) => [$r['key'], $r['uploaded'], $r['in_packing'], $r['scanned'], $r['dispatched'], $r['cancelled'], $r['returned']];
 
         return [
             $this->sheet('By day', ['Day', ...$counts], [...array_map($row, $this->report['days']), $row($this->report['totals'])]),
@@ -38,7 +38,7 @@ final class OnlineOrdersReportExport implements Export, WithMultipleSheets
                 fn (array $s) => [$s['name'], $s['scanned'], $s['first'], $s['last']],
                 $this->report['scanners'],
             )),
-            $this->sheet('Cancelled & left behind', ['Day', 'AWB', 'Order', 'Courier', 'Brand', 'What', 'Reason', 'By', 'At', 'Stock put back'], array_map(
+            $this->sheet('Cancelled', ['Day', 'AWB', 'Order', 'Courier', 'Brand', 'What', 'Reason', 'By', 'At', 'Stock put back'], array_map(
                 fn (array $p) => [$p['date'], $p['awb'], $p['order'], $p['courier'], $p['brand'], $p['what'], $p['reason'], $p['by'], $p['at'], $p['stock_back'] ? 'Yes' : ''],
                 $this->report['look_again'],
             )),

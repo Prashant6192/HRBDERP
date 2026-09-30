@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * The depot's online orders over a stretch of days, read from the scans:
- * what was uploaded, scanned out, left behind or cancelled — by day, by
+ * what was uploaded, is in packing, scanned, dispatched or cancelled — by day, by
  * courier and by brand — how many pieces of each product went out, who
  * scanned, and the parcels someone should look at again.
  */
@@ -66,17 +66,17 @@ final class OnlineOrderReportService
             ->values();
 
         $scanners = $parcels()
-            ->join('users as u', 'u.id', '=', 'shipments.handed_over_by')
-            ->where('shipments.status', ShipmentStatus::HandedOver->value)
+            ->join('users as u', 'u.id', '=', 'shipments.packed_by')
+            ->whereIn('shipments.status', [ShipmentStatus::Packed->value, ShipmentStatus::HandedOver->value])
             ->groupBy('u.id', 'u.name')
-            ->selectRaw('u.name, COUNT(*) AS n, MIN(shipments.handed_over_at) AS first_at, MAX(shipments.handed_over_at) AS last_at')
+            ->selectRaw('u.name, COUNT(*) AS n, MIN(shipments.packed_at) AS first_at, MAX(shipments.packed_at) AS last_at')
             ->orderByDesc(DB::raw('COUNT(*)'))
             ->toBase()->get()
             ->map(fn ($r) => ['name' => $r->name, 'scanned' => (int) $r->n, 'first' => $this->time($r->first_at), 'last' => $this->time($r->last_at)])
             ->values();
 
         $lookAgain = $parcels()
-            ->whereIn('shipments.status', [ShipmentStatus::Cancelled->value, ShipmentStatus::Packed->value])
+            ->where('shipments.status', ShipmentStatus::Cancelled->value)
             ->with(['brand:id,name', 'canceller:id,name'])
             ->select('shipments.*', 'b.for_date as batch_date')
             ->orderBy('b.for_date')->orderBy('shipments.courier')
@@ -88,17 +88,17 @@ final class OnlineOrderReportService
                 'order' => $s->order_number,
                 'courier' => $s->courier ?? 'Courier not read',
                 'brand' => $s->brand?->name,
-                'what' => $s->status === ShipmentStatus::Cancelled ? 'Cancelled' : 'Left behind',
+                'what' => 'Cancelled',
                 'reason' => $s->cancel_reason,
-                'by' => $s->status === ShipmentStatus::Cancelled ? $s->canceller?->name : null,
-                'at' => $s->status === ShipmentStatus::Cancelled ? $this->time($s->cancelled_at) : null,
-                'stock_back' => $s->status === ShipmentStatus::Cancelled && $s->packed_at !== null,
+                'by' => $s->canceller?->name,
+                'at' => $this->time($s->cancelled_at),
+                'stock_back' => $s->packed_at !== null,
             ])
             ->values();
 
         $totals = $this->row('Total', collect([
             ...$days->reduce(function (array $carry, array $d) {
-                foreach (['uploaded', 'to_scan', 'scanned', 'left_behind', 'cancelled', 'returned'] as $k) {
+                foreach (['uploaded', 'in_packing', 'scanned', 'dispatched', 'cancelled', 'returned'] as $k) {
                     $carry[$k] = ($carry[$k] ?? 0) + $d[$k];
                 }
 
@@ -121,13 +121,13 @@ final class OnlineOrderReportService
 
     /**
      * @param  Collection<string, int>  $by  count per status
-     * @return array{key: string, uploaded: int, to_scan: int, scanned: int, left_behind: int, cancelled: int, returned: int, total: int}
+     * @return array{key: string, uploaded: int, in_packing: int, scanned: int, dispatched: int, cancelled: int, returned: int, total: int}
      */
     private function row(string $key, Collection $by, bool $fromTotals = false): array
     {
         if ($fromTotals) {
             $r = ['key' => $key, ...array_map('intval', $by->all())];
-            $r += ['uploaded' => 0, 'to_scan' => 0, 'scanned' => 0, 'left_behind' => 0, 'cancelled' => 0, 'returned' => 0];
+            $r += ['uploaded' => 0, 'in_packing' => 0, 'scanned' => 0, 'dispatched' => 0, 'cancelled' => 0, 'returned' => 0];
             $r['total'] = $r['uploaded'];
 
             return $r;
@@ -139,9 +139,9 @@ final class OnlineOrderReportService
         return [
             'key' => $key,
             'uploaded' => $uploaded,
-            'to_scan' => $n(ShipmentStatus::Uploaded, ShipmentStatus::Printed),
-            'scanned' => $n(ShipmentStatus::HandedOver),
-            'left_behind' => $n(ShipmentStatus::Packed),
+            'in_packing' => $n(ShipmentStatus::Uploaded, ShipmentStatus::Printed),
+            'scanned' => $n(ShipmentStatus::Packed),
+            'dispatched' => $n(ShipmentStatus::HandedOver),
             'cancelled' => $n(ShipmentStatus::Cancelled),
             'returned' => $n(ShipmentStatus::Returned),
             'total' => $uploaded,

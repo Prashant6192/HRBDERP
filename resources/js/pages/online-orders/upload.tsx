@@ -16,7 +16,12 @@ type BrandOption = {
     store: string | null;
 };
 
-type MarketplaceOption = { id: number; name: string; reads: string };
+type MarketplaceOption = {
+    id: number;
+    name: string;
+    reads: string;
+    two_files?: boolean;
+};
 
 function Choice({
     active,
@@ -220,6 +225,18 @@ export default function UploadLabels({
                                 Up to 10 files, 20 MB each. Labels already
                                 uploaded are skipped, never doubled.
                             </p>
+                            {marketplaces.find(
+                                (m) =>
+                                    String(m.id) ===
+                                    String(form.data.marketplace_id),
+                            )?.two_files && (
+                                <p className="rounded-md bg-amber-500/15 px-3 py-1.5 text-xs font-medium text-amber-900 dark:text-amber-100">
+                                    Myntra: add both PDFs — the labels and the
+                                    invoices. Each label is joined to its
+                                    invoice by the buyer&rsquo;s name and PIN
+                                    code.
+                                </p>
+                            )}
                             <input
                                 ref={input}
                                 type="file"

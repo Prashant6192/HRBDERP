@@ -53,6 +53,7 @@ import { pack as scanToPack } from '@/routes/floor';
 import { pdf as sheetPdf } from '@/routes/handover-sheets';
 import {
     create,
+    dispatch as dispatchRoute,
     holdAll,
     index,
     printSelected,
@@ -91,9 +92,9 @@ const SHOW_LABEL: Record<Show, string> = {
     attention: 'Need attention',
     not_printed: 'Not printed',
     printed: 'Printed, not scanned',
-    to_pack: 'To scan',
-    packed: 'Left behind by the courier',
-    handed_over: 'Scanned · with courier',
+    to_pack: 'In packing',
+    packed: 'Scanned',
+    handed_over: 'Dispatched',
     cancelled: 'Cancelled',
     returned: 'Returned',
 };
@@ -129,53 +130,62 @@ function shiftDay(date: string, days: number): string {
     ].join('-');
 }
 
-function Tile({
+/**
+ * One stage of the day: its count, a click lists its parcels, and the
+ * button that moves them on.
+ */
+function StageBox({
     label,
     value,
-    tone = 'default',
     hint,
+    tone = 'default',
     active,
     onClick,
+    children,
 }: {
     label: string;
     value: number;
-    tone?: 'default' | 'danger' | 'warning' | 'success';
     hint?: string;
+    tone?: 'default' | 'danger' | 'success';
     active: boolean;
     onClick: () => void;
+    children?: ReactNode;
 }) {
     return (
-        <button
-            type="button"
-            onClick={onClick}
-            aria-pressed={active}
+        <div
             className={cn(
-                // Top-aligned with a two-line label box, so every tile's
-                // number sits on the same line whatever its label or hint.
-                'bg-card hover:border-primary/60 flex flex-col items-start justify-start rounded-xl border p-4 text-left transition',
+                'bg-card flex flex-col rounded-xl border p-4 transition',
                 tone === 'danger' && 'border-red-600/40 bg-red-500/5',
-                tone === 'warning' && 'border-amber-600/40 bg-amber-500/5',
                 active && 'ring-primary ring-2 ring-offset-2',
             )}
         >
-            <p className="text-muted-foreground line-clamp-2 min-h-8 text-xs leading-4 tracking-wide uppercase">
-                {label}
-            </p>
-            <p
-                className={cn(
-                    'mt-1 text-3xl leading-9 font-semibold tabular-nums',
-                    tone === 'danger' && 'text-red-700 dark:text-red-300',
-                    tone === 'warning' && 'text-amber-700 dark:text-amber-300',
-                    tone === 'success' &&
-                        'text-emerald-700 dark:text-emerald-300',
-                )}
+            <button
+                type="button"
+                onClick={onClick}
+                aria-pressed={active}
+                className="text-left"
             >
-                {value}
-            </p>
-            {hint && (
-                <p className="text-muted-foreground mt-1 text-xs">{hint}</p>
+                <p className="text-muted-foreground text-xs tracking-wide uppercase">
+                    {label}
+                </p>
+                <p
+                    className={cn(
+                        'mt-1 text-4xl font-semibold tabular-nums',
+                        tone === 'danger' && 'text-red-700 dark:text-red-300',
+                        tone === 'success' &&
+                            'text-emerald-700 dark:text-emerald-300',
+                    )}
+                >
+                    {value}
+                </p>
+                {hint && (
+                    <p className="text-muted-foreground mt-1 text-xs">{hint}</p>
+                )}
+            </button>
+            {children && (
+                <div className="mt-3 flex flex-wrap gap-2">{children}</div>
             )}
-        </button>
+        </div>
     );
 }
 
@@ -225,53 +235,6 @@ function CourierLight({ state }: { state: 'done' | 'waiting' | 'late' }) {
     );
 }
 
-/** One step of the depot's day: how many parcels wait at it, and its button. */
-function FlowStep({
-    n,
-    title,
-    count,
-    hint,
-    active,
-    children,
-}: {
-    n: number;
-    title: string;
-    count: number;
-    hint: string;
-    active: boolean;
-    children?: ReactNode;
-}) {
-    return (
-        <div
-            className={cn(
-                'bg-card flex items-center gap-3 rounded-xl border p-4',
-                active && 'border-orange-400 ring-1 ring-orange-400/40',
-            )}
-        >
-            <span
-                className={cn(
-                    'flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold',
-                    active
-                        ? 'bg-orange-500 text-white'
-                        : 'bg-muted text-muted-foreground',
-                )}
-            >
-                {n}
-            </span>
-            <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold">{title}</p>
-                <p className="text-muted-foreground text-xs">
-                    <span className="text-foreground text-base font-semibold tabular-nums">
-                        {count}
-                    </span>{' '}
-                    {hint}
-                </p>
-            </div>
-            {children}
-        </div>
-    );
-}
-
 export default function OnlineOrdersIndex({
     date,
     is_today,
@@ -280,6 +243,7 @@ export default function OnlineOrdersIndex({
     batches,
     totals,
     shortfall,
+    dispatchable,
     couriers,
     parcels,
     show: showing,
@@ -298,6 +262,7 @@ export default function OnlineOrdersIndex({
     batches: (Batch & { counts: Counts })[];
     totals: Omit<Counts, 'total'> & { parcels: number };
     shortfall: Shortfall[];
+    dispatchable: Record<string, number[]>;
     couriers: CourierRow[];
     parcels: Parcel[];
     show: Show;
@@ -397,6 +362,23 @@ export default function OnlineOrdersIndex({
             );
         } finally {
             setPrinting(false);
+        }
+    };
+
+    // Scanned parcels, by courier: the courier has left with them.
+    const allScanned = Object.values(dispatchable).flat();
+    const markDispatched = (ids: number[], who: string) => {
+        if (
+            ids.length > 0 &&
+            window.confirm(
+                `Mark ${ids.length} scanned parcel(s) for ${who} as dispatched? Do this once the courier has left with them.`,
+            )
+        ) {
+            router.post(
+                dispatchRoute().url,
+                { shipment_ids: ids },
+                { preserveScroll: true },
+            );
         }
     };
 
@@ -610,110 +592,81 @@ export default function OnlineOrdersIndex({
                     </section>
                 )}
 
-                {!can.restricted &&
-                    (can.print || can.pack || can.handover) &&
-                    totals.parcels > 0 && (
-                        <section
-                            aria-label="Today's steps"
-                            className="grid gap-3 md:grid-cols-2"
-                        >
-                            <FlowStep
-                                n={1}
-                                title="Print the labels"
-                                count={totals.not_printed}
-                                hint={
-                                    totals.not_printed > 0
-                                        ? 'not printed yet'
-                                        : 'all printed'
-                                }
-                                active={totals.not_printed > 0}
-                            >
-                                {can.print && totals.not_printed > 0 && (
-                                    <Button
-                                        disabled={printing}
-                                        onClick={() => printLabels(notPrinted)}
-                                    >
-                                        <Printer className="size-4" />
-                                        Print {totals.not_printed}
-                                    </Button>
-                                )}
-                            </FlowStep>
-                            <FlowStep
-                                n={2}
-                                title="Scan the parcels"
-                                count={totals.printed}
-                                hint={`printed, to scan by ${cutoff} · one scan = packed and with the courier`}
-                                active={totals.printed > 0}
-                            >
-                                {can.pack && (
-                                    <Button
-                                        asChild
-                                        variant={
-                                            totals.printed > 0
-                                                ? 'default'
-                                                : 'outline'
-                                        }
-                                    >
-                                        <Link href={scanToPack()}>
-                                            <ScanLine className="size-4" />
-                                            Start scanning
-                                        </Link>
-                                    </Button>
-                                )}
-                            </FlowStep>
-                        </section>
-                    )}
-
-                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-                    <Tile
-                        label="Parcels"
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    <StageBox
+                        label="Orders"
                         value={totals.parcels}
-                        active={showing === 'all' && courierFilter === null}
+                        active={showing === 'all'}
                         onClick={() => pick('all')}
                     />
-                    <Tile
-                        label="Not printed"
-                        value={totals.not_printed}
-                        tone={totals.not_printed > 0 ? 'warning' : 'default'}
-                        active={showing === 'not_printed'}
-                        onClick={() => pick('not_printed')}
-                    />
-                    <Tile
-                        label="Printed, not scanned"
-                        value={totals.printed}
+                    <StageBox
+                        label="In packing"
+                        value={totals.not_printed + totals.printed}
+                        hint={
+                            totals.not_printed > 0
+                                ? `${totals.not_printed} not printed yet`
+                                : `Scan by ${cutoff}`
+                        }
                         tone={
-                            totals.printed > 0
-                                ? past_cutoff
-                                    ? 'danger'
-                                    : 'warning'
+                            past_cutoff &&
+                            totals.not_printed + totals.printed > 0
+                                ? 'danger'
                                 : 'default'
                         }
-                        hint={`Scan by ${cutoff}`}
-                        active={showing === 'printed'}
-                        onClick={() => pick('printed')}
-                    />
-                    <Tile
-                        label="Left behind"
+                        active={showing === 'to_pack'}
+                        onClick={() => pick('to_pack')}
+                    >
+                        {can.print && totals.not_printed > 0 && (
+                            <Button
+                                size="sm"
+                                disabled={printing}
+                                onClick={() => printLabels(notPrinted)}
+                            >
+                                <Printer className="size-4" />
+                                Print {totals.not_printed}
+                            </Button>
+                        )}
+                        {can.pack &&
+                            totals.not_printed === 0 &&
+                            totals.printed > 0 && (
+                                <Button size="sm" asChild>
+                                    <Link href={scanToPack()}>
+                                        <ScanLine className="size-4" />
+                                        Start scanning
+                                    </Link>
+                                </Button>
+                            )}
+                    </StageBox>
+                    <StageBox
+                        label="Scanned"
                         value={totals.packed}
-                        tone={totals.packed > 0 ? 'warning' : 'default'}
-                        hint="Courier did not take it; next pickup"
+                        hint="On the courier piles"
                         active={showing === 'packed'}
                         onClick={() => pick('packed')}
-                    />
-                    <Tile
-                        label="Scanned · with courier"
+                    >
+                        {(can.handover || can.manage) &&
+                            allScanned.length > 0 && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                        markDispatched(
+                                            allScanned,
+                                            'all couriers',
+                                        )
+                                    }
+                                >
+                                    <Truck className="size-4" />
+                                    Mark all dispatched
+                                </Button>
+                            )}
+                    </StageBox>
+                    <StageBox
+                        label="Dispatched"
                         value={totals.handed_over}
                         tone={totals.handed_over > 0 ? 'success' : 'default'}
                         active={showing === 'handed_over'}
                         onClick={() => pick('handed_over')}
-                    />
-                    <Tile
-                        label="Need attention"
-                        value={totals.attention}
-                        tone={totals.attention > 0 ? 'danger' : 'default'}
-                        hint="No product, no stock or no AWB"
-                        active={showing === 'attention'}
-                        onClick={() => pick('attention')}
                     />
                 </div>
 
@@ -732,7 +685,7 @@ export default function OnlineOrdersIndex({
                                 <Truck className="size-4" /> By courier
                             </h2>
                             <span className="text-muted-foreground text-xs">
-                                Green: every parcel packed · click to list
+                                Green: every parcel scanned · click to list
                             </span>
                         </div>
                         <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -782,8 +735,8 @@ export default function OnlineOrdersIndex({
                                             )}
                                         >
                                             {state === 'done'
-                                                ? 'All packed'
-                                                : `${waiting} still to pack`}
+                                                ? 'All scanned'
+                                                : `${waiting} still to scan`}
                                         </p>
                                         <div className="mt-2 grid grid-cols-3 gap-1 text-xs">
                                             {(
@@ -797,13 +750,13 @@ export default function OnlineOrdersIndex({
                                                     [
                                                         'printed',
                                                         c.printed,
-                                                        'to pack',
+                                                        'to scan',
                                                         PackageCheck,
                                                     ],
                                                     [
                                                         'packed',
                                                         c.packed,
-                                                        'to hand over',
+                                                        'scanned',
                                                         Truck,
                                                     ],
                                                 ] as const
@@ -831,6 +784,30 @@ export default function OnlineOrdersIndex({
                                                 </button>
                                             ))}
                                         </div>
+                                        {(can.handover || can.manage) &&
+                                            (dispatchable[key]?.length ?? 0) >
+                                                0 && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="mt-2 w-full"
+                                                    onClick={() =>
+                                                        markDispatched(
+                                                            dispatchable[key],
+                                                            courierName(
+                                                                c.courier,
+                                                            ),
+                                                        )
+                                                    }
+                                                >
+                                                    <Truck className="size-4" />
+                                                    {courierName(
+                                                        c.courier,
+                                                    )}{' '}
+                                                    picked up (
+                                                    {dispatchable[key].length})
+                                                </Button>
+                                            )}
                                     </div>
                                 );
                             })}
@@ -852,10 +829,20 @@ export default function OnlineOrdersIndex({
                             [
                                 'all',
                                 'to_pack',
-                                'handed_over',
                                 'packed',
-                                'cancelled',
-                                'returned',
+                                'handed_over',
+                                ...(totals.cancelled > 0 ||
+                                showing === 'cancelled'
+                                    ? ['cancelled']
+                                    : []),
+                                ...(totals.returned > 0 ||
+                                showing === 'returned'
+                                    ? ['returned']
+                                    : []),
+                                ...(totals.attention > 0 ||
+                                showing === 'attention'
+                                    ? ['attention']
+                                    : []),
                             ] as Show[]
                         ).map((key) => (
                             <button
@@ -873,6 +860,8 @@ export default function OnlineOrdersIndex({
                                 {key === 'cancelled' &&
                                     ` (${totals.cancelled})`}
                                 {key === 'returned' && ` (${totals.returned})`}
+                                {key === 'attention' &&
+                                    ` (${totals.attention})`}
                             </button>
                         ))}
                         {(showing !== 'all' || courierFilter !== null) && (

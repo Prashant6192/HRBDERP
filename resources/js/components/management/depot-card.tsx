@@ -87,14 +87,14 @@ export function OnlineTodayCard({
         },
         ready: {
             big: String(o.to_pack),
-            line: 'online orders to pack today',
+            line: 'online orders to scan today',
             hint: o.finished_at
                 ? `${agency} finished uploading at ${time(o.finished_at)}`
                 : `${agency} has finished uploading`,
         },
         done: {
             big: String(o.packed),
-            line: 'online orders packed today — all done',
+            line: 'online orders scanned today — all done',
             hint: `${o.handed_over} of ${o.packed} handed to the couriers`,
         },
     }[o.state];
@@ -119,9 +119,9 @@ export function OnlineTodayCard({
                 <div className="mt-3">
                     <div className="flex justify-between text-xs opacity-80">
                         <span>
-                            Packed {o.packed} of {o.total}
+                            Scanned {o.packed} of {o.total}
                         </span>
-                        <span>{o.handed_over} with couriers</span>
+                        <span>{o.handed_over} dispatched</span>
                     </div>
                     <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-black/10 dark:bg-white/15">
                         <div

@@ -21,9 +21,9 @@ import { excel } from '@/routes/online-orders/report';
 type Row = {
     key: string;
     uploaded: number;
-    to_scan: number;
+    in_packing: number;
     scanned: number;
-    left_behind: number;
+    dispatched: number;
     cancelled: number;
     returned: number;
     total: number;
@@ -89,18 +89,18 @@ function CountsTable({
     }
 
     const head = [
-        'Uploaded',
-        'To scan',
+        'Orders',
+        'In packing',
         'Scanned',
-        'Left behind',
+        'Dispatched',
         'Cancelled',
         'Returned',
     ];
     const cells = (r: Row) => [
         r.uploaded,
-        r.to_scan,
+        r.in_packing,
         r.scanned,
-        r.left_behind,
+        r.dispatched,
         r.cancelled,
         r.returned,
     ];
@@ -214,14 +214,10 @@ export default function OnlineOrdersReport({
 
     const t = report.totals;
     const tiles: [string, number, string?][] = [
-        ['Uploaded', t.uploaded],
-        [
-            'Scanned · with courier',
-            t.scanned,
-            'text-emerald-700 dark:text-emerald-300',
-        ],
-        ['Still to scan', t.to_scan],
-        ['Left behind', t.left_behind, 'text-amber-700 dark:text-amber-300'],
+        ['Orders', t.uploaded],
+        ['In packing', t.in_packing],
+        ['Scanned', t.scanned],
+        ['Dispatched', t.dispatched, 'text-emerald-700 dark:text-emerald-300'],
         ['Cancelled', t.cancelled, 'text-red-700 dark:text-red-300'],
         ['Returned', t.returned],
     ];
@@ -232,7 +228,7 @@ export default function OnlineOrdersReport({
             <div className="space-y-6 p-4 sm:p-6">
                 <PageHeader
                     title="Online orders report"
-                    description="Every parcel of the chosen days, read from the scans: by day, courier and brand, the pieces that went out, who scanned, and the parcels to look at again."
+                    description="Every parcel of the chosen days, read from the scans: by day, courier and brand, the pieces that went out, who scanned, and the cancelled parcels."
                     actions={
                         <>
                             <Button variant="outline" asChild>

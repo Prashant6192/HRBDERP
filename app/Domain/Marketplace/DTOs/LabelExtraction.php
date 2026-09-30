@@ -30,6 +30,7 @@ final class LabelExtraction
         public readonly ?string $customerName = null,
         public readonly ?string $customerState = null,
         public readonly ?string $sellerGstin = null,
+        public readonly ?string $customerPincode = null,
         public readonly array $lines = [],
         public readonly array $warnings = [],
     ) {}
@@ -75,6 +76,7 @@ final class LabelExtraction
             customerName: self::clean($data['customer_name'] ?? null),
             customerState: self::clean($data['customer_state'] ?? null),
             sellerGstin: self::gstin($data['seller_gstin'] ?? null),
+            customerPincode: self::pincode($data['customer_pincode'] ?? null),
             lines: $lines,
             warnings: array_values(array_filter(array_map(fn ($w) => self::clean($w), (array) ($data['warnings'] ?? [])))),
         );
@@ -98,9 +100,22 @@ final class LabelExtraction
             'customer_name' => $this->customerName,
             'customer_state' => $this->customerState,
             'seller_gstin' => $this->sellerGstin,
+            'customer_pincode' => $this->customerPincode,
             'lines' => $this->lines,
             'warnings' => $this->warnings,
         ];
+    }
+
+    /**
+     * An Indian PIN code: six digits, whatever was printed around them.
+     */
+    private static function pincode(mixed $value): ?string
+    {
+        if (! is_scalar($value)) {
+            return null;
+        }
+
+        return preg_match('/\b(\d{6})\b/', (string) $value, $m) ? $m[1] : null;
     }
 
     /**

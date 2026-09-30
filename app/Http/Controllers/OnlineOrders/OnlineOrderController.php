@@ -195,6 +195,14 @@ class OnlineOrderController extends Controller
             ])->all(),
             'totals' => $totals,
             'shortfall' => $this->brands->isRestricted($user) ? [] : $this->orders->shortfallFor($batches),
+            // Scanned parcels waiting for their courier, by courier.
+            'dispatchable' => $this->brands->isRestricted($user) ? (object) [] : (object) Shipment::query()
+                ->whereIn('label_batch_id', $batchIds)
+                ->where('status', ShipmentStatus::Packed->value)
+                ->get(['id', 'courier'])
+                ->groupBy(fn (Shipment $s) => $s->courier ?? '')
+                ->map(fn ($g) => $g->pluck('id')->values()->all())
+                ->all(),
             'couriers' => $couriers,
             'parcels' => $parcels,
             'show' => $show,
@@ -230,8 +238,12 @@ class OnlineOrderController extends Controller
                 'store_id' => $b->default_warehouse_id,
                 'store' => $b->defaultWarehouse ? "{$b->defaultWarehouse->facility?->name} · {$b->defaultWarehouse->name}" : null,
             ])->all(),
-            'marketplaces' => Marketplace::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'reader'])
-                ->map(fn (Marketplace $m) => ['id' => $m->id, 'name' => $m->name, 'reads' => $m->reader->label()])->all(),
+            'marketplaces' => Marketplace::query()->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name', 'reader'])
+                ->map(fn (Marketplace $m) => [
+                    'id' => $m->id, 'name' => $m->name, 'reads' => $m->reader->label(),
+                    // Myntra's labels and invoices come as two PDFs.
+                    'two_files' => $m->code === 'MYNTRA',
+                ])->all(),
             'stores' => $canChooseStore ? $this->dispatchStores($user) : [],
             'can_choose_store' => $canChooseStore,
             'today' => Cutoff::today()->toDateString(),
@@ -437,6 +449,28 @@ class OnlineOrderController extends Controller
             ->all();
 
         return response()->json([...$plan, 'files' => $files]);
+    }
+
+    /**
+     * The courier has left: the scanned parcels named (a courier's, or all
+     * of the day's) become Dispatched.
+     */
+    public function dispatch(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('marketplace.handover') || $user->can('marketplace.manage'), 403);
+
+        $data = $request->validate([
+            'shipment_ids' => ['required', 'array', 'min:1', 'max:2000'],
+            'shipment_ids.*' => ['integer'],
+        ]);
+
+        $visible = Shipment::query()->whereIn('label_batch_id', $this->visibleBatches($user)->select('id'));
+        $n = $this->orders->dispatch($visible, array_map('intval', $data['shipment_ids']), $user);
+
+        return back()->withToast($n > 0 ? 'success' : 'warning', $n > 0
+            ? "{$n} parcel(s) marked dispatched."
+            : 'Nothing to mark: only scanned parcels can be dispatched.');
     }
 
     /**

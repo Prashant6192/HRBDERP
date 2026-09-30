@@ -71,10 +71,10 @@ class ParcelController extends Controller
         $counts = $ofDay()->selectRaw('status, COUNT(*) AS n')->groupBy('status')->toBase()->pluck('n', 'status')->map(fn ($n) => (int) $n);
 
         $mine = Shipment::query()
-            ->where('handed_over_by', $user->id)
-            ->where('handed_over_at', '>=', $today->utc())
+            ->where('packed_by', $user->id)
+            ->where('packed_at', '>=', $today->utc())
             ->with(['lines.item:id,code,name', 'picks.item:id,code,name', 'picks.line:id,seller_sku', 'marketplace:id,name'])
-            ->latest('handed_over_at')
+            ->latest('packed_at')
             ->limit(15)
             ->get();
 
@@ -83,8 +83,8 @@ class ParcelController extends Controller
             'is_today' => $day->equalTo($today),
             'counts' => [
                 'to_scan' => (int) $counts->only(ShipmentStatus::awaitingPacking())->sum(),
-                'scanned' => (int) ($counts[ShipmentStatus::HandedOver->value] ?? 0),
-                'left_behind' => (int) ($counts[ShipmentStatus::Packed->value] ?? 0),
+                'scanned' => (int) ($counts[ShipmentStatus::Packed->value] ?? 0) + (int) ($counts[ShipmentStatus::HandedOver->value] ?? 0),
+                'dispatched' => (int) ($counts[ShipmentStatus::HandedOver->value] ?? 0),
                 'cancelled' => (int) ($counts[ShipmentStatus::Cancelled->value] ?? 0),
             ],
             'mine' => $mine->map(fn (Shipment $s) => OnlineOrderPresenter::shipment($s))->all(),
@@ -129,38 +129,24 @@ class ParcelController extends Controller
             ], 422);
         }
 
-        $at = $scanned->handed_over_at?->timezone(Cutoff::timezone())->format('j M, g:i A');
+        $tz = Cutoff::timezone();
 
         return response()->json([
             'ok' => true,
             'result' => $result,
             'message' => match ($result) {
-                'already' => "Already scanned{$this->by($scanned->handedOverBy?->name)} at {$at}. If this is a second parcel for the same label, it is a duplicate: open it and put the goods back on the shelf.",
-                'rescanned' => 'Back with the courier. It was left behind earlier; no stock taken again.',
-                default => 'Packed and with the courier. Stock taken out of '.$shipment->warehouse->name.'.',
+                'already' => sprintf(
+                    'Already scanned%s at %s. If this is a second parcel for the same label, it is a duplicate: open it and put the goods back on the shelf.',
+                    $this->by($scanned->packer?->name),
+                    $scanned->packed_at?->timezone($tz)->format('j M, g:i A'),
+                ),
+                'dispatched' => sprintf(
+                    'Already dispatched with the courier%s. If the courier left it, press Order cancelled.',
+                    $scanned->handed_over_at ? ' on '.$scanned->handed_over_at->timezone($tz)->format('j M, g:i A') : '',
+                ),
+                default => 'Packed. Stock taken out of '.$shipment->warehouse->name.'. Put it on the '.($scanned->courier ?? 'courier').' pile.',
             },
             'shipment' => $this->describe($scanned),
-        ]);
-    }
-
-    /**
-     * The courier did not take it: back on the pile for the next pickup.
-     */
-    public function leftBehind(Request $request, Shipment $shipment): JsonResponse
-    {
-        $this->authorize('marketplace.pack');
-        abort_unless($this->access->canWorkIn($request->user(), $shipment->warehouse), 403);
-
-        try {
-            $parcel = $this->orders->leftBehind($shipment, $request->user());
-        } catch (OnlineOrderException $e) {
-            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
-        }
-
-        return response()->json([
-            'ok' => true,
-            'message' => 'Kept for the next pickup. Scan it again when the courier takes it.',
-            'shipment' => $this->describe($parcel),
         ]);
     }
 

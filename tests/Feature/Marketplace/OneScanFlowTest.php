@@ -36,10 +36,10 @@ use Tests\Support\LabelFixtures;
 use Tests\TestCase;
 
 /**
- * The depot's day with one scan: a sealed parcel is scanned once and is
- * packed and with the courier. A second scan says "already scanned"; the
- * courier's leftovers go back on the pile or are cancelled with their
- * stock put back. The report reads it all back by day, courier and brand.
+ * The depot's day: a sealed parcel is scanned once (packed, Scanned); the
+ * courier's parcels are marked Dispatched in bulk when the courier leaves.
+ * A second scan says so; a cancelled order is cancelled with its stock
+ * put back. The report reads it all back by day, courier and brand.
  */
 class OneScanFlowTest extends TestCase
 {
@@ -114,7 +114,7 @@ class OneScanFlowTest extends TestCase
     }
 
     #[Test]
-    public function one_scan_packs_the_parcel_and_puts_it_with_the_courier(): void
+    public function one_scan_packs_the_parcel_and_a_second_scan_says_so(): void
     {
         $this->actingAs($this->shanu)->get(route('floor.pack'))
             ->assertOk()
@@ -122,17 +122,16 @@ class OneScanFlowTest extends TestCase
                 ->component('floor/pack')
                 ->where('date', '2026-09-30')
                 ->where('is_today', true)
-                ->where('counts', ['to_scan' => 4, 'scanned' => 0, 'left_behind' => 0, 'cancelled' => 0]));
+                ->where('counts', ['to_scan' => 4, 'scanned' => 0, 'dispatched' => 0, 'cancelled' => 0]));
 
         $ok = $this->scan('VL0000000000001')->assertOk()->json();
         $this->assertSame('scanned', $ok['result']);
 
         $parcel = $this->parcel('VL0000000000001');
-        $this->assertSame(ShipmentStatus::HandedOver, $parcel->status);
-        $this->assertSame($this->shanu->id, $parcel->handed_over_by);
-        $this->assertNotNull($parcel->packed_at);
+        $this->assertSame(ShipmentStatus::Packed, $parcel->status);
+        $this->assertSame('Scanned', $parcel->status->label());
+        $this->assertSame($this->shanu->id, $parcel->packed_by);
         $this->assertSame('19', $this->onShelf());
-        $this->assertSame('Scanned · with courier', $parcel->status->label());
 
         // The same label again: "already scanned", nothing taken twice.
         $again = $this->scan('VL0000000000001')->assertOk()->json();
@@ -146,21 +145,36 @@ class OneScanFlowTest extends TestCase
     }
 
     #[Test]
-    public function the_courier_leaves_one_behind_and_it_goes_on_the_next_scan(): void
+    public function the_courier_leaves_and_the_scanned_parcels_are_marked_dispatched(): void
     {
-        $this->scan('VL0000000000002')->assertOk();
-        $parcel = $this->parcel('VL0000000000002');
+        $this->scan('VL0000000000001');
+        $this->scan('VL0000000000002');
+        $this->scan('DL0000000000003');
 
-        $this->actingAs($this->shanu)->postJson(route('floor.pack.left-behind', $parcel))->assertOk();
-        $this->assertSame(ShipmentStatus::Packed, $parcel->refresh()->status);
-        $this->assertNull($parcel->handed_over_at);
-        $this->assertSame('Left behind · next pickup', $parcel->status->label());
-        $this->assertSame('19', $this->onShelf(), 'The goods stay packed.');
+        $this->actingAs($this->shanu)->get(route('online-orders.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('totals.packed', 3)
+                ->where('dispatchable.Valmo', [$this->parcel('VL0000000000001')->id, $this->parcel('VL0000000000002')->id])
+                ->has('dispatchable.Delhivery', 1));
 
-        $next = $this->scan('VL0000000000002')->assertOk()->json();
-        $this->assertSame('rescanned', $next['result']);
-        $this->assertSame(ShipmentStatus::HandedOver, $parcel->refresh()->status);
-        $this->assertSame('19', $this->onShelf(), 'No stock taken again.');
+        // Valmo picked up: only Valmo's scanned parcels; an unscanned one is skipped.
+        $this->actingAs($this->shanu)->post(route('online-orders.dispatch'), [
+            'shipment_ids' => [$this->parcel('VL0000000000001')->id, $this->parcel('VL0000000000002')->id, $this->parcel('DL0000000000004')->id],
+        ])->assertRedirect();
+
+        $this->assertSame(ShipmentStatus::HandedOver, $this->parcel('VL0000000000001')->status);
+        $this->assertSame('Dispatched', $this->parcel('VL0000000000001')->status->label());
+        $this->assertSame(ShipmentStatus::Packed, $this->parcel('DL0000000000003')->status);
+        $this->assertTrue($this->parcel('DL0000000000004')->status->awaitsPacking(), 'Not scanned, not dispatched.');
+
+        // A dispatched parcel scanned again says so, and can still be cancelled.
+        $again = $this->scan('VL0000000000002')->assertOk()->json();
+        $this->assertSame('dispatched', $again['result']);
+        $this->assertStringContainsString('Already dispatched', $again['message']);
+
+        $this->actingAs($this->shanu)->postJson(route('floor.pack.cancel', $this->parcel('VL0000000000002')))->assertOk();
+        $this->assertSame(ShipmentStatus::Cancelled, $this->parcel('VL0000000000002')->status);
+        $this->assertSame('18', $this->onShelf(), 'One of three back on the shelf.');
     }
 
     #[Test]
@@ -201,7 +215,7 @@ class OneScanFlowTest extends TestCase
     {
         $this->scan('VL0000000000001');
         $this->scan('VL0000000000002');
-        $this->actingAs($this->shanu)->postJson(route('floor.pack.left-behind', $this->parcel('VL0000000000002')));
+        $this->actingAs($this->shanu)->post(route('online-orders.dispatch'), ['shipment_ids' => [$this->parcel('VL0000000000001')->id]]);
         $this->scan('DL0000000000003');
         $this->actingAs($this->shanu)->postJson(route('floor.pack.cancel', $this->parcel('DL0000000000003')));
 
@@ -210,17 +224,18 @@ class OneScanFlowTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('online-orders/report')
                 ->where('report.totals.uploaded', 4)
+                ->where('report.totals.in_packing', 1)
                 ->where('report.totals.scanned', 1)
-                ->where('report.totals.left_behind', 1)
+                ->where('report.totals.dispatched', 1)
                 ->where('report.totals.cancelled', 1)
-                ->where('report.totals.to_scan', 1)
                 ->where('report.couriers.0.key', 'Delhivery')
                 ->where('report.couriers.1.key', 'Valmo')
-                ->where('report.couriers.1.scanned', 1)
+                ->where('report.couriers.1.dispatched', 1)
                 ->where('report.products.0.code', 'FG-MO-300')
                 ->where('report.products.0.pieces', '2')
                 ->where('report.scanners.0.name', 'Shanu Kumar')
-                ->has('report.look_again', 2)
+                ->where('report.scanners.0.scanned', 2)
+                ->has('report.look_again', 1)
                 ->where('report.look_again.0.what', 'Cancelled')
                 ->where('report.look_again.0.stock_back', true));
 

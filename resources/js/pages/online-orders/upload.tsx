@@ -1,10 +1,15 @@
 import { Head, Link, useForm } from '@inertiajs/react';
 import { FileUp, Info, LoaderCircle, Upload, X } from 'lucide-react';
-import { useMemo, useRef, type FormEvent } from 'react';
+import { useMemo, useRef, useState, type FormEvent } from 'react';
 import InputError from '@/components/input-error';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import {
+    fileHash,
+    readPicturePages,
+    type ReadingProgress,
+} from '@/lib/label-pictures';
 import type { Batch } from '@/lib/online-orders';
 import { cn } from '@/lib/utils';
 import { index, show, store } from '@/routes/online-orders';
@@ -21,6 +26,7 @@ type MarketplaceOption = {
     name: string;
     reads: string;
     two_files?: boolean;
+    reads_in_browser?: boolean;
 };
 
 function Choice({
@@ -83,6 +89,14 @@ export default function UploadLabels({
         files: [],
     });
 
+    const [reading, setReading] = useState<ReadingProgress | null>(null);
+    const [readError, setReadError] = useState<string | null>(null);
+
+    const marketplace =
+        marketplaces.find(
+            (m) => String(m.id) === String(form.data.marketplace_id),
+        ) ?? null;
+
     const brand = useMemo(
         () => brands.find((b) => b.id === form.data.brand_id) ?? null,
         [brands, form.data.brand_id],
@@ -98,8 +112,36 @@ export default function UploadLabels({
         form.setData('files', [...form.data.files, ...pdfs].slice(0, 10));
     };
 
-    const submit = (e: FormEvent) => {
+    const submit = async (e: FormEvent) => {
         e.preventDefault();
+        setReadError(null);
+
+        // Myntra's pages are pictures: this computer reads their words and
+        // barcodes first, and the reading goes up with each file.
+        const seen: Record<string, string> = {};
+
+        if (marketplace?.reads_in_browser) {
+            try {
+                for (const file of form.data.files) {
+                    const pages = await readPicturePages(file, setReading);
+
+                    if (pages.length > 0) {
+                        seen[await fileHash(file)] = JSON.stringify({ pages });
+                    }
+                }
+            } catch (error) {
+                console.error('Reading the label pictures failed', error);
+                setReadError(
+                    'This computer could not read the label pictures. Use an up-to-date Chrome or Edge and try again.',
+                );
+
+                return;
+            } finally {
+                setReading(null);
+            }
+        }
+
+        form.transform((data) => ({ ...data, seen }));
         form.post(store().url, { forceFormData: true });
     };
 
@@ -225,16 +267,12 @@ export default function UploadLabels({
                                 Up to 10 files, 20 MB each. Labels already
                                 uploaded are skipped, never doubled.
                             </p>
-                            {marketplaces.find(
-                                (m) =>
-                                    String(m.id) ===
-                                    String(form.data.marketplace_id),
-                            )?.two_files && (
+                            {marketplace?.two_files && (
                                 <p className="rounded-md bg-amber-500/15 px-3 py-1.5 text-xs font-medium text-amber-900 dark:text-amber-100">
                                     Myntra: add both PDFs — the labels and the
-                                    invoices. Each label is joined to its
-                                    invoice by the buyer&rsquo;s name and PIN
-                                    code.
+                                    invoices. This computer reads them before
+                                    uploading, about 2 seconds a page; keep the
+                                    page open until it is done.
                                 </p>
                             )}
                             <input
@@ -282,7 +320,9 @@ export default function UploadLabels({
                                 ))}
                             </ul>
                         )}
-                        <InputError message={fileError} />
+                        <InputError
+                            message={fileError ?? readError ?? undefined}
+                        />
                     </section>
 
                     <div className="bg-muted/40 text-muted-foreground flex gap-2 rounded-lg p-3 text-xs">
@@ -299,9 +339,15 @@ export default function UploadLabels({
                     <Button
                         type="submit"
                         className="h-11 w-full"
-                        disabled={!ready || form.processing}
+                        disabled={!ready || form.processing || reading !== null}
                     >
-                        {form.processing ? (
+                        {reading ? (
+                            <>
+                                <LoaderCircle className="size-4 animate-spin" />
+                                Reading {reading.file}: page {reading.page} of{' '}
+                                {reading.pages}…
+                            </>
+                        ) : form.processing ? (
                             <>
                                 <LoaderCircle className="size-4 animate-spin" />
                                 Reading the labels…

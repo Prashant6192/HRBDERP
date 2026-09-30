@@ -11,6 +11,28 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Changed — Myntra labels are read on the uploader's computer, not by AI
+
+- Myntra's label and invoice PDFs are pictures. They no longer go to the
+  AI reader, so no API key is needed and an AI outage cannot stop a
+  Myntra upload. The **Upload labels** page reads each picture page on
+  the uploader's own computer before sending it: the barcodes (the AWB on
+  the label, the invoice's QR code) and the printed words (buyer, PIN
+  code, SKU, quantity, order number, PacketID). It takes about 2 seconds a
+  page and shows _Reading … page 3 of 20_ while it works. Everything it
+  needs is served by the ERP itself.
+- A new Myntra reader on the server turns that reading into a label half
+  and an invoice half, which are joined into one parcel as before. When a
+  letter of the buyer's name is misread, a label and an invoice that are
+  the only two with that PIN code, and whose names all but agree, are
+  still joined.
+- A Myntra upload that arrives without the reading (an old browser) makes
+  flagged parcels to type in, rather than calling the AI reader.
+- The page title no longer squeezes to a word a line when a page has many
+  buttons, and the parcel table gives the product column room so a long
+  SKU no longer runs over the payment column.
+- The Myntra tests now use made-up buyers and numbers only.
+
 ### Changed — Orders, In packing, Scanned, Dispatched; Myntra's two PDFs
 
 - The Online orders screen opens with four boxes: **Orders**, **In

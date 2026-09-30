@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\OnlineOrders;
 
+use App\Domain\Marketplace\DTOs\BrowserPages;
 use App\Domain\Marketplace\Enums\LabelBatchStatus;
+use App\Domain\Marketplace\Enums\LabelReaderKind;
 use App\Domain\Marketplace\Enums\ShipmentStatus;
 use App\Domain\Marketplace\Enums\StockState;
 use App\Domain\Marketplace\Exceptions\OnlineOrderException;
@@ -243,6 +245,8 @@ class OnlineOrderController extends Controller
                     'id' => $m->id, 'name' => $m->name, 'reads' => $m->reader->label(),
                     // Myntra's labels and invoices come as two PDFs.
                     'two_files' => $m->code === 'MYNTRA',
+                    // Picture pages this browser reads before uploading.
+                    'reads_in_browser' => $m->reader === LabelReaderKind::Myntra,
                 ])->all(),
             'stores' => $canChooseStore ? $this->dispatchStores($user) : [],
             'can_choose_store' => $canChooseStore,
@@ -267,6 +271,9 @@ class OnlineOrderController extends Controller
             'warehouse_id' => ['nullable', 'integer', Rule::exists('warehouses', 'id')],
             'files' => ['required', 'array', 'min:1', 'max:10'],
             'files.*' => ['required', 'file', 'mimes:pdf', 'max:20480'],
+            // What the browser read on picture pages (Myntra), by file SHA-256.
+            'seen' => ['nullable', 'array', 'max:10'],
+            'seen.*' => ['nullable', 'string', 'max:4000000'],
         ], [
             'files.required' => 'Choose the label PDF to upload.',
             'files.*.mimes' => 'Upload the label PDF exactly as the marketplace gave it.',
@@ -301,7 +308,7 @@ class OnlineOrderController extends Controller
         }
 
         try {
-            $batch = $this->orders->upload($brand, $marketplace, $store, $rest, $user);
+            $batch = $this->orders->upload($brand, $marketplace, $store, $rest, $user, seen: $this->seen($data['seen'] ?? []));
         } catch (OnlineOrderException $e) {
             throw ValidationException::withMessages(['files' => $e->getMessage()]);
         }
@@ -686,6 +693,26 @@ class OnlineOrderController extends Controller
             'return' => $user->can('marketplace.return'),
             'restricted' => $this->brands->isRestricted($user),
         ];
+    }
+
+    /**
+     * What the browser read on each file's picture pages, keyed by the
+     * file's SHA-256.
+     *
+     * @param  array<array-key, mixed>  $seen
+     * @return array<string, array<int, string>>
+     */
+    private function seen(array $seen): array
+    {
+        $pages = [];
+
+        foreach ($seen as $hash => $json) {
+            if (is_string($hash) && preg_match('/^[a-f0-9]{64}$/', $hash) === 1 && is_string($json)) {
+                $pages[$hash] = BrowserPages::fromJson($json);
+            }
+        }
+
+        return array_filter($pages);
     }
 
     private function day(string $value): CarbonImmutable

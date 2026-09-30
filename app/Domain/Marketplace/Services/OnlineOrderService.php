@@ -84,8 +84,9 @@ class OnlineOrderService
      * store — opening one if there is none still open.
      *
      * @param  list<UploadedFile>  $files
+     * @param  array<string, array<int, string>>  $seen  what the browser read on each file's picture pages, by the file's SHA-256
      */
-    public function upload(Brand $brand, Marketplace $marketplace, Warehouse $store, array $files, User $user, ?CarbonImmutable $forDate = null): LabelBatch
+    public function upload(Brand $brand, Marketplace $marketplace, Warehouse $store, array $files, User $user, ?CarbonImmutable $forDate = null, array $seen = []): LabelBatch
     {
         if ($files === []) {
             throw new OnlineOrderException('Choose the label PDF to upload.');
@@ -119,7 +120,7 @@ class OnlineOrderService
         ]);
 
         foreach ($files as $file) {
-            $this->addFile($batch, $file, $user);
+            $this->addFile($batch, $file, $user, $seen);
         }
 
         return $batch->refresh();
@@ -159,8 +160,10 @@ class OnlineOrderService
 
     /**
      * Read one PDF into parcels and hold their stock.
+     *
+     * @param  array<string, array<int, string>>  $seen  what the browser read on picture pages, by the file's SHA-256
      */
-    public function addFile(LabelBatch $batch, UploadedFile $upload, User $user): LabelFile
+    public function addFile(LabelBatch $batch, UploadedFile $upload, User $user, array $seen = []): LabelFile
     {
         if (! $batch->isOpen()) {
             throw new OnlineOrderException("{$batch->number} has been closed. Upload into a new batch.");
@@ -186,7 +189,7 @@ class OnlineOrderService
         }
 
         $batch->loadMissing(['marketplace', 'brand', 'warehouse.facility']);
-        $reading = $this->reader->read($contents, $name, $batch->marketplace);
+        $reading = $this->reader->read($contents, $name, $batch->marketplace, $seen[$hash] ?? []);
 
         $path = sprintf('online-orders/%s/%s.pdf', now()->format('Y/m'), Str::uuid());
 
@@ -1018,9 +1021,39 @@ class OnlineOrderService
             }
         }
 
+        // Names are read from pictures, and a letter can come out wrong. A
+        // label and an invoice that are the only two left with a PIN code,
+        // and whose names all but agree, are the same parcel.
+        $invoicesLeft = $halves()->whereNull('awb')->whereHas('lines')->get();
+
+        foreach ($halves()->whereNotNull('awb')->whereDoesntHave('lines')->whereNotNull('customer_pincode')->get()->groupBy('customer_pincode') as $pincode => $group) {
+            $match = $invoicesLeft->where('customer_pincode', $pincode);
+
+            if ($group->count() === 1 && $match->count() === 1 && $this->namesAgree($group->first()->customer_name, $match->first()->customer_name)) {
+                $this->mergeHalves($group->first(), $match->first());
+                $paired++;
+            }
+        }
+
         $this->markWaitingForInvoice($halves()->whereNotNull('awb')->whereDoesntHave('lines')->get());
 
         return $paired;
+    }
+
+    /**
+     * Two readings of one buyer's name: the same letters, give or take a
+     * misread one or two.
+     */
+    private function namesAgree(?string $a, ?string $b): bool
+    {
+        $a = $this->buyerKey($a);
+        $b = $this->buyerKey($b);
+
+        if ($a === null || $b === null) {
+            return false;
+        }
+
+        return levenshtein($a, $b) <= max(1, intdiv(min(strlen($a), strlen($b)), 6));
     }
 
     private function mergeHalves(Shipment $label, Shipment $invoice): void

@@ -64,6 +64,7 @@ export type Parcel = {
     pack_method: string | null;
     pack_note: string | null;
     handed_over_at: string | null;
+    handed_over_by?: string | null;
     cancel_reason: string | null;
     returned_at: string | null;
     warnings: string[];
@@ -135,7 +136,9 @@ export function canCancel(can: Abilities, p: Parcel): boolean {
         return can.print || can.pack || can.manage;
     }
 
-    if (p.status === 'packed') {
+    // Packed, or scanned out but still on the courier's pile: the depot can
+    // still cancel it and put the goods back.
+    if (p.status === 'packed' || p.status === 'handed_over') {
         return can.print || can.pack || can.manage;
     }
 

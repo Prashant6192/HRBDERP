@@ -49,13 +49,14 @@ import {
     type PrintPlan,
 } from '@/lib/online-orders';
 import { cn } from '@/lib/utils';
-import { handover as courierPickup, pack as scanToPack } from '@/routes/floor';
+import { pack as scanToPack } from '@/routes/floor';
 import { pdf as sheetPdf } from '@/routes/handover-sheets';
 import {
     create,
     holdAll,
     index,
     printSelected,
+    report as reportPage,
     show,
 } from '@/routes/online-orders';
 import {
@@ -89,10 +90,10 @@ const SHOW_LABEL: Record<Show, string> = {
     all: 'All parcels',
     attention: 'Need attention',
     not_printed: 'Not printed',
-    printed: 'Printed, not packed',
-    to_pack: 'To pack',
-    packed: 'Packed, waiting for the courier',
-    handed_over: 'With the courier',
+    printed: 'Printed, not scanned',
+    to_pack: 'To scan',
+    packed: 'Left behind by the courier',
+    handed_over: 'Scanned · with courier',
     cancelled: 'Cancelled',
     returned: 'Returned',
 };
@@ -355,6 +356,20 @@ export default function OnlineOrdersIndex({
             return;
         }
 
+        // A label printed twice is how a parcel gets packed twice.
+        const again = parcels.filter(
+            (p) => ids.includes(p.id) && p.print_count > 0,
+        ).length;
+
+        if (
+            again > 0 &&
+            !window.confirm(
+                `${again} of these label(s) were printed before. Printing them again can lead to the same order being packed twice. Print anyway?`,
+            )
+        ) {
+            return;
+        }
+
         setPrinting(true);
 
         try {
@@ -406,6 +421,18 @@ export default function OnlineOrdersIndex({
                     description="The marketplaces' labels for the day: uploaded by the agency, printed by courier, packed by scanning each label, handed to the courier."
                     actions={
                         <>
+                            {!can.restricted && (
+                                <Button variant="outline" asChild>
+                                    <Link
+                                        href={reportPage({
+                                            query: { from: date, to: date },
+                                        })}
+                                    >
+                                        <FileText className="size-4" />
+                                        Report
+                                    </Link>
+                                </Button>
+                            )}
                             {mayCancelAny && (
                                 <Button
                                     variant="outline"
@@ -588,7 +615,7 @@ export default function OnlineOrdersIndex({
                     totals.parcels > 0 && (
                         <section
                             aria-label="Today's steps"
-                            className="grid gap-3 md:grid-cols-3"
+                            className="grid gap-3 md:grid-cols-2"
                         >
                             <FlowStep
                                 n={1}
@@ -613,9 +640,9 @@ export default function OnlineOrdersIndex({
                             </FlowStep>
                             <FlowStep
                                 n={2}
-                                title="Scan to pack"
+                                title="Scan the parcels"
                                 count={totals.printed}
-                                hint={`printed, to pack by ${cutoff}`}
+                                hint={`printed, to scan by ${cutoff} · one scan = packed and with the courier`}
                                 active={totals.printed > 0}
                             >
                                 {can.pack && (
@@ -629,30 +656,7 @@ export default function OnlineOrdersIndex({
                                     >
                                         <Link href={scanToPack()}>
                                             <ScanLine className="size-4" />
-                                            Scan to pack
-                                        </Link>
-                                    </Button>
-                                )}
-                            </FlowStep>
-                            <FlowStep
-                                n={3}
-                                title="Courier pickup"
-                                count={totals.packed}
-                                hint="packed, ready for pickup"
-                                active={totals.packed > 0}
-                            >
-                                {can.handover && (
-                                    <Button
-                                        asChild
-                                        variant={
-                                            totals.packed > 0
-                                                ? 'default'
-                                                : 'outline'
-                                        }
-                                    >
-                                        <Link href={courierPickup()}>
-                                            <Truck className="size-4" />
-                                            Hand over by scan
+                                            Start scanning
                                         </Link>
                                     </Button>
                                 )}
@@ -675,7 +679,7 @@ export default function OnlineOrdersIndex({
                         onClick={() => pick('not_printed')}
                     />
                     <Tile
-                        label="Printed, not packed"
+                        label="Printed, not scanned"
                         value={totals.printed}
                         tone={
                             totals.printed > 0
@@ -684,20 +688,20 @@ export default function OnlineOrdersIndex({
                                     : 'warning'
                                 : 'default'
                         }
-                        hint={`Pack by ${cutoff}`}
+                        hint={`Scan by ${cutoff}`}
                         active={showing === 'printed'}
                         onClick={() => pick('printed')}
                     />
                     <Tile
-                        label="Packed"
+                        label="Left behind"
                         value={totals.packed}
-                        tone={totals.packed > 0 ? 'success' : 'default'}
-                        hint="Waiting for the courier"
+                        tone={totals.packed > 0 ? 'warning' : 'default'}
+                        hint="Courier did not take it; next pickup"
                         active={showing === 'packed'}
                         onClick={() => pick('packed')}
                     />
                     <Tile
-                        label="With courier"
+                        label="Scanned · with courier"
                         value={totals.handed_over}
                         tone={totals.handed_over > 0 ? 'success' : 'default'}
                         active={showing === 'handed_over'}
@@ -848,6 +852,7 @@ export default function OnlineOrdersIndex({
                             [
                                 'all',
                                 'to_pack',
+                                'handed_over',
                                 'packed',
                                 'cancelled',
                                 'returned',

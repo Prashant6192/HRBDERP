@@ -190,6 +190,22 @@ class Shipment extends Model
     /**
      * @return BelongsTo<User, $this>
      */
+    public function canceller(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function handedOverBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'handed_over_by');
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function printer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'printed_by');

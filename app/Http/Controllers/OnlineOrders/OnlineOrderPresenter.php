@@ -93,6 +93,7 @@ final class OnlineOrderPresenter
             'pack_method' => $s->pack_method,
             'pack_note' => $s->pack_note,
             'handed_over_at' => $s->handed_over_at?->toIso8601String(),
+            'handed_over_by' => $s->relationLoaded('handedOverBy') ? $s->handedOverBy?->name : null,
             'cancel_reason' => $s->cancel_reason,
             'returned_at' => $s->returned_at?->toIso8601String(),
             'warnings' => $s->warnings ?? [],

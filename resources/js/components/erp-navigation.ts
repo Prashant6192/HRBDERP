@@ -15,6 +15,7 @@ import {
     DatabaseZap,
     Factory,
     FileCheck2,
+    FileSpreadsheet,
     FlaskConical,
     FlaskRound,
     Gauge,
@@ -55,7 +56,7 @@ import { index as customersIndex } from '@/routes/customers';
 import { index as dispatchesIndex } from '@/routes/dispatches';
 import { index as documentsIndex } from '@/routes/documents';
 import { index as facilitiesIndex } from '@/routes/facilities';
-import { handover as courierPickup, pack as scanToPack } from '@/routes/floor';
+import { pack as scanToPack } from '@/routes/floor';
 import { index as formulasIndex } from '@/routes/formulas';
 import { index as listingsIndex } from '@/routes/listings';
 import { index as lotsIndex } from '@/routes/lots';
@@ -64,6 +65,7 @@ import { index as materialRequestsIndex } from '@/routes/material-requests';
 import {
     create as onlineOrdersUpload,
     index as onlineOrdersIndex,
+    report as onlineOrdersReport,
 } from '@/routes/online-orders';
 import { index as returnsIndex } from '@/routes/online-orders/returns';
 import { index as packagingMaterialsIndex } from '@/routes/packaging-materials';
@@ -319,6 +321,19 @@ export function placeGroups(place: Place, places: Place[]): ErpNavGroup[] {
 
         case 'depot':
             return [
+                {
+                    label: 'Floor',
+                    items: [
+                        {
+                            title: 'Scan parcels',
+                            href: scanToPack().url,
+                            icon: ScanLine,
+                            permission: 'marketplace.pack',
+                            keywords:
+                                'pack parcel label barcode courier pickup',
+                        },
+                    ],
+                },
                 overview(fq, false),
                 {
                     label: 'Receiving',
@@ -387,19 +402,12 @@ export function placeGroups(place: Place, places: Place[]): ErpNavGroup[] {
                             keywords: 'meesho amazon flipkart labels pack',
                         },
                         {
-                            title: 'Scan to pack',
-                            href: scanToPack().url,
-                            icon: ScanLine,
-                            permission: 'marketplace.pack',
-                            keywords: 'pack parcel label barcode',
-                        },
-                        {
-                            title: 'Courier pickup',
-                            href: courierPickup().url,
-                            icon: Truck,
-                            permission: 'marketplace.handover',
+                            title: 'Online orders report',
+                            href: onlineOrdersReport({ query: fq }).url,
+                            icon: FileSpreadsheet,
+                            permission: 'marketplace.view',
                             keywords:
-                                'hand over handover sheet delhivery valmo',
+                                'report excel daily courier cancelled pieces',
                         },
                         {
                             title: 'Returns',

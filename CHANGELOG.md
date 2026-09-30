@@ -11,6 +11,29 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Changed — One scan per parcel; reports for online orders
+
+- **One scan = packed and with the courier.** The depot seals the parcel
+  and scans its label once: the stock goes out and the parcel is marked
+  **Scanned · with courier**. There is no second scan at pickup and no
+  pickup sheet; the Courier pickup screen is gone from the menu.
+- **Scan parcels** is the first item in the depot's menu: the day (today
+  unless changed), to scan and scanned counts, and one scan box.
+- **Scanning a parcel again** shows **ALREADY SCANNED** with who scanned
+  it and when (a second parcel for the same label is a duplicate: open it
+  and put the goods back), and two buttons: **Courier left it behind**
+  (back on the pile; the next scan sends it, no stock taken again) and
+  **Order cancelled** (stock back on the shelf). The office's _Cancel an
+  order_ also works on a scanned parcel still at the depot.
+- Printing a label that was printed before asks first, since that is how
+  an order gets packed twice.
+- The Online orders screen: **1 Print → 2 Scan**, tiles and tabs for
+  Scanned · with courier, Left behind and Cancelled.
+- **Online orders report** (menu, or _Report_ on Online orders): any day
+  or range — by day, courier and brand; pieces of each product that went
+  out; who scanned how many; and the cancelled and left-behind parcels —
+  with **Download Excel**.
+
 ### Changed — The depot's day in three steps; the Warehouse Manager's full menu
 
 - The Online orders screen opens with the day's three steps, each with its

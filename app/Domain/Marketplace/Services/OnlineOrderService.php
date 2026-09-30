@@ -933,6 +933,67 @@ class OnlineOrderService
         });
     }
 
+    // ---- Scan out -----------------------------------------------------------
+
+    /**
+     * The depot's one scan: the goods are in the box and the parcel goes on
+     * the courier's pile. A parcel waiting to be packed is packed (stock out)
+     * and marked with the courier; one left behind by the courier goes back
+     * with the courier; one already scanned is reported, not scanned twice.
+     *
+     * @return array{result: 'scanned'|'rescanned'|'already', shipment: Shipment}
+     */
+    public function scanOut(Shipment $shipment, User $user): array
+    {
+        return DB::transaction(function () use ($shipment, $user): array {
+            $current = Shipment::query()->lockForUpdate()->findOrFail($shipment->id);
+
+            if ($current->status === ShipmentStatus::HandedOver) {
+                return ['result' => 'already', 'shipment' => $this->forScreen($current)];
+            }
+
+            $result = 'rescanned';
+
+            if ($current->status !== ShipmentStatus::Packed) {
+                // Refuses cancelled, returned and unmapped parcels, and short stock.
+                $current = $this->pack($current, $user);
+                $result = 'scanned';
+            }
+
+            $current->fill([
+                'status' => ShipmentStatus::HandedOver,
+                'handed_over_at' => now(),
+                'handed_over_by' => $user->id,
+            ])->save();
+
+            return ['result' => $result, 'shipment' => $this->forScreen($current)];
+        });
+    }
+
+    /**
+     * The courier did not take it: back on the pile for the next pickup. The
+     * stock stays out; the next scan sends it again.
+     */
+    public function leftBehind(Shipment $shipment, User $user): Shipment
+    {
+        return DB::transaction(function () use ($shipment): Shipment {
+            $current = Shipment::query()->lockForUpdate()->findOrFail($shipment->id);
+
+            if ($current->status !== ShipmentStatus::HandedOver) {
+                throw new OnlineOrderException("{$current->reference()} is not marked as with the courier, so it cannot be left behind.");
+            }
+
+            $current->fill(['status' => ShipmentStatus::Packed, 'handed_over_at' => null, 'handed_over_by' => null, 'handover_sheet_id' => null])->save();
+
+            return $this->forScreen($current);
+        });
+    }
+
+    private function forScreen(Shipment $shipment): Shipment
+    {
+        return $shipment->refresh()->load(['lines.item:id,code,name', 'picks.item:id,code,name', 'picks.line:id,seller_sku', 'marketplace:id,name', 'brand:id,name', 'packer:id,name', 'handedOverBy:id,name']);
+    }
+
     // ---- Hand over ----------------------------------------------------------
 
     /**
@@ -1004,11 +1065,14 @@ class OnlineOrderService
                 return $shipment;
             }
 
-            if ($shipment->status === ShipmentStatus::HandedOver) {
+            // A parcel handed over on a signed sheet has left the building:
+            // it comes back as a return. One only scanned out is still on
+            // the courier's pile when the courier finds it cancelled.
+            if ($shipment->status === ShipmentStatus::HandedOver && $shipment->handover_sheet_id !== null) {
                 throw new OnlineOrderException("{$shipment->reference()} is with the courier. It comes back as a return, not a cancellation.");
             }
 
-            if ($shipment->status === ShipmentStatus::Packed) {
+            if ($shipment->status === ShipmentStatus::Packed || $shipment->status === ShipmentStatus::HandedOver) {
                 $posting = $shipment->transactions()->where('type', InventoryTransactionType::MarketplaceSale->value)->latest('id')->first();
 
                 if ($posting !== null) {

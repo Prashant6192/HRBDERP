@@ -1,8 +1,16 @@
-import { Head, Link } from '@inertiajs/react';
-import { CheckCircle2, OctagonX, PackageCheck, Truck } from 'lucide-react';
+import { Head, router } from '@inertiajs/react';
+import {
+    AlertTriangle,
+    CheckCircle2,
+    ChevronLeft,
+    ChevronRight,
+    OctagonX,
+    PackageCheck,
+} from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { Scanner } from '@/components/floor/scanner';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { when } from '@/lib/dispatch';
 import {
     courierName,
@@ -12,14 +20,29 @@ import {
     type Parcel,
 } from '@/lib/online-orders';
 import { cn } from '@/lib/utils';
-import { handover, index as floorIndex } from '@/routes/floor';
-import { scan as scanRoute } from '@/routes/floor/pack';
+import { pack as packPage } from '@/routes/floor';
+import {
+    cancel as cancelRoute,
+    leftBehind as leftBehindRoute,
+    scan as scanRoute,
+} from '@/routes/floor/pack';
+
+type Result = 'scanned' | 'rescanned' | 'already' | 'stop';
 
 type Outcome = {
-    ok: boolean;
+    result: Result;
     message: string;
     shipment?: Parcel;
     code: string;
+    /** What happened after "already scanned": left behind or cancelled. */
+    settled?: string;
+};
+
+type Counts = {
+    to_scan: number;
+    scanned: number;
+    left_behind: number;
+    cancelled: number;
 };
 
 /**
@@ -59,22 +82,35 @@ function signal(ok: boolean) {
     navigator.vibrate?.(ok ? 60 : [120, 80, 120]);
 }
 
-export default function PackParcels({
-    waiting,
-    packed_today,
+export default function ScanParcels({
+    date,
+    is_today,
+    counts,
     mine,
     cutoff,
+    can_cancel,
 }: {
-    waiting: number;
-    packed_today: number;
+    date: string;
+    is_today: boolean;
+    counts: Counts;
     mine: Parcel[];
     cutoff: string;
+    can_cancel: boolean;
 }) {
     const [busy, setBusy] = useState(false);
     const [outcome, setOutcome] = useState<Outcome | null>(null);
     const [recent, setRecent] = useState<Parcel[]>(mine);
-    const [left, setLeft] = useState(waiting);
-    const [done, setDone] = useState(packed_today);
+    const [n, setN] = useState<Counts>(counts);
+
+    const goTo = (day: string) =>
+        router.get(packPage().url, { date: day }, { preserveScroll: true });
+    const shift = (days: number) => {
+        const d = new Date(`${date}T00:00:00`);
+        d.setDate(d.getDate() + days);
+        goTo(
+            `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+        );
+    };
 
     const onCode = useCallback(async (code: string) => {
         setBusy(true);
@@ -82,27 +118,41 @@ export default function PackParcels({
         try {
             const { ok, data } = await postJson<{
                 ok: boolean;
+                result?: 'scanned' | 'rescanned' | 'already';
                 message: string;
                 shipment?: Parcel;
             }>(scanRoute().url, { code });
 
+            const result: Result =
+                ok && data.ok ? (data.result ?? 'scanned') : 'stop';
             setOutcome({
-                ok: ok && data.ok,
+                result,
                 message: data.message,
                 shipment: data.shipment,
                 code,
             });
-            signal(ok && data.ok);
+            signal(result === 'scanned' || result === 'rescanned');
 
-            if (ok && data.ok && data.shipment) {
-                const packedParcel = data.shipment;
-                setRecent((r) => [packedParcel, ...r].slice(0, 15));
-                setLeft((n) => Math.max(0, n - 1));
-                setDone((n) => n + 1);
+            if (result === 'scanned' && data.shipment) {
+                const parcel = data.shipment;
+                setRecent((r) => [parcel, ...r].slice(0, 15));
+                setN((c) => ({
+                    ...c,
+                    to_scan: Math.max(0, c.to_scan - 1),
+                    scanned: c.scanned + 1,
+                }));
+            }
+
+            if (result === 'rescanned') {
+                setN((c) => ({
+                    ...c,
+                    left_behind: Math.max(0, c.left_behind - 1),
+                    scanned: c.scanned + 1,
+                }));
             }
         } catch {
             setOutcome({
-                ok: false,
+                result: 'stop',
                 message: 'No connection. Scan again in a moment.',
                 code,
             });
@@ -112,43 +162,137 @@ export default function PackParcels({
         }
     }, []);
 
+    const settle = async (kind: 'left' | 'cancel') => {
+        const parcel = outcome?.shipment;
+
+        if (!parcel) {
+            return;
+        }
+
+        setBusy(true);
+
+        try {
+            const { ok, data } = await postJson<{
+                ok: boolean;
+                message: string;
+                shipment?: Parcel;
+            }>(
+                kind === 'left'
+                    ? leftBehindRoute(parcel.id).url
+                    : cancelRoute(parcel.id).url,
+                {},
+            );
+
+            if (ok && data.ok) {
+                setOutcome((o) =>
+                    o
+                        ? {
+                              ...o,
+                              shipment: data.shipment ?? o.shipment,
+                              settled: data.message,
+                          }
+                        : o,
+                );
+                setN((c) =>
+                    kind === 'left'
+                        ? {
+                              ...c,
+                              scanned: Math.max(0, c.scanned - 1),
+                              left_behind: c.left_behind + 1,
+                          }
+                        : {
+                              ...c,
+                              scanned: Math.max(0, c.scanned - 1),
+                              cancelled: c.cancelled + 1,
+                          },
+                );
+            } else {
+                setOutcome((o) =>
+                    o ? { ...o, result: 'stop', message: data.message } : o,
+                );
+            }
+        } finally {
+            setBusy(false);
+        }
+    };
+
     const s = outcome?.shipment;
+    const dayLabel = new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+    });
 
     return (
         <>
-            <Head title="Pack parcels" />
+            <Head title="Scan parcels" />
             <div className="space-y-4">
-                <div className="flex items-start justify-between gap-3">
-                    <div>
-                        <h1 className="text-lg font-semibold">Pack parcels</h1>
-                        <p className="text-muted-foreground text-sm">
-                            Put the goods in the box, then scan the barcode on
-                            the label.
+                <div>
+                    <h1 className="text-lg font-semibold">Scan parcels</h1>
+                    <p className="text-muted-foreground text-sm">
+                        Put the goods in the box, seal it, scan the label. It is
+                        packed and on the courier&rsquo;s pile.
+                    </p>
+                </div>
+
+                <div className="bg-card flex items-center gap-2 rounded-2xl border p-2">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Day before"
+                        onClick={() => shift(-1)}
+                    >
+                        <ChevronLeft className="size-5" />
+                    </Button>
+                    <div className="min-w-0 flex-1 text-center">
+                        <p className="text-sm font-semibold">
+                            {is_today ? 'Today · ' : ''}
+                            {dayLabel}
                         </p>
+                        <Input
+                            type="date"
+                            value={date}
+                            onChange={(e) =>
+                                e.target.value && goTo(e.target.value)
+                            }
+                            className="mx-auto mt-1 h-8 w-40 text-center text-xs"
+                            aria-label="Choose the day"
+                        />
                     </div>
-                    <Button variant="outline" size="sm" asChild>
-                        <Link href={floorIndex()}>Floor</Link>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Day after"
+                        onClick={() => shift(1)}
+                    >
+                        <ChevronRight className="size-5" />
                     </Button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                     <div className="bg-card rounded-2xl border p-3">
                         <p className="text-muted-foreground text-xs uppercase">
-                            Waiting
+                            To scan
                         </p>
                         <p className="text-3xl font-semibold tabular-nums">
-                            {left}
+                            {n.to_scan}
                         </p>
                         <p className="text-muted-foreground text-xs">
-                            pack by {cutoff}
+                            by {cutoff}
                         </p>
                     </div>
                     <div className="bg-card rounded-2xl border p-3">
                         <p className="text-muted-foreground text-xs uppercase">
-                            Packed today
+                            Scanned
                         </p>
                         <p className="text-3xl font-semibold text-emerald-700 tabular-nums dark:text-emerald-300">
-                            {done}
+                            {n.scanned}
+                        </p>
+                        <p className="text-muted-foreground text-xs">
+                            {n.left_behind > 0
+                                ? `${n.left_behind} left behind · `
+                                : ''}
+                            {n.cancelled} cancelled
                         </p>
                     </div>
                 </div>
@@ -156,7 +300,7 @@ export default function PackParcels({
                 <Scanner
                     onCode={onCode}
                     busy={busy}
-                    placeholder="Scan the label's barcode…"
+                    placeholder="Start scanning: scan the label's barcode…"
                 />
 
                 {outcome && (
@@ -165,31 +309,78 @@ export default function PackParcels({
                         aria-live="assertive"
                         className={cn(
                             'rounded-2xl border-2 p-4',
-                            outcome.ok
-                                ? 'border-emerald-600 bg-emerald-500/15'
-                                : 'border-red-600 bg-red-500/15',
+                            (outcome.result === 'scanned' ||
+                                outcome.result === 'rescanned') &&
+                                'border-emerald-600 bg-emerald-500/15',
+                            outcome.result === 'already' &&
+                                'border-amber-500 bg-amber-400/20',
+                            outcome.result === 'stop' &&
+                                'border-red-600 bg-red-500/15',
                         )}
                     >
                         <div className="flex items-center gap-3">
-                            {outcome.ok ? (
-                                <CheckCircle2 className="size-12 shrink-0 text-emerald-600" />
-                            ) : (
+                            {outcome.result === 'stop' ? (
                                 <OctagonX className="size-12 shrink-0 text-red-600" />
+                            ) : outcome.result === 'already' ? (
+                                <AlertTriangle className="size-12 shrink-0 text-amber-600" />
+                            ) : (
+                                <CheckCircle2 className="size-12 shrink-0 text-emerald-600" />
                             )}
                             <div>
                                 <p
                                     className={cn(
                                         'text-3xl font-bold tracking-wide',
-                                        outcome.ok
-                                            ? 'text-emerald-700 dark:text-emerald-300'
-                                            : 'text-red-700 dark:text-red-300',
+                                        outcome.result === 'stop' &&
+                                            'text-red-700 dark:text-red-300',
+                                        outcome.result === 'already' &&
+                                            'text-amber-800 dark:text-amber-200',
+                                        (outcome.result === 'scanned' ||
+                                            outcome.result === 'rescanned') &&
+                                            'text-emerald-700 dark:text-emerald-300',
                                     )}
                                 >
-                                    {outcome.ok ? 'PACKED' : 'STOP'}
+                                    {outcome.result === 'stop'
+                                        ? 'STOP'
+                                        : outcome.result === 'already'
+                                          ? 'ALREADY SCANNED'
+                                          : 'SCANNED'}
                                 </p>
                                 <p className="text-sm">{outcome.message}</p>
                             </div>
                         </div>
+
+                        {outcome.result === 'already' && s && (
+                            <div className="mt-4">
+                                {outcome.settled ? (
+                                    <p className="rounded-xl bg-white/60 px-3 py-2 text-sm font-semibold dark:bg-black/20">
+                                        {outcome.settled}
+                                    </p>
+                                ) : (
+                                    <div className="grid gap-2 sm:grid-cols-2">
+                                        <Button
+                                            size="lg"
+                                            variant="outline"
+                                            className="h-14 text-base"
+                                            disabled={busy}
+                                            onClick={() => settle('left')}
+                                        >
+                                            Courier left it behind
+                                        </Button>
+                                        {can_cancel && (
+                                            <Button
+                                                size="lg"
+                                                variant="destructive"
+                                                className="h-14 text-base"
+                                                disabled={busy}
+                                                onClick={() => settle('cancel')}
+                                            >
+                                                Order cancelled
+                                            </Button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {s && (
                             <div className="mt-4 space-y-3">
@@ -267,32 +458,16 @@ export default function PackParcels({
                                     · {s.marketplace} · {courierName(s.courier)}{' '}
                                     · {s.payment_label}
                                 </p>
-                                {outcome.ok && (
-                                    <p className="rounded-xl bg-emerald-500/10 px-3 py-2 text-sm font-medium">
-                                        Ready for {courierName(s.courier)}{' '}
-                                        pickup. Put it with the{' '}
-                                        {courierName(s.courier)} parcels; when
-                                        the courier comes, open Courier pickup
-                                        and scan them out.
-                                    </p>
-                                )}
                             </div>
                         )}
                     </section>
                 )}
 
-                <Button variant="outline" className="h-12 w-full" asChild>
-                    <Link href={handover()}>
-                        <Truck className="size-4" />
-                        Courier pickup
-                    </Link>
-                </Button>
-
                 {recent.length > 0 && (
                     <section className="bg-card rounded-2xl border">
                         <h2 className="flex items-center gap-2 border-b px-4 py-3 text-sm font-semibold">
                             <PackageCheck className="size-4" />
-                            You packed today
+                            Scanned by you today
                         </h2>
                         <ul className="divide-y text-sm">
                             {recent.map((p) => (
@@ -307,7 +482,8 @@ export default function PackParcels({
                                         {describeParcel(p)}
                                     </span>
                                     <span className="text-muted-foreground text-xs">
-                                        {when(p.packed_at)}
+                                        {courierName(p.courier)} ·{' '}
+                                        {when(p.handed_over_at ?? p.packed_at)}
                                     </span>
                                 </li>
                             ))}

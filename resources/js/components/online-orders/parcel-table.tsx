@@ -154,7 +154,7 @@ export function ParcelTable({
 
     return (
         <div className="overflow-x-auto">
-            <table className="w-full min-w-[52rem] table-fixed text-sm">
+            <table className="w-full min-w-[68rem] table-fixed text-sm">
                 <colgroup>
                     {selection && <col className="w-[2.75rem]" />}
                     <col className="w-[13.5rem]" />
@@ -294,7 +294,7 @@ export function ParcelTable({
                                             )}
                                         </div>
                                     </td>
-                                    <td className="px-4 py-3">
+                                    <td className="px-4 py-3 [overflow-wrap:anywhere]">
                                         <Contents p={p} />
                                     </td>
                                     <td className="px-4 py-3">

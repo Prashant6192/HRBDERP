@@ -134,7 +134,8 @@ class ReferenceDataSeeder extends Seeder
 
     /**
      * The marketplaces the company sells on, and how each one's labels are
-     * read: Meesho and Flipkart print text; Amazon and Myntra send pictures.
+     * read: Meesho and Flipkart print text; Myntra's pictures are read in the
+     * uploader's browser; Amazon's go to the AI reader.
      */
     public static function ensureMarketplaces(): void
     {
@@ -142,7 +143,7 @@ class ReferenceDataSeeder extends Seeder
             ['MEESHO', 'Meesho', LabelReaderKind::Meesho],
             ['FLIPKART', 'Flipkart', LabelReaderKind::Flipkart],
             ['AMAZON', 'Amazon', LabelReaderKind::Ai],
-            ['MYNTRA', 'Myntra', LabelReaderKind::Ai],
+            ['MYNTRA', 'Myntra', LabelReaderKind::Myntra],
         ] as [$code, $name, $reader]) {
             Marketplace::query()->firstOrCreate(['code' => $code], ['name' => $name, 'reader' => $reader, 'is_active' => true]);
         }

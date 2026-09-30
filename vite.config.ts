@@ -27,6 +27,19 @@ export default defineConfig({
             formVariants: true,
         }),
     ]),
+    build: {
+        rollupOptions: {
+            output: {
+                // The OCR engine asks for its language file by name
+                // ("eng.traineddata.gz" in a folder), so that one file keeps
+                // its name; everything else is hashed as usual.
+                assetFileNames: (asset) =>
+                    asset.names?.some((n) => n.endsWith('.traineddata.gz'))
+                        ? 'assets/ocr/[name][extname]'
+                        : 'assets/[name]-[hash][extname]',
+            },
+        },
+    },
     server: {
         watch: {
             ignored: [

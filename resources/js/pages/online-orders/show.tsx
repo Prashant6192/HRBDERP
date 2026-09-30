@@ -460,6 +460,28 @@ export default function OnlineOrderBatch({
         scope: 'all' | 'unprinted' | 'courier' | 'one',
         extra: { courier?: string | null; shipment_id?: number } = {},
     ) => {
+        // A label printed twice is how a parcel gets packed twice.
+        const going = shipments.filter((p) =>
+            scope === 'one'
+                ? p.id === extra.shipment_id
+                : scope === 'courier'
+                  ? p.courier === (extra.courier ?? null) &&
+                    p.status !== 'cancelled'
+                  : scope === 'unprinted'
+                    ? p.status === 'uploaded'
+                    : p.status !== 'cancelled',
+        );
+        const again = going.filter((p) => p.print_count > 0).length;
+
+        if (
+            again > 0 &&
+            !window.confirm(
+                `${again} of these label(s) were printed before. Printing them again can lead to the same order being packed twice. Print anyway?`,
+            )
+        ) {
+            return;
+        }
+
         setPrinting(true);
 
         try {

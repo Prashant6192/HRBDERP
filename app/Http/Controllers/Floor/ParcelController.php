@@ -9,6 +9,7 @@ use App\Domain\Contract\Services\ArtworkService;
 use App\Domain\Marketplace\Enums\ShipmentStatus;
 use App\Domain\Marketplace\Exceptions\OnlineOrderException;
 use App\Domain\Marketplace\Models\HandoverSheet;
+use App\Domain\Marketplace\Models\LabelBatch;
 use App\Domain\Marketplace\Models\Shipment;
 use App\Domain\Marketplace\Services\HandoverSheetPdf;
 use App\Domain\Marketplace\Services\OnlineOrderService;
@@ -19,6 +20,7 @@ use App\Domain\Warehousing\Services\FacilityAccess;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\OnlineOrders\OnlineOrderPresenter;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -27,6 +29,7 @@ use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 /**
  * The packing table and the courier's pickup, in the floor mode.
@@ -44,6 +47,10 @@ class ParcelController extends Controller
         private readonly ArtworkService $artworks,
     ) {}
 
+    /**
+     * The floor's one scan screen: pick the day (today unless changed),
+     * then scan every parcel as it is sealed.
+     */
     public function pack(Request $request): Response
     {
         $this->authorize('marketplace.pack');
@@ -51,34 +58,43 @@ class ParcelController extends Controller
         $stores = $this->stores($user);
         $today = Cutoff::today();
 
-        $waiting = Shipment::query()
-            ->whereIn('warehouse_id', $stores->modelKeys())
-            ->whereIn('status', ShipmentStatus::awaitingPacking())
-            ->count();
+        try {
+            $day = $request->filled('date') ? CarbonImmutable::parse($request->string('date')->toString(), Cutoff::timezone())->startOfDay() : $today;
+        } catch (Throwable) {
+            $day = $today;
+        }
 
-        $packedToday = Shipment::query()
+        $ofDay = fn () => Shipment::query()
             ->whereIn('warehouse_id', $stores->modelKeys())
-            ->where('packed_at', '>=', $today->utc())
-            ->count();
+            ->whereIn('label_batch_id', LabelBatch::query()->select('id')->whereDate('for_date', $day->toDateString()));
+
+        $counts = $ofDay()->selectRaw('status, COUNT(*) AS n')->groupBy('status')->toBase()->pluck('n', 'status')->map(fn ($n) => (int) $n);
 
         $mine = Shipment::query()
-            ->where('packed_by', $user->id)
-            ->where('packed_at', '>=', $today->utc())
+            ->where('handed_over_by', $user->id)
+            ->where('handed_over_at', '>=', $today->utc())
             ->with(['lines.item:id,code,name', 'picks.item:id,code,name', 'picks.line:id,seller_sku', 'marketplace:id,name'])
-            ->latest('packed_at')
+            ->latest('handed_over_at')
             ->limit(15)
             ->get();
 
         return Inertia::render('floor/pack', [
-            'waiting' => $waiting,
-            'packed_today' => $packedToday,
+            'date' => $day->toDateString(),
+            'is_today' => $day->equalTo($today),
+            'counts' => [
+                'to_scan' => (int) $counts->only(ShipmentStatus::awaitingPacking())->sum(),
+                'scanned' => (int) ($counts[ShipmentStatus::HandedOver->value] ?? 0),
+                'left_behind' => (int) ($counts[ShipmentStatus::Packed->value] ?? 0),
+                'cancelled' => (int) ($counts[ShipmentStatus::Cancelled->value] ?? 0),
+            ],
             'mine' => $mine->map(fn (Shipment $s) => OnlineOrderPresenter::shipment($s))->all(),
             'cutoff' => Cutoff::label(),
+            'can_cancel' => $user->can('marketplace.pack') || $user->can('marketplace.print') || $user->can('marketplace.manage'),
         ]);
     }
 
     /**
-     * One scan at the packing table.
+     * One scan: packed and on the courier's pile, or "already scanned".
      */
     public function scan(Request $request): JsonResponse
     {
@@ -104,7 +120,7 @@ class ParcelController extends Controller
         }
 
         try {
-            $packed = $this->orders->pack($shipment, $user);
+            ['result' => $result, 'shipment' => $scanned] = $this->orders->scanOut($shipment, $user);
         } catch (OnlineOrderException $e) {
             return response()->json([
                 'ok' => false,
@@ -113,11 +129,67 @@ class ParcelController extends Controller
             ], 422);
         }
 
+        $at = $scanned->handed_over_at?->timezone(Cutoff::timezone())->format('j M, g:i A');
+
         return response()->json([
             'ok' => true,
-            'message' => 'Packed. Stock taken out of '.$shipment->warehouse->name.'.',
-            'shipment' => $this->describe($packed),
+            'result' => $result,
+            'message' => match ($result) {
+                'already' => "Already scanned{$this->by($scanned->handedOverBy?->name)} at {$at}. If this is a second parcel for the same label, it is a duplicate: open it and put the goods back on the shelf.",
+                'rescanned' => 'Back with the courier. It was left behind earlier; no stock taken again.',
+                default => 'Packed and with the courier. Stock taken out of '.$shipment->warehouse->name.'.',
+            },
+            'shipment' => $this->describe($scanned),
         ]);
+    }
+
+    /**
+     * The courier did not take it: back on the pile for the next pickup.
+     */
+    public function leftBehind(Request $request, Shipment $shipment): JsonResponse
+    {
+        $this->authorize('marketplace.pack');
+        abort_unless($this->access->canWorkIn($request->user(), $shipment->warehouse), 403);
+
+        try {
+            $parcel = $this->orders->leftBehind($shipment, $request->user());
+        } catch (OnlineOrderException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Kept for the next pickup. Scan it again when the courier takes it.',
+            'shipment' => $this->describe($parcel),
+        ]);
+    }
+
+    /**
+     * The courier found the order cancelled: stock back on the shelf.
+     */
+    public function cancelInHand(Request $request, Shipment $shipment): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('marketplace.pack') || $user->can('marketplace.print') || $user->can('marketplace.manage'), 403);
+        abort_unless($this->access->canWorkIn($user, $shipment->warehouse), 403);
+        $data = $request->validate(['reason' => ['nullable', 'string', 'max:255']]);
+
+        try {
+            $parcel = $this->orders->cancel($shipment, $data['reason'] ?? 'Cancelled on the marketplace; found at pickup', $user);
+        } catch (OnlineOrderException $e) {
+            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Cancelled. The goods are back in the ERP: open the parcel and put them back on the shelf.',
+            'shipment' => $this->describe($parcel),
+        ]);
+    }
+
+    private function by(?string $name): string
+    {
+        return $name ? " by {$name}" : '';
     }
 
     public function handover(Request $request): Response
@@ -199,7 +271,7 @@ class ParcelController extends Controller
      */
     private function describe(Shipment $shipment): array
     {
-        $shipment->loadMissing(['lines.item:id,code,name', 'picks.item:id,code,name', 'picks.line:id,seller_sku', 'marketplace:id,name', 'brand:id,name,client_id', 'packer:id,name']);
+        $shipment->loadMissing(['lines.item:id,code,name', 'picks.item:id,code,name', 'picks.line:id,seller_sku', 'marketplace:id,name', 'brand:id,name,client_id', 'packer:id,name', 'handedOverBy:id,name']);
 
         return [
             ...OnlineOrderPresenter::shipment($shipment),

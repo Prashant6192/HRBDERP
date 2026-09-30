@@ -582,7 +582,10 @@ class OnlineOrderController extends Controller
                 || $user->can('marketplace.pack');
         }
 
-        if ($shipment->status === ShipmentStatus::Packed) {
+        // Packed, or scanned out but still on the courier's pile (not yet
+        // signed away on a sheet): the goods can still come back.
+        if ($shipment->status === ShipmentStatus::Packed
+            || ($shipment->status === ShipmentStatus::HandedOver && $shipment->handover_sheet_id === null)) {
             return $user->can('marketplace.manage') || $user->can('marketplace.print') || $user->can('marketplace.pack');
         }
 

@@ -51,6 +51,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OnlineOrders\BrandController;
 use App\Http\Controllers\OnlineOrders\ListingController;
 use App\Http\Controllers\OnlineOrders\OnlineOrderController;
+use App\Http\Controllers\OnlineOrders\OnlineOrderReportController;
 use App\Http\Controllers\OnlineOrders\ReturnController;
 use App\Http\Controllers\Planning\MaterialRequestController;
 use App\Http\Controllers\Planning\ProductionPlanController;
@@ -127,6 +128,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('floor/photo', [FloorController::class, 'photo'])->name('floor.photo');
     Route::get('floor/pack', [ParcelController::class, 'pack'])->name('floor.pack');
     Route::post('floor/pack', [ParcelController::class, 'scan'])->name('floor.pack.scan');
+    Route::post('floor/pack/{shipment}/left-behind', [ParcelController::class, 'leftBehind'])->name('floor.pack.left-behind');
+    Route::post('floor/pack/{shipment}/cancel', [ParcelController::class, 'cancelInHand'])->name('floor.pack.cancel');
     Route::get('floor/handover', [ParcelController::class, 'handover'])->name('floor.handover');
     Route::post('floor/handover', [ParcelController::class, 'storeHandover'])->name('floor.handover.store');
     Route::get('floor/return', [ReturnController::class, 'floor'])->name('floor.return');
@@ -236,6 +239,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('online-orders/files/{file}', [OnlineOrderController::class, 'file'])->name('online-orders.files.show');
     Route::delete('online-orders/files/{file}', [OnlineOrderController::class, 'removeFile'])->name('online-orders.files.destroy');
     Route::patch('online-orders/parcels/{shipment}', [OnlineOrderController::class, 'correct'])->name('online-orders.parcels.update');
+    Route::get('online-orders/report', [OnlineOrderReportController::class, 'index'])->name('online-orders.report');
+    Route::get('online-orders/report/excel', [OnlineOrderReportController::class, 'export'])->name('online-orders.report.excel');
     Route::post('online-orders/print', [OnlineOrderController::class, 'printSelected'])->name('online-orders.print-selected');
     Route::post('online-orders/check-stock', [OnlineOrderController::class, 'holdAll'])->name('online-orders.hold-all');
     Route::get('online-orders/lookup', [OnlineOrderController::class, 'lookup'])->name('online-orders.lookup');

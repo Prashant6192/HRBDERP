@@ -254,6 +254,7 @@ export default function OnlineOrdersIndex({
     facility,
     facilities,
     can,
+    elsewhere,
 }: {
     date: string;
     is_today: boolean;
@@ -273,6 +274,10 @@ export default function OnlineOrdersIndex({
     facility: number | null;
     facilities: { value: string; label: string }[];
     can: Abilities & { return: boolean };
+    elsewhere: {
+        mine: string[];
+        places: { facility: string; parcels: number }[];
+    } | null;
 }) {
     const [query, setQuery] = useState(search);
     const [cancelOpen, setCancelOpen] = useState(false);
@@ -526,6 +531,40 @@ export default function OnlineOrdersIndex({
                         </Button>
                     </form>
                 </div>
+
+                {elsewhere && (
+                    <div
+                        className="flex items-start gap-3 rounded-xl border border-amber-600/30 bg-amber-500/10 p-4 text-sm"
+                        role="alert"
+                    >
+                        <AlertTriangle className="size-5 shrink-0 text-amber-600" />
+                        <div>
+                            <p className="font-medium">
+                                {elsewhere.places
+                                    .map(
+                                        (p) =>
+                                            `${p.parcels} parcel(s) at ${p.facility}`,
+                                    )
+                                    .join(', ')}{' '}
+                                {elsewhere.places.length === 1 ? 'is' : 'are'}{' '}
+                                not shown to you.
+                            </p>
+                            <p className="text-muted-foreground">
+                                {elsewhere.mine.length > 0
+                                    ? `You are assigned to ${elsewhere.mine.join(', ')}. `
+                                    : 'You are not assigned to any facility. '}
+                                Ask the office to add you to{' '}
+                                {elsewhere.places
+                                    .map((p) => p.facility)
+                                    .join(', ')}{' '}
+                                on your user page (Users → your name → Facility
+                                assignments), or to change the brand&rsquo;s
+                                store on Online orders → Brands if the labels
+                                went to the wrong place.
+                            </p>
+                        </div>
+                    </div>
+                )}
 
                 {past_cutoff && (
                     <div

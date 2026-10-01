@@ -218,6 +218,7 @@ class OnlineOrderController extends Controller
                 ->active()->where('can_dispatch', true)->ordered()->get(['id', 'name'])
                 ->map(fn (Facility $f) => ['value' => (string) $f->id, 'label' => $f->name])->all(),
             'can' => $this->abilities($user),
+            'elsewhere' => $this->elsewhere($user, $day),
         ]);
     }
 
@@ -689,6 +690,39 @@ class OnlineOrderController extends Controller
         }
 
         return $query;
+    }
+
+    /**
+     * The day's labels this person cannot see because they were filed at
+     * a facility they are not assigned to — said on the screen, so an
+     * empty page explains itself.
+     *
+     * @return array{mine: list<string>, places: list<array{facility: string, parcels: int}>}|null
+     */
+    private function elsewhere(User $user, CarbonImmutable $day): ?array
+    {
+        $ids = $this->facilities->facilityIds($user);
+
+        if ($ids === null || $this->brands->isRestricted($user)) {
+            return null;
+        }
+
+        $places = LabelBatch::query()
+            ->whereDate('for_date', $day->toDateString())
+            ->whereNotIn('facility_id', $ids)
+            ->with('facility:id,name')
+            ->withCount(['shipments as parcels' => fn ($q) => $q->whereNotIn('status', [ShipmentStatus::Cancelled->value, ShipmentStatus::Returned->value])])
+            ->get()
+            ->groupBy('facility_id')
+            ->map(fn ($g) => ['facility' => (string) $g->first()->facility?->name, 'parcels' => (int) $g->sum('parcels')])
+            ->filter(fn (array $p) => $p['parcels'] > 0)
+            ->values()
+            ->all();
+
+        return $places === [] ? null : [
+            'mine' => Facility::query()->whereKey($ids)->orderBy('name')->pluck('name')->all(),
+            'places' => $places,
+        ];
     }
 
     private function assertCanSee(User $user, LabelBatch $batch): void

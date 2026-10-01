@@ -341,4 +341,37 @@ class MyntraSplitLabelsTest extends TestCase
 
         $this->assertStringNotContainsString('Something broke', (string) session('errors')->first('files'));
     }
+
+    private function uploadAtSecondDepot(): Facility
+    {
+        $other = Facility::factory()->withStores([WarehouseType::FinishedGoods])->create(['name' => 'Second Depot', 'can_manufacture' => false, 'can_dispatch' => true]);
+        $otherFg = $other->stores()->where('type', WarehouseType::FinishedGoods->value)->sole();
+        $file = LabelFixtures::imageOnly(2, 'myntra-labels.pdf', 1);
+        app(OnlineOrderService::class)->upload($this->brand, $this->myntra, $otherFg, [$file], $this->agency, seen: [
+            hash_file('sha256', $file->getRealPath()) => BrowserPages::fromJson(MyntraPages::json($this->labels())),
+        ]);
+
+        return $other;
+    }
+
+    #[Test]
+    public function labels_filed_at_a_facility_the_manager_does_not_work_at_are_named_on_his_screen(): void
+    {
+        $this->uploadAtSecondDepot();
+
+        $this->actingAs($this->shanu)->get(route('online-orders.index'))->assertOk()->assertInertia(fn ($page) => $page
+            ->where('batches', [])
+            ->where('elsewhere.mine', ['Paper Market Warehouse'])
+            ->where('elsewhere.places', [['facility' => 'Second Depot', 'parcels' => 2]]));
+    }
+
+    #[Test]
+    public function once_he_works_there_too_he_sees_them_and_the_note_is_gone(): void
+    {
+        app(EmployeeAssignmentService::class)->assign($this->shanu, $this->uploadAtSecondDepot(), null, [], null);
+
+        $this->actingAs($this->shanu)->get(route('online-orders.index'))->assertOk()->assertInertia(fn ($page) => $page
+            ->has('batches', 1)
+            ->where('elsewhere', null));
+    }
 }

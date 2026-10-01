@@ -11,6 +11,14 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Changed — An empty Online orders screen says why
+
+- A warehouse manager sees the labels of the facilities he is assigned
+  to. When the day's labels were filed at another facility, his screen
+  now says so — "2 parcel(s) at Second Depot are not shown to you. You
+  are assigned to Delhi Warehouse." — and how to fix it, instead of
+  showing nothing.
+
 ### Fixed — Upload labels no longer ends in a bare server error
 
 - Label files are kept in the database first; the storage bucket is a

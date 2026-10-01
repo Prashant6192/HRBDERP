@@ -13,6 +13,8 @@ sign-in card and at the foot of the sidebar.
 
 ### Changed — An empty Online orders screen says why
 
+- Someone who works at one facility now sees its name beside the date on
+  Online orders, where the office sees the facility picker.
 - A warehouse manager sees the labels of the facilities he is assigned
   to. When the day's labels were filed at another facility, his screen
   now says so — "2 parcel(s) at Second Depot are not shown to you. You

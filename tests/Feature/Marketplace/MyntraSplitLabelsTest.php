@@ -361,6 +361,9 @@ class MyntraSplitLabelsTest extends TestCase
 
         $this->actingAs($this->shanu)->get(route('online-orders.index'))->assertOk()->assertInertia(fn ($page) => $page
             ->where('batches', [])
+            // His one place is named on the screen in place of the picker.
+            ->has('facilities', 1)
+            ->where('facilities.0.label', 'Paper Market Warehouse')
             ->where('elsewhere.mine', ['Paper Market Warehouse'])
             ->where('elsewhere.places', [['facility' => 'Second Depot', 'parcels' => 2]]));
     }

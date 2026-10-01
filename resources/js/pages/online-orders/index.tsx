@@ -516,6 +516,12 @@ export default function OnlineOrdersIndex({
                             ))}
                         </select>
                     )}
+                    {/* One place only: name it, so it is plain whose labels these are. */}
+                    {facilities.length === 1 && (
+                        <span className="bg-muted/60 rounded-md border px-3 py-1.5 text-sm font-medium">
+                            {facilities[0].label}
+                        </span>
+                    )}
                     <form
                         onSubmit={onSearch}
                         className="ml-auto flex min-w-64 items-center gap-2"

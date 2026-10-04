@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Administration;
 
 use App\Domain\Access\Models\Role;
 use App\Domain\Access\Services\OnlineOrdersAccessCheck;
+use App\Domain\Access\Services\StockAccessCheck;
 use App\Domain\Audit\Enums\AuditAction;
 use App\Domain\Audit\Services\AuditLogger;
 use App\Domain\Identity\Enums\UserStatus;
@@ -143,6 +144,10 @@ class UserController extends Controller
             // Why a person does or does not see today's online orders.
             'onlineOrdersAccess' => $request->user()->can('marketplace.manage') || $request->user()->isSuperAdmin()
                 ? app(OnlineOrdersAccessCheck::class)->for($user)
+                : null,
+            // Why a person can or cannot change stock, facility by facility.
+            'stockAccess' => $request->user()->can('user.assign_facility') || $request->user()->isSuperAdmin()
+                ? app(StockAccessCheck::class)->for($user)
                 : null,
             'facilities' => Facility::query()->active()->ordered()->with(['stores' => fn ($q) => $q->where('is_active', true)])->get()
                 ->map(static fn (Facility $f): array => [

@@ -11,6 +11,17 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Changed — Why someone cannot change stock, in plain words
+
+- A person's page (Users → name) has a new panel, **Stock: what … can
+  change**: what their role allows (receive, transfer, count, add opening
+  stock, change and remove opening stock lines), then facility by
+  facility whether they can — or why not: not assigned there, or opening
+  stock entry closed.
+- A store's page says why its stock buttons are missing instead of
+  leaving them out silently: not assigned to that facility, or opening
+  stock closed there (with how to correct a quantity instead).
+
 ### Changed — An empty Online orders screen says why
 
 - Someone who works at one facility now sees its name beside the date on

@@ -18,6 +18,7 @@ use App\Domain\Warehousing\Services\StoreService;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Warehousing\StoreStoreRequest;
 use App\Http\Requests\Warehousing\UpdateStoreRequest;
+use App\Models\User;
 use App\Support\Scanning\Qr;
 use App\Support\Scanning\ScanCode;
 use Illuminate\Http\RedirectResponse;
@@ -141,7 +142,33 @@ class FacilityStoreController extends Controller
                 'transfer' => $user->can('create', StockTransfer::class) && $this->access->canWorkIn($user, $warehouse),
                 'opening_stock' => $warehouse->facility !== null && $warehouse->facility->opening_stock_enabled && $user->can('inventory.opening_stock') && $this->access->canWorkIn($user, $warehouse),
             ],
+            'stock_note' => $this->stockNote($user, $warehouse),
         ]);
+    }
+
+    /**
+     * Why someone whose role changes stock has no stock buttons here — said
+     * on the page, rather than leaving the buttons silently missing.
+     */
+    private function stockNote(User $user, Warehouse $warehouse): ?string
+    {
+        if (! $user->can('inventory.opening_stock') && ! $user->can('inventory.transfer')) {
+            return null;
+        }
+
+        $facility = $warehouse->facility;
+
+        if (! $this->access->canWorkIn($user, $warehouse)) {
+            return $facility === null
+                ? null
+                : "You are not assigned to {$facility->name}, so you can only look at this store. Ask the office to add you to {$facility->name} on your user page.";
+        }
+
+        if ($facility !== null && ! $facility->opening_stock_enabled && $user->can('inventory.opening_stock')) {
+            return "Opening stock entry is closed at {$facility->name}, so lines cannot be added, changed or removed. Correct a quantity with a stock count, or ask the office to re-open opening stock on the facility's Settings tab.";
+        }
+
+        return null;
     }
 
     /**

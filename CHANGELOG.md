@@ -11,6 +11,17 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Fixed — One badly read label no longer stops the whole upload
+
+- A Meesho PDF re-saved through "Save as PDF" ran its words together and
+  one parcel's value came out longer than its field, which stopped the
+  upload with a database error. Such a value is now left out (an AWB,
+  order or invoice number, state) or cut (a name), and the parcel says
+  so; the rest of the file goes in.
+- The Meesho reader only takes an order number that is a run of digits
+  and an invoice number shaped like one, so a run-together line is never
+  taken for either.
+
 ### Fixed — A label file under the wrong marketplace
 
 - A Meesho PDF uploaded with Myntra chosen became 146 parcels with no

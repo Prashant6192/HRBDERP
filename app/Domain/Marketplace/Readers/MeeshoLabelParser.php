@@ -52,7 +52,9 @@ final class MeeshoLabelParser implements LabelTextParser
             $warnings[] = 'The product row could not be read on this label.';
         }
 
-        $orderNumber = TextLines::after($lines, 'Purchase Order No.');
+        // The caption's value is a long run of digits; anything else is the
+        // next caption or a run-together line from a re-saved PDF.
+        $orderNumber = $this->code(TextLines::after($lines, 'Purchase Order No.'), '/^\d{6,30}$/');
 
         if ($orderNumber === null && $rows !== []) {
             $orderNumber = preg_replace('/_\d+$/', '', $rows[0]['order']);
@@ -68,7 +70,7 @@ final class MeeshoLabelParser implements LabelTextParser
 
         // The bill-to block wraps, so the state can run onto the next line;
         // the seller's block ("Sold by") always follows it.
-        $state = preg_match('/Place of Supply:\s*([A-Za-z &.\-]+?)\s*(?:Sold by|,|$)/i', implode(' ', $lines), $m) === 1 ? trim($m[1]) : null;
+        $state = preg_match('/Place of Supply:\s*([A-Za-z &.\-]{2,40}?)\s*(?:Sold by|,|$)/i', implode(' ', $lines), $m) === 1 ? trim($m[1]) : null;
         $gstin = preg_match('/GSTIN\s*[-:]\s*(\d{2}[A-Z0-9]{13})/', implode("\n", $lines), $m) === 1 ? $m[1] : null;
 
         return LabelExtraction::fromArray([
@@ -78,7 +80,7 @@ final class MeeshoLabelParser implements LabelTextParser
             'courier' => $courier,
             'payment_mode' => $payment,
             'payable_amount' => $total,
-            'invoice_number' => TextLines::after($lines, 'Invoice No.'),
+            'invoice_number' => $this->code(TextLines::after($lines, 'Invoice No.'), '/^[A-Za-z0-9\/-]{3,32}$/'),
             'invoice_date' => TextLines::after($lines, 'Invoice Date'),
             'customer_name' => TextLines::after($lines, 'Customer Address'),
             'customer_state' => $state,
@@ -86,6 +88,16 @@ final class MeeshoLabelParser implements LabelTextParser
             'lines' => array_map(fn (array $r) => ['seller_sku' => $r['sku'], 'description' => $r['size'], 'quantity' => $r['quantity']], $rows),
             'warnings' => array_merge($warnings, $awb === null ? ['No AWB was found under the barcode.'] : []),
         ]);
+    }
+
+    /**
+     * A value only when it has the shape such a code has.
+     */
+    private function code(?string $value, string $shape): ?string
+    {
+        $value = $value === null ? null : trim($value);
+
+        return $value !== null && preg_match($shape, $value) === 1 ? $value : null;
     }
 
     /**

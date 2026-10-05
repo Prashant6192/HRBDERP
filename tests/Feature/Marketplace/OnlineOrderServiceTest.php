@@ -572,4 +572,27 @@ class OnlineOrderServiceTest extends TestCase
         ], $this->agency);
         $this->assertSame(['Valmo', 'Valmo'], Shipment::query()->orderBy('id')->pluck('courier')->all());
     }
+
+    #[Test]
+    public function a_value_too_long_for_its_field_is_flagged_not_a_stopped_upload(): void
+    {
+        // A re-saved PDF can run a label's words together: one parcel's
+        // order number and state came out longer than their fields.
+        $this->app->instance(AiLabelReader::class, new FakeLabelReader([
+            ['pages' => [1], 'awb' => 'AMZ0000000001', 'courier' => 'Amazon Shipping', 'order_number' => str_repeat('402-1234567-1234567 ', 6),
+                'customer_state' => str_repeat('Uttar Pradesh Sold by ', 5), 'customer_name' => str_repeat('A', 300), 'payable_amount' => '99999999999',
+                'lines' => [['seller_sku' => 'Hair_Oil_500ml', 'description' => null, 'quantity' => 1]]],
+        ]));
+
+        app(OnlineOrderService::class)->upload($this->rahatRooh, $this->amazon, $this->depotFg, [LabelFixtures::imageOnly(1, 'amazon.pdf')], $this->agency);
+
+        $parcel = Shipment::query()->sole();
+        $this->assertSame('AMZ0000000001', $parcel->awb, 'The rest of the parcel is kept.');
+        $this->assertNull($parcel->order_number);
+        $this->assertNull($parcel->customer_state);
+        $this->assertNull($parcel->payable_amount);
+        $this->assertSame(255, mb_strlen((string) $parcel->customer_name));
+        $this->assertTrue(collect($parcel->warnings)->contains(fn ($w) => str_contains($w, 'order number read from this label made no sense')));
+        $this->assertTrue(collect($parcel->warnings)->contains(fn ($w) => str_contains($w, 'customer name read from this label was too long')));
+    }
 }

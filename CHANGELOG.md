@@ -11,6 +11,18 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Fixed — A label file under the wrong marketplace
+
+- A Meesho PDF uploaded with Myntra chosen became 146 parcels with no
+  AWB, product or courier. The upload now refuses a file whose pages read
+  as another marketplace's labels and names the right one: "… looks like
+  Meesho labels, but Myntra was chosen. Upload it again with Meesho
+  selected." The same for Flipkart files, and a file of pictures only
+  (Myntra, Amazon) is refused under Meesho or Flipkart.
+- A file can now be taken out of a batch (bin icon under Files) until any
+  of its parcels is scanned — printing alone no longer stops it. The
+  same PDF can then be uploaded again under the right marketplace.
+
 ### Changed — Every courier card shows dispatched too
 
 - Each courier card on Online orders shows all four counts again: to

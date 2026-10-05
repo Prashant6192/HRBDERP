@@ -1295,6 +1295,24 @@ class OnlineOrderService
 
     private function createShipment(LabelBatch $batch, LabelFile $file, LabelExtraction $parcel): Shipment
     {
+        // A label read badly (a re-saved PDF runs its words together) must
+        // not stop the whole file: a value too long for its field is left
+        // out or cut, and the parcel says so.
+        $warnings = $this->parcelWarnings($parcel) ?? [];
+        $fit = function (?string $value, int $max, string $what, bool $cut = false) use (&$warnings): ?string {
+            if ($value === null || mb_strlen($value) <= $max) {
+                return $value;
+            }
+
+            $warnings[] = $cut
+                ? "The {$what} read from this label was too long and was cut. Check it."
+                : "The {$what} read from this label made no sense and was left out. Type it in from the label.";
+
+            return $cut ? mb_substr($value, 0, $max) : null;
+        };
+
+        $amount = $parcel->payableAmount !== null && (float) $parcel->payableAmount >= 1e9 ? null : $parcel->payableAmount;
+
         $shipment = Shipment::create([
             'label_batch_id' => $batch->id,
             'label_file_id' => $file->id,
@@ -1302,28 +1320,28 @@ class OnlineOrderService
             'brand_id' => $batch->brand_id,
             'warehouse_id' => $batch->warehouse_id,
             'pages' => $parcel->pages,
-            'awb' => $parcel->awb,
-            'alt_code' => $parcel->altCode,
-            'order_number' => $parcel->orderNumber,
-            'courier' => $parcel->courier,
+            'awb' => $fit($parcel->awb, 64, 'AWB'),
+            'alt_code' => $fit($parcel->altCode, 64, 'second tracking code'),
+            'order_number' => $fit($parcel->orderNumber, 64, 'order number'),
+            'courier' => $fit($parcel->courier, 64, 'courier'),
             'payment_mode' => $parcel->paymentMode,
-            'payable_amount' => $parcel->payableAmount,
-            'invoice_number' => $parcel->invoiceNumber,
+            'payable_amount' => $amount,
+            'invoice_number' => $fit($parcel->invoiceNumber, 64, 'invoice number'),
             'invoice_date' => $parcel->invoiceDate,
-            'customer_name' => $parcel->customerName,
-            'customer_state' => $parcel->customerState,
-            'customer_pincode' => $parcel->customerPincode,
-            'seller_gstin' => $parcel->sellerGstin,
+            'customer_name' => $fit($parcel->customerName, 255, 'customer name', cut: true),
+            'customer_state' => $fit($parcel->customerState, 64, 'state'),
+            'customer_pincode' => $fit($parcel->customerPincode, 10, 'PIN code'),
+            'seller_gstin' => $fit($parcel->sellerGstin, 20, 'seller GSTIN'),
             'status' => ShipmentStatus::Uploaded,
             'stock_state' => StockState::Unmapped,
             'extraction' => $parcel->toArray(),
-            'warnings' => $this->parcelWarnings($parcel),
+            'warnings' => $warnings === [] ? null : array_values(array_unique($warnings)),
         ]);
 
         foreach ($parcel->lines as $i => $line) {
             $shipment->lines()->create([
                 'line_no' => $i + 1,
-                'seller_sku' => $line['seller_sku'],
+                'seller_sku' => Str::limit($line['seller_sku'], 250, ''),
                 'description' => $line['description'] !== null ? Str::limit($line['description'], 250, '') : null,
                 'quantity' => $line['quantity'],
             ]);

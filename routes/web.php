@@ -241,6 +241,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('online-orders/report', [OnlineOrderReportController::class, 'index'])->name('online-orders.report');
     Route::get('online-orders/report/excel', [OnlineOrderReportController::class, 'export'])->name('online-orders.report.excel');
     Route::post('online-orders/dispatch', [OnlineOrderController::class, 'dispatch'])->name('online-orders.dispatch');
+    Route::post('online-orders/courier', [OnlineOrderController::class, 'nameCourier'])->name('online-orders.courier');
     Route::post('online-orders/print', [OnlineOrderController::class, 'printSelected'])->name('online-orders.print-selected');
     Route::post('online-orders/check-stock', [OnlineOrderController::class, 'holdAll'])->name('online-orders.hold-all');
     Route::get('online-orders/lookup', [OnlineOrderController::class, 'lookup'])->name('online-orders.lookup');

@@ -11,6 +11,16 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Fixed — Myntra parcels sorted by courier
+
+- Myntra's label prints no courier name, so its parcels all fell under
+  "Courier not read". The courier is now read from the label's route code
+  ("DE_E2E-ON-M7" is Delhivery; EK Ekart, XB Xpress Bees, SF Shadowfax,
+  EC Ecom Express).
+- Parcels already in without a courier can be given one in one go: the
+  "Courier not read" card has a courier list and **Set courier**. Only
+  parcels with no courier are changed.
+
 ### Fixed — Creating a product with the code of a deleted one
 
 - Saving a product, raw material or packaging material whose code had

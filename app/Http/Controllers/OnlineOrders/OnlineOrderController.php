@@ -18,6 +18,7 @@ use App\Domain\Marketplace\Models\LabelPrint;
 use App\Domain\Marketplace\Models\Marketplace;
 use App\Domain\Marketplace\Models\Shipment;
 use App\Domain\Marketplace\Models\ShipmentLine;
+use App\Domain\Marketplace\Readers\Couriers;
 use App\Domain\Marketplace\Services\BrandAccess;
 use App\Domain\Marketplace\Services\OnlineOrderService;
 use App\Domain\Marketplace\Support\Cutoff;
@@ -207,6 +208,16 @@ class OnlineOrderController extends Controller
                 ->map(fn ($g) => $g->pluck('id')->values()->all())
                 ->all(),
             'couriers' => $couriers,
+            // The day's parcels whose courier the label did not say, for
+            // naming it in one go, and the couriers to choose from.
+            'courierless' => Shipment::query()
+                ->whereIn('label_batch_id', $batchIds)
+                ->whereNull('courier')
+                ->whereNotIn('status', [ShipmentStatus::Cancelled->value, ShipmentStatus::Returned->value])
+                ->pluck('id')->all(),
+            'courier_names' => collect(Couriers::names())
+                ->merge(Shipment::query()->whereNotNull('courier')->distinct()->pluck('courier'))
+                ->unique()->sort()->values()->all(),
             'parcels' => $parcels,
             'show' => $show,
             'courier' => $courier,
@@ -490,6 +501,35 @@ class OnlineOrderController extends Controller
         return back()->withToast($n > 0 ? 'success' : 'warning', $n > 0
             ? "{$n} parcel(s) marked dispatched."
             : 'Nothing to mark: only scanned parcels can be dispatched.');
+    }
+
+    /**
+     * Name the courier for parcels whose label did not say it (Myntra's
+     * older uploads, a label the reader could not make out). Only parcels
+     * with no courier yet are touched.
+     */
+    public function nameCourier(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('marketplace.print') || $user->can('marketplace.handover') || $user->can('marketplace.manage'), 403);
+
+        $data = $request->validate([
+            'shipment_ids' => ['required', 'array', 'min:1', 'max:2000'],
+            'shipment_ids.*' => ['integer'],
+            'courier' => ['required', 'string', 'max:64'],
+        ], ['courier.required' => 'Choose the courier.']);
+
+        $courier = trim($data['courier']);
+        $n = Shipment::query()
+            ->whereIn('label_batch_id', $this->visibleBatches($user)->select('id'))
+            ->whereIn('id', array_map('intval', $data['shipment_ids']))
+            ->whereNull('courier')
+            ->whereNotIn('status', [ShipmentStatus::Cancelled->value, ShipmentStatus::Returned->value])
+            ->update(['courier' => $courier, 'updated_at' => now()]);
+
+        return back()->withToast($n > 0 ? 'success' : 'warning', $n > 0
+            ? "{$n} parcel(s) now go with {$courier}."
+            : 'No parcel without a courier was found.');
     }
 
     /**

@@ -53,6 +53,7 @@ import { pack as scanToPack } from '@/routes/floor';
 import { pdf as sheetPdf } from '@/routes/handover-sheets';
 import {
     create,
+    courier as courierRoute,
     dispatch as dispatchRoute,
     holdAll,
     index,
@@ -255,6 +256,8 @@ export default function OnlineOrdersIndex({
     facilities,
     can,
     elsewhere,
+    courierless,
+    courier_names,
 }: {
     date: string;
     is_today: boolean;
@@ -274,6 +277,8 @@ export default function OnlineOrdersIndex({
     facility: number | null;
     facilities: { value: string; label: string }[];
     can: Abilities & { return: boolean };
+    courierless: number[];
+    courier_names: string[];
     elsewhere: {
         mine: string[];
         places: { facility: string; parcels: number }[];
@@ -383,6 +388,22 @@ export default function OnlineOrdersIndex({
                 dispatchRoute().url,
                 { shipment_ids: ids },
                 { preserveScroll: true },
+            );
+        }
+    };
+
+    const [naming, setNaming] = useState('');
+    const nameCourier = () => {
+        if (naming === '' || courierless.length === 0) return;
+        if (
+            window.confirm(
+                `Put ${courierless.length} parcel(s) with no courier on ${naming}?`,
+            )
+        ) {
+            router.post(
+                courierRoute().url,
+                { shipment_ids: courierless, courier: naming },
+                { preserveScroll: true, onSuccess: () => setNaming('') },
             );
         }
     };
@@ -852,6 +873,46 @@ export default function OnlineOrdersIndex({
                                                     picked up (
                                                     {dispatchable[key].length})
                                                 </Button>
+                                            )}
+                                        {c.courier === null &&
+                                            courierless.length > 0 &&
+                                            (can.print ||
+                                                can.handover ||
+                                                can.manage) && (
+                                                <div className="mt-2 flex gap-2">
+                                                    <select
+                                                        className="border-input bg-background h-8 min-w-0 flex-1 rounded-md border px-2 text-sm"
+                                                        value={naming}
+                                                        onChange={(e) =>
+                                                            setNaming(
+                                                                e.target.value,
+                                                            )
+                                                        }
+                                                        aria-label="Name the courier"
+                                                    >
+                                                        <option value="">
+                                                            Courier…
+                                                        </option>
+                                                        {courier_names.map(
+                                                            (n) => (
+                                                                <option
+                                                                    key={n}
+                                                                    value={n}
+                                                                >
+                                                                    {n}
+                                                                </option>
+                                                            ),
+                                                        )}
+                                                    </select>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        disabled={naming === ''}
+                                                        onClick={nameCourier}
+                                                    >
+                                                        Set courier
+                                                    </Button>
+                                                </div>
                                             )}
                                     </div>
                                 );

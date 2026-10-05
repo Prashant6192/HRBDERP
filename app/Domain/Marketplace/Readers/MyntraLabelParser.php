@@ -72,7 +72,8 @@ final class MyntraLabelParser implements LabelTextParser
         return LabelExtraction::fromArray([
             'pages' => [$page],
             'awb' => $awb,
-            'courier' => Couriers::find($top) ?? Couriers::fromAwb($awb),
+            // Myntra prints no courier name: its route code says who carries it.
+            'courier' => Couriers::find($top) ?? Couriers::fromRouteCode($all) ?? Couriers::fromAwb($awb),
             'payment_mode' => $cod ? 'cod' : ($prepaid ? 'prepaid' : null),
             'payable_amount' => $amount,
             'customer_name' => $name,

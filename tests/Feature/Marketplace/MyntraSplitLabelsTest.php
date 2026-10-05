@@ -377,4 +377,34 @@ class MyntraSplitLabelsTest extends TestCase
             ->has('batches', 1)
             ->where('elsewhere', null));
     }
+
+    #[Test]
+    public function parcels_whose_courier_was_not_read_are_named_in_one_go(): void
+    {
+        $pages = array_map(function (array $p): array {
+            $p['text'] = str_replace('DE E2E-ON-M7', 'Route 12', $p['text']);
+
+            return $p;
+        }, $this->labels());
+        $this->upload('myntra-labels.pdf', 1, $pages);
+        $this->assertSame(2, Shipment::query()->whereNull('courier')->count());
+
+        $ids = [];
+        $this->actingAs($this->shanu)->get(route('online-orders.index'))->assertInertia(function ($page) use (&$ids) {
+            $page->has('courierless', 2)->where('courier_names', fn ($names) => collect($names)->contains('Delhivery'));
+            $ids = $page->toArray()['props']['courierless'];
+        });
+
+        $this->actingAs($this->shanu)->post(route('online-orders.courier'), ['shipment_ids' => $ids, 'courier' => 'Delhivery'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(2, Shipment::query()->where('courier', 'Delhivery')->count());
+
+        // Only parcels with no courier are touched.
+        $this->actingAs($this->shanu)->post(route('online-orders.courier'), ['shipment_ids' => $ids, 'courier' => 'Ekart'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(0, Shipment::query()->where('courier', 'Ekart')->count());
+
+        // The agency only uploads.
+        $this->actingAs($this->agency)->post(route('online-orders.courier'), ['shipment_ids' => $ids, 'courier' => 'Ekart'])->assertForbidden();
+    }
 }

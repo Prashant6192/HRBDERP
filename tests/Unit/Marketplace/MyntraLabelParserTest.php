@@ -6,6 +6,7 @@ namespace Tests\Unit\Marketplace;
 
 use App\Domain\Marketplace\DTOs\BrowserPages;
 use App\Domain\Marketplace\Enums\PaymentMode;
+use App\Domain\Marketplace\Readers\Couriers;
 use App\Domain\Marketplace\Readers\MyntraLabelParser;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -37,6 +38,7 @@ class MyntraLabelParserTest extends TestCase
         $this->assertSame('Ravi Verma', $parcel->customerName, 'The stray dash OCR reads beside the name is dropped.');
         $this->assertSame('845401', $parcel->customerPincode);
         $this->assertSame(PaymentMode::Prepaid, $parcel->paymentMode);
+        $this->assertSame('Delhivery', $parcel->courier, 'From the route code "DE E2E-ON-M7".');
         $this->assertSame([], $parcel->lines);
         $this->assertNull($parcel->orderNumber);
     }
@@ -157,5 +159,16 @@ class MyntraLabelParserTest extends TestCase
         $this->assertSame([1 => "Tax Invoice\n[barcode qr_code] line break"], $pages);
         $this->assertSame([], BrowserPages::fromJson('not json'));
         $this->assertSame([], BrowserPages::fromJson(null));
+    }
+
+    #[Test]
+    public function a_route_code_names_the_courier(): void
+    {
+        $this->assertSame('Delhivery', Couriers::fromRouteCode('DE_E2E-ON-M7'));
+        $this->assertSame('Delhivery', Couriers::fromRouteCode("Prepaid\nDE E2E-ON-M7 Prepaid"));
+        $this->assertSame('Ekart', Couriers::fromRouteCode('EK_E2E-01'));
+        $this->assertSame('Xpress Bees', Couriers::fromRouteCode('XB_E2E'));
+        $this->assertNull(Couriers::fromRouteCode('ZZ_E2E'));
+        $this->assertNull(Couriers::fromRouteCode('No code here'));
     }
 }

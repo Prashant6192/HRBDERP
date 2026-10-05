@@ -865,7 +865,7 @@ export default function OnlineOrderBatch({
                                                 </Button>
                                             }
                                             title={`Remove ${f.name}?`}
-                                            description="Its parcels are removed with it and what was held for them is let go. Not possible once any of its labels has been printed."
+                                            description="Its parcels are removed with it and what was held for them is let go. Use it for a file uploaded under the wrong brand or marketplace. Not possible once any of its parcels has been scanned."
                                             confirmLabel="Remove"
                                             destructive
                                             action={() =>

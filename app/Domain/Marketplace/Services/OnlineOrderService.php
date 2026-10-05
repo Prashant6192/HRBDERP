@@ -270,15 +270,18 @@ class OnlineOrderService
     }
 
     /**
-     * Take a file back out — the wrong brand, the wrong day — as long as
-     * nothing in it has been printed or packed.
+     * Take a file back out — the wrong brand, the wrong marketplace, the
+     * wrong day — as long as none of its parcels has been scanned: printing
+     * only used paper, while a scan has taken stock out.
      */
     public function removeFile(LabelFile $file): void
     {
         $file->loadMissing(['shipments', 'batch']);
 
-        if ($file->shipments->contains(fn (Shipment $s) => $s->status !== ShipmentStatus::Uploaded)) {
-            throw new OnlineOrderException("{$file->original_name} cannot be removed: some of its labels have already been printed or packed. Cancel those parcels one by one instead.");
+        $moved = [ShipmentStatus::Packed, ShipmentStatus::HandedOver, ShipmentStatus::Returned];
+
+        if ($file->shipments->contains(fn (Shipment $s) => in_array($s->status, $moved, true))) {
+            throw new OnlineOrderException("{$file->original_name} cannot be removed: some of its parcels have already been scanned, dispatched or returned. Cancel those parcels one by one instead.");
         }
 
         DB::transaction(function () use ($file): void {

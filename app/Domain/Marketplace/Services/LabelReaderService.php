@@ -44,6 +44,8 @@ class LabelReaderService
             throw new OnlineOrderException("{$filename} has no pages that could be opened. Check it is the label PDF the marketplace gave you.");
         }
 
+        $this->assertRightMarketplace($texts, $filename, $marketplace);
+
         $parser = $this->parserFor($marketplace->reader);
         $parcels = [];
 
@@ -112,6 +114,53 @@ class LabelReaderService
         ksort($parcels);
 
         return new LabelReading(array_values($parcels), $readWith, $model, $ignored, $warnings, $pageCount);
+    }
+
+    /**
+     * A file chosen under the wrong marketplace reads as nothing: a Meesho
+     * PDF under Myntra became 146 parcels with no AWB, product or courier.
+     * Meesho's and Flipkart's labels print text that says whose they are,
+     * so a file most of whose pages read as another marketplace's labels
+     * is refused, naming the right one.
+     *
+     * @param  array<int, string>  $texts
+     */
+    private function assertRightMarketplace(array $texts, string $filename, Marketplace $marketplace): void
+    {
+        $pages = array_filter($texts, fn (string $t) => trim($t) !== '');
+
+        // Meesho's and Flipkart's labels always carry text; a file of
+        // pictures only is a Myntra or Amazon file chosen under them.
+        if ($pages === []) {
+            if (in_array($marketplace->reader, [LabelReaderKind::Meesho, LabelReaderKind::Flipkart], true)) {
+                throw new OnlineOrderException("{$filename} has only pictures, unlike {$marketplace->name}'s labels. If it is a Myntra or Amazon file, upload it again with that marketplace selected.");
+            }
+
+            return;
+        }
+
+        foreach ([LabelReaderKind::Meesho, LabelReaderKind::Flipkart] as $kind) {
+            if ($kind === $marketplace->reader) {
+                continue;
+            }
+
+            $parser = $this->parserFor($kind);
+            $read = 0;
+
+            foreach ($pages as $page => $text) {
+                $parcel = $parser?->parse($text, $page);
+
+                if ($parcel !== null && $parcel->awb !== null) {
+                    $read++;
+                }
+            }
+
+            if ($read * 2 >= count($texts)) {
+                $name = Marketplace::query()->where('reader', $kind->value)->value('name') ?? ucfirst($kind->value);
+
+                throw new OnlineOrderException("{$filename} looks like {$name} labels, but {$marketplace->name} was chosen. Upload it again with {$name} selected.");
+            }
+        }
     }
 
     /**

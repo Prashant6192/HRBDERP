@@ -8,6 +8,7 @@ import {
     FileText,
     PackageCheck,
     Printer,
+    Send,
     ScanLine,
     Search,
     Truck,
@@ -770,7 +771,8 @@ export default function OnlineOrdersIndex({
                                     <div
                                         key={key || '—'}
                                         className={cn(
-                                            'rounded-lg border p-3 transition',
+                                            // Four counts in a row when the card is wide enough, else two by two.
+                                            '@container rounded-lg border p-3 transition',
                                             state === 'done' &&
                                                 'border-emerald-500/60 bg-emerald-500/5',
                                             selected &&
@@ -804,7 +806,7 @@ export default function OnlineOrdersIndex({
                                                 ? 'All scanned'
                                                 : `${waiting} still to scan`}
                                         </p>
-                                        <div className="mt-2 grid grid-cols-3 gap-1 text-xs">
+                                        <div className="mt-2 grid grid-cols-2 gap-1 text-xs @xs:grid-cols-4">
                                             {(
                                                 [
                                                     [
@@ -824,6 +826,12 @@ export default function OnlineOrdersIndex({
                                                         c.packed,
                                                         'scanned',
                                                         Truck,
+                                                    ],
+                                                    [
+                                                        'handed_over',
+                                                        c.handed_over,
+                                                        'dispatched',
+                                                        Send,
                                                     ],
                                                 ] as const
                                             ).map(([show, n, label, Icon]) => (

@@ -11,6 +11,12 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Changed — Every courier card shows dispatched too
+
+- Each courier card on Online orders shows all four counts again: to
+  print, to scan, scanned and **dispatched**, each opening its list. On a
+  narrow card they sit two by two instead of crowding.
+
 ### Fixed — Myntra parcels sorted by courier
 
 - Myntra's label prints no courier name, so its parcels all fell under

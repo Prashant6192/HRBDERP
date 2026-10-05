@@ -11,6 +11,15 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Fixed — Creating a product with the code of a deleted one
+
+- Saving a product, raw material or packaging material whose code had
+  belonged to a deleted item ended in a server error: the database keeps
+  codes unique even among deleted items. A deleted item of the same kind
+  now comes back with the details just entered; a code held by a deleted
+  item of another kind is refused with a message naming it. Changing an
+  item's code to a deleted item's code is refused the same way.
+
 ### Changed — Why someone cannot change stock, in plain words
 
 - A person's page (Users → name) has a new panel, **Stock: what … can

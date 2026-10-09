@@ -12,11 +12,11 @@ use App\Domain\Marketplace\Models\HandoverSheet;
 use App\Domain\Marketplace\Models\LabelBatch;
 use App\Domain\Marketplace\Models\Shipment;
 use App\Domain\Marketplace\Services\HandoverSheetPdf;
+use App\Domain\Marketplace\Services\OnlineOrderAccess;
 use App\Domain\Marketplace\Services\OnlineOrderService;
 use App\Domain\Marketplace\Support\Cutoff;
 use App\Domain\Warehousing\Enums\WarehouseType;
 use App\Domain\Warehousing\Models\Warehouse;
-use App\Domain\Warehousing\Services\FacilityAccess;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\OnlineOrders\OnlineOrderPresenter;
 use App\Models\User;
@@ -43,7 +43,7 @@ class ParcelController extends Controller
 {
     public function __construct(
         private readonly OnlineOrderService $orders,
-        private readonly FacilityAccess $access,
+        private readonly OnlineOrderAccess $access,
         private readonly ArtworkService $artworks,
     ) {}
 

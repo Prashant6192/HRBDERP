@@ -22,12 +22,10 @@ import {
 
 export default function ReceiveReturn({
     code: presetCode,
-    kinds,
     stores,
     recent,
 }: {
     code: string;
-    kinds: Option[];
     stores: Option[];
     recent: RecentReturn[];
 }) {
@@ -127,7 +125,6 @@ export default function ReceiveReturn({
                     <ReturnPanel
                         key={found.shipment.id}
                         found={found}
-                        kinds={kinds}
                         stores={stores}
                         onDone={startOver}
                         onCancel={startOver}

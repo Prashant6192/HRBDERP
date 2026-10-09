@@ -83,14 +83,27 @@ class OnlineOrdersAccessCheckTest extends TestCase
     }
 
     #[Test]
-    public function assigned_to_the_factory_only_the_depots_labels_are_hidden_and_the_page_says_so(): void
+    public function assigned_to_the_factory_the_depot_manager_still_works_the_depots_labels(): void
     {
         app(EmployeeAssignmentService::class)->assign($this->shanu, $this->factory, null, ['is_primary' => true], null);
 
         $lines = $this->lines();
 
-        $this->assertTrue($lines[0]['ok']);
+        $this->assertTrue(collect($lines)->every(fn ($l) => $l['ok']));
         $this->assertStringContainsString('Shanu can open Online orders and print, pack, hand over', $lines[0]['text']);
+        $this->assertStringContainsString("so works every facility's labels", $lines[1]['text']);
+        $this->assertStringContainsString('are all visible to Shanu', $lines[2]['text']);
+    }
+
+    #[Test]
+    public function someone_who_only_looks_is_held_to_their_facility_and_the_page_says_so(): void
+    {
+        $this->shanu->syncRoles([RoleName::MarketingManager->value]);
+        app(EmployeeAssignmentService::class)->assign($this->shanu, $this->factory, null, ['is_primary' => true], null);
+
+        $lines = $this->lines();
+
+        $this->assertStringContainsString('(view only)', $lines[0]['text']);
         $this->assertSame('Shanu sees the labels of: Rudrapur Manufacturing Facility.', $lines[1]['text']);
         $this->assertFalse($lines[2]['ok']);
         $this->assertStringContainsString('Shanu cannot see 1 parcel(s) at Paper Market Warehouse', $lines[2]['text']);

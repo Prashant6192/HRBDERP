@@ -242,6 +242,8 @@ class OnlineOrderServiceTest extends TestCase
         $this->assertSame(4, $plan['shipments']);
         $this->assertSame(['Delhivery', 'Shadowfax', 'Valmo', 'Valmo'], array_column($plan['parts'], 'courier'));
         $this->assertSame([[4], [2], [1], [3]], array_column($plan['parts'], 'pages'));
+        // Meesho prints its label above the invoice: each page is cut to 4×6.
+        $this->assertSame([true, true, true, true], array_column($plan['parts'], 'crop'));
         $this->assertSame(4, Shipment::query()->where('status', ShipmentStatus::Printed->value)->count());
         $this->assertSame(1, LabelPrint::query()->count());
 
@@ -481,6 +483,9 @@ class OnlineOrderServiceTest extends TestCase
         $warning = $batch->files->first()->warnings[0];
         $this->assertStringContainsString('registered to ship from Uttarakhand', $warning);
         $this->assertStringContainsString('but the stock will leave', $warning);
+
+        // Flipkart prints its label above the invoice: the print cuts it to 4×6.
+        $this->assertSame([true], array_column($this->orders->print($batch, 'all', $this->agency)['parts'], 'crop'));
     }
 
     #[Test]

@@ -16,12 +16,10 @@ import {
  */
 export default function FloorReturn({
     code: presetCode,
-    kinds,
     stores,
     recent,
 }: {
     code: string;
-    kinds: Option[];
     stores: Option[];
     recent: RecentReturn[];
 }) {
@@ -62,7 +60,6 @@ export default function FloorReturn({
                     <ReturnPanel
                         key={found.shipment.id}
                         found={found}
-                        kinds={kinds}
                         stores={stores}
                         floor
                         onDone={startOver}

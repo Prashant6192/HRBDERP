@@ -862,11 +862,16 @@ class OnlineOrderService
         $shipments->filter(fn (Shipment $s) => in_array($s->stock_state, [StockState::Short, StockState::Unmapped], true))
             ->each(fn (Shipment $s) => $this->hold($s));
 
+        // Meesho and Flipkart print the label above the tax invoice on one
+        // page: the browser cuts those to the label for a 4×6 printer.
+        $readers = Marketplace::query()->whereKey($shipments->pluck('marketplace_id')->unique())->get(['id', 'reader'])->keyBy('id');
+        $crop = fn (Shipment $s): bool => $readers->get($s->marketplace_id)?->reader?->labelAboveInvoice() ?? false;
+
         // Each label, then its invoice when it came in a separate file (Myntra).
         $parts = $shipments->flatMap(fn (Shipment $s) => array_values(array_filter([
-            ['shipment_id' => $s->id, 'file_id' => $s->label_file_id, 'pages' => array_values($s->pages), 'courier' => $s->courier],
+            ['shipment_id' => $s->id, 'file_id' => $s->label_file_id, 'pages' => array_values($s->pages), 'courier' => $s->courier, 'crop' => $crop($s)],
             $s->invoice_file_id !== null && $s->invoice_pages
-                ? ['shipment_id' => $s->id, 'file_id' => $s->invoice_file_id, 'pages' => array_values($s->invoice_pages), 'courier' => $s->courier]
+                ? ['shipment_id' => $s->id, 'file_id' => $s->invoice_file_id, 'pages' => array_values($s->invoice_pages), 'courier' => $s->courier, 'crop' => false]
                 : null,
         ])))->values();
 
@@ -1248,24 +1253,32 @@ class OnlineOrderService
      * The marketplace cancelled the order. Before packing, what was held is
      * let go; after packing, and before the courier has it, the goods go
      * back on the shelf by reversing the posting.
+     *
+     * $backInHand: the parcel is in the depot's hands again, scanned on the
+     * returns screen, so even one the courier signed for can be cancelled
+     * and its goods put back.
      */
-    public function cancel(Shipment $shipment, string $reason, User $user): Shipment
+    public function cancel(Shipment $shipment, string $reason, User $user, bool $backInHand = false): Shipment
     {
         if (trim($reason) === '') {
             throw new OnlineOrderException('Say why the parcel is cancelled.');
         }
 
-        return DB::transaction(function () use ($shipment, $reason, $user): Shipment {
+        return DB::transaction(function () use ($shipment, $reason, $user, $backInHand): Shipment {
             $shipment = Shipment::query()->lockForUpdate()->findOrFail($shipment->id);
 
             if ($shipment->status === ShipmentStatus::Cancelled) {
                 return $shipment;
             }
 
+            if (($why = $this->cannotCancelInHand($shipment)) !== null) {
+                throw new OnlineOrderException($why);
+            }
+
             // A parcel handed over on a signed sheet has left the building:
             // it comes back as a return. One only scanned out is still on
             // the courier's pile when the courier finds it cancelled.
-            if ($shipment->status === ShipmentStatus::HandedOver && $shipment->handover_sheet_id !== null) {
+            if (! $backInHand && $shipment->status === ShipmentStatus::HandedOver && $shipment->handover_sheet_id !== null) {
                 throw new OnlineOrderException("{$shipment->reference()} is with the courier. It comes back as a return, not a cancellation.");
             }
 
@@ -1289,6 +1302,24 @@ class OnlineOrderService
 
             return $shipment->refresh();
         });
+    }
+
+    /**
+     * Why a parcel in hand cannot be cancelled, or null when it can.
+     */
+    public function cannotCancelInHand(Shipment $shipment): ?string
+    {
+        $shipment->loadMissing('shipmentReturn');
+
+        if ($shipment->shipmentReturn !== null) {
+            return "{$shipment->reference()} was already received back as {$shipment->shipmentReturn->number}.";
+        }
+
+        return match ($shipment->status) {
+            ShipmentStatus::Cancelled => "{$shipment->reference()} is already cancelled.",
+            ShipmentStatus::Returned => "{$shipment->reference()} has already come back.",
+            default => null,
+        };
     }
 
     // ---- Internals ----------------------------------------------------------

@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\Http\Controllers\OnlineOrders;
 
 use App\Domain\Marketplace\Services\BrandAccess;
+use App\Domain\Marketplace\Services\OnlineOrderAccess;
 use App\Domain\Marketplace\Services\OnlineOrderReportService;
 use App\Domain\Marketplace\Support\Cutoff;
 use App\Domain\Warehousing\Models\Facility;
-use App\Domain\Warehousing\Services\FacilityAccess;
 use App\Exports\OnlineOrdersReportExport;
 use App\Http\Controllers\Controller;
 use App\Models\User;
@@ -28,7 +28,7 @@ class OnlineOrderReportController extends Controller
 {
     public function __construct(
         private readonly OnlineOrderReportService $reports,
-        private readonly FacilityAccess $facilities,
+        private readonly OnlineOrderAccess $facilities,
         private readonly BrandAccess $brands,
     ) {}
 

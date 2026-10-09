@@ -469,7 +469,11 @@ export default function Returns({
                     <Kpi
                         label="Returns"
                         value={summary.returns}
-                        hint={`${summary.rto} RTO · ${summary.customer} customer`}
+                        hint={
+                            summary.rto > 0
+                                ? `${summary.customer} customer · ${summary.rto} RTO (older)`
+                                : 'Customer returns'
+                        }
                     />
                     <Kpi
                         label="Back on shelf"

@@ -7,9 +7,10 @@ namespace App\Domain\Marketplace\Enums;
 /**
  * Why a parcel came back.
  *
- *   rto       — returned to origin: never delivered (refused, not at home,
- *               address not found) and sent back by the courier
- *   customer  — delivered, and the customer sent it back
+ *   customer  — the parcel came back and its goods are counted back in
+ *   rto       — returned to origin, never delivered: no longer offered
+ *               (every parcel that comes back is a customer return now),
+ *               kept so older returns still read as they were received
  */
 enum ReturnKind: string
 {
@@ -25,10 +26,12 @@ enum ReturnKind: string
     }
 
     /**
+     * The kinds a new return may be received as.
+     *
      * @return list<array{value: string, label: string}>
      */
     public static function options(): array
     {
-        return array_map(fn (self $k) => ['value' => $k->value, 'label' => $k->label()], self::cases());
+        return [['value' => self::Customer->value, 'label' => self::Customer->label()]];
     }
 }

@@ -11,6 +11,44 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Changed — The depot works every facility's online orders
+
+- Whoever prints, scans, dispatches, takes returns or runs the online
+  orders (Warehouse Manager, Store Executive, Dispatch, E-commerce
+  Manager) now works the labels of every dispatch facility, whatever
+  facility they are assigned to. A warehouse manager assigned to the
+  factory, with the agency's labels filed under the depot, prints, scans,
+  cancels and dispatches them all. The facility picker lists every
+  facility for them.
+- Someone who may only look (for example Marketing or Sales) still sees
+  only their own facility's labels, with the note naming where the rest
+  are. The agency still sees only its brands.
+- The user page explains it: "… prints, scans or dispatches online
+  orders, so works every facility's labels".
+
+### Changed — Returns: Customer return or Order cancelled
+
+- After scanning a parcel on Receive a return (desk and floor phone), the
+  choice is **Customer return** (count good and damaged, as before) or
+  **Order cancelled**. RTO is no longer offered; returns already received
+  as RTO keep their label.
+- Order cancelled marks the parcel cancelled and puts everything packed
+  in it back into the store it was packed from, even when the courier had
+  signed for it. A label never packed is cancelled and what was held for
+  it is let go. A reason is optional.
+
+### Changed — Meesho and Flipkart labels print at 4×6 inch
+
+- Printing Meesho and Flipkart labels now gives one 4×6 inch page per
+  label for the label printer: the label is cut from the A4 page above
+  "Tax Invoice", trimmed to its border. Meesho's wide label is turned
+  sideways; Flipkart's prints upright. Myntra and Amazon print as before.
+- Tick **Full page with invoice** (next to Print on Online orders, or in
+  the Print labels menu of a batch) to print the whole A4 page instead.
+  The choice is remembered on that computer.
+- A page where "Tax Invoice" cannot be found prints whole. The label PDFs
+  on the server are never changed.
+
 ### Fixed — One badly read label no longer stops the whole upload
 
 - A Meesho PDF re-saved through "Save as PDF" ran its words together and

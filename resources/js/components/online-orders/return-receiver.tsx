@@ -1,5 +1,5 @@
 import { useForm } from '@inertiajs/react';
-import { Minus, PackageX, Plus, Undo2 } from 'lucide-react';
+import { Ban, Minus, PackageX, Plus, Undo2 } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 import InputError from '@/components/input-error';
 import { StatusBadge } from '@/components/status-badge';
@@ -9,7 +9,11 @@ import { Label } from '@/components/ui/label';
 import { TONE_VARIANT, when } from '@/lib/dispatch';
 import { courierName, describeParcel, type Parcel } from '@/lib/online-orders';
 import { cn } from '@/lib/utils';
-import { lookup, store } from '@/routes/online-orders/returns';
+import {
+    cancel as cancelRoute,
+    lookup,
+    store,
+} from '@/routes/online-orders/returns';
 
 export type Sent = {
     item_id: number;
@@ -23,6 +27,12 @@ export type Found = {
     sent: Sent[];
     why_not: string | null;
     store_id: number;
+    cancel: {
+        allowed: boolean;
+        why_not: string | null;
+        puts_back: boolean;
+        note: string;
+    };
 };
 
 export type RecentReturn = {
@@ -49,10 +59,87 @@ export type Option = { value: string; label: string };
 
 type Line = { item_id: number; good: string; damaged: string };
 
-const KIND_HINT: Record<string, string> = {
-    rto: 'The courier brought it back undelivered.',
-    customer: 'The buyer received it and sent it back.',
-};
+type Mode = 'return' | 'cancel';
+
+const MODES: { value: Mode; label: string; hint: string }[] = [
+    {
+        value: 'return',
+        label: 'Customer return',
+        hint: 'It came back. Count what is good and what is damaged.',
+    },
+    {
+        value: 'cancel',
+        label: 'Order cancelled',
+        hint: 'Mark the order cancelled and put its stock back.',
+    },
+];
+
+/**
+ * Customer return or order cancelled: the first thing asked once a
+ * parcel is found.
+ */
+function ModeChoice({
+    mode,
+    modes,
+    onChange,
+    floor,
+}: {
+    mode: Mode;
+    modes: Mode[];
+    onChange: (mode: Mode) => void;
+    floor: boolean;
+}) {
+    return (
+        <div
+            role="radiogroup"
+            aria-label="What happened"
+            className="grid gap-2 sm:grid-cols-2"
+        >
+            {MODES.filter((m) => modes.includes(m.value)).map((m) => {
+                const on = mode === m.value;
+                const Icon = m.value === 'return' ? Undo2 : Ban;
+
+                return (
+                    <button
+                        key={m.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        onClick={() => onChange(m.value)}
+                        className={cn(
+                            'flex items-start gap-3 rounded-lg border p-3 text-left',
+                            floor && 'py-4',
+                            on
+                                ? m.value === 'cancel'
+                                    ? 'border-red-600/60 bg-red-500/5 ring-1 ring-red-600/30'
+                                    : 'border-primary bg-primary/5 ring-primary/30 ring-1'
+                                : 'hover:bg-muted/60',
+                        )}
+                    >
+                        <Icon
+                            className={cn(
+                                'mt-0.5 size-4 shrink-0',
+                                on && m.value === 'cancel'
+                                    ? 'text-red-700 dark:text-red-300'
+                                    : on
+                                      ? 'text-primary'
+                                      : 'text-muted-foreground',
+                            )}
+                        />
+                        <span>
+                            <span className="block text-sm font-medium">
+                                {m.label}
+                            </span>
+                            <span className="text-muted-foreground block text-xs">
+                                {m.hint}
+                            </span>
+                        </span>
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
 
 /**
  * Finds the parcel a returning packet belongs to, by AWB or order number.
@@ -217,14 +304,12 @@ function Stepper({
  */
 export function ReturnPanel({
     found,
-    kinds,
     stores,
     floor = false,
     onDone,
     onCancel,
 }: {
     found: Found;
-    kinds: Option[];
     stores: Option[];
     floor?: boolean;
     onDone: () => void;
@@ -232,6 +317,26 @@ export function ReturnPanel({
 }) {
     const p = found.shipment;
     const inList = stores.some((s) => s.value === String(found.store_id));
+    const canReturn = found.why_not === null;
+    const canCancel = found.cancel.allowed;
+    const modes: Mode[] = [
+        ...(canReturn ? (['return'] as const) : []),
+        ...(canCancel ? (['cancel'] as const) : []),
+    ];
+    const [mode, setMode] = useState<Mode>(canReturn ? 'return' : 'cancel');
+
+    const cancelForm = useForm<{ reason: string; from: string }>({
+        reason: '',
+        from: floor ? 'floor' : '',
+    });
+
+    const submitCancel = (e: FormEvent) => {
+        e.preventDefault();
+        cancelForm.post(cancelRoute(p.id).url, {
+            preserveScroll: !floor,
+            onSuccess: onDone,
+        });
+    };
 
     const form = useForm<{
         shipment_id: number;
@@ -244,7 +349,7 @@ export function ReturnPanel({
         from: string;
     }>({
         shipment_id: p.id,
-        kind: 'rto',
+        kind: 'customer',
         into_store_id: inList
             ? String(found.store_id)
             : (stores[0]?.value ?? ''),
@@ -342,10 +447,10 @@ export function ReturnPanel({
                 </StatusBadge>
             </div>
 
-            {found.why_not ? (
+            {modes.length === 0 ? (
                 <div className="space-y-3 p-4">
                     <p className="rounded-lg bg-amber-500/15 p-3 text-sm font-medium text-amber-900 dark:text-amber-100">
-                        {found.why_not}
+                        {found.why_not ?? found.cancel.why_not}
                     </p>
                     <Button
                         variant="outline"
@@ -355,59 +460,89 @@ export function ReturnPanel({
                         Scan another parcel
                     </Button>
                 </div>
+            ) : mode === 'cancel' ? (
+                <form onSubmit={submitCancel}>
+                    <div className="space-y-6 p-4">
+                        {!canReturn && (
+                            <p className="rounded-lg bg-amber-500/15 p-3 text-sm text-amber-900 dark:text-amber-100">
+                                {found.why_not}
+                            </p>
+                        )}
+                        <Step n={1} title="What happened?">
+                            <ModeChoice
+                                mode={mode}
+                                modes={modes}
+                                onChange={setMode}
+                                floor={floor}
+                            />
+                        </Step>
+                        <Step
+                            n={2}
+                            title="Cancel the order"
+                            hint={found.cancel.note}
+                        >
+                            <div className="space-y-1.5">
+                                <Label htmlFor="cancel_reason">
+                                    Why was it cancelled? (optional)
+                                </Label>
+                                <Input
+                                    id="cancel_reason"
+                                    value={cancelForm.data.reason}
+                                    onChange={(e) =>
+                                        cancelForm.setData(
+                                            'reason',
+                                            e.target.value,
+                                        )
+                                    }
+                                    placeholder="Cancelled by the buyer"
+                                    maxLength={255}
+                                    className={cn(floor && 'h-12')}
+                                />
+                                <InputError
+                                    message={cancelForm.errors.reason}
+                                />
+                            </div>
+                        </Step>
+                    </div>
+                    <div
+                        className={cn(
+                            'bg-muted/40 flex gap-2 border-t p-4',
+                            floor
+                                ? 'bg-card/95 sticky bottom-0 z-10 flex-row rounded-b-2xl pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-4px_12px_rgba(0,0,0,0.06)] backdrop-blur'
+                                : 'flex-col-reverse sm:flex-row sm:justify-end',
+                        )}
+                    >
+                        <Button
+                            type="button"
+                            variant="outline"
+                            className={cn(floor && 'h-12 flex-1')}
+                            onClick={onCancel}
+                        >
+                            Scan another
+                        </Button>
+                        <Button
+                            type="submit"
+                            variant="destructive"
+                            className={cn(floor && 'h-12 flex-[2]')}
+                            disabled={cancelForm.processing}
+                        >
+                            <Ban className="size-4" />
+                            {found.cancel.puts_back
+                                ? 'Mark cancelled, put stock back'
+                                : 'Mark cancelled'}
+                        </Button>
+                    </div>
+                </form>
             ) : (
                 <form onSubmit={submit}>
                     <div className="space-y-6 p-4">
-                        <Step n={++step} title="Why did it come back?">
-                            <div
-                                role="radiogroup"
-                                aria-label="Why it came back"
-                                className="grid gap-2 sm:grid-cols-2"
-                            >
-                                {kinds.map((k) => {
-                                    const on = form.data.kind === k.value;
-
-                                    return (
-                                        <button
-                                            key={k.value}
-                                            type="button"
-                                            role="radio"
-                                            aria-checked={on}
-                                            onClick={() =>
-                                                form.setData('kind', k.value)
-                                            }
-                                            className={cn(
-                                                'flex items-start gap-3 rounded-lg border p-3 text-left',
-                                                floor && 'py-4',
-                                                on
-                                                    ? 'border-primary bg-primary/5 ring-primary/30 ring-1'
-                                                    : 'hover:bg-muted/60',
-                                            )}
-                                        >
-                                            <span
-                                                className={cn(
-                                                    'mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border',
-                                                    on && 'border-primary',
-                                                )}
-                                            >
-                                                {on && (
-                                                    <span className="bg-primary size-2 rounded-full" />
-                                                )}
-                                            </span>
-                                            <span>
-                                                <span className="block text-sm font-medium">
-                                                    {k.label}
-                                                </span>
-                                                {KIND_HINT[k.value] && (
-                                                    <span className="text-muted-foreground block text-xs">
-                                                        {KIND_HINT[k.value]}
-                                                    </span>
-                                                )}
-                                            </span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
+                        <Step n={++step} title="What happened?">
+                            <ModeChoice
+                                mode={mode}
+                                modes={modes}
+                                onChange={setMode}
+                                floor={floor}
+                            />
                         </Step>
 
                         <Step
@@ -675,7 +810,7 @@ export function ReturnPanel({
                                 className={cn(floor && 'h-12 flex-1')}
                                 onClick={onCancel}
                             >
-                                Cancel
+                                Scan another
                             </Button>
                             <Button
                                 type="submit"

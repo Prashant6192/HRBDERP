@@ -1,3 +1,5 @@
+import type { PDFDocumentProxy } from 'pdfjs-dist';
+import type { Box } from '@/lib/label-crop';
 import type { DispatchTone } from '@/types';
 
 export type ParcelLine = {
@@ -111,6 +113,8 @@ export type PrintPlan = {
         file_id: number;
         pages: number[];
         courier: string | null;
+        /** Meesho and Flipkart: cut to the label for a 4×6 printer. */
+        crop?: boolean;
     }[];
     files: Record<string, string>;
 };
@@ -168,44 +172,153 @@ export function pieceCount(p: Parcel): number {
     return p.picks.reduce((n, pick) => n + Number(pick.units), 0);
 }
 
+/** Where the print size choice is remembered, on this computer only. */
+const FULL_PAGE_KEY = 'hrbd.print.full-page';
+
+/**
+ * Whether Meesho and Flipkart labels print as the whole page with the tax
+ * invoice instead of cut to 4×6. Remembered on this computer.
+ */
+export function printsFullPage(): boolean {
+    try {
+        return window.localStorage.getItem(FULL_PAGE_KEY) === '1';
+    } catch {
+        return false;
+    }
+}
+
+export function rememberFullPage(full: boolean): void {
+    try {
+        window.localStorage.setItem(FULL_PAGE_KEY, full ? '1' : '0');
+    } catch {
+        // Not remembered; the choice still holds for this print.
+    }
+}
+
+/** Labels already measured in this tab: file URL and page to the label. */
+const measured = new Map<string, Box | null>();
+
+export type PrintOptions = {
+    /** Print Meesho and Flipkart pages whole, with the invoice. */
+    fullPage?: boolean;
+    onProgress?: (done: number, total: number) => void;
+};
+
 /**
  * Put the chosen pages of the marketplace's own PDFs into one document, in
- * the order given, and open the print dialog. The originals are never
- * changed: this happens in the browser.
+ * the order given, and open the print dialog. Meesho and Flipkart pages
+ * are cut to their label on a 4×6 inch page unless the whole page is
+ * asked for. The originals are never changed: this happens in the
+ * browser.
  */
-export async function printPlan(plan: PrintPlan): Promise<void> {
-    const { PDFDocument } = await import('pdf-lib');
+export async function printPlan(
+    plan: PrintPlan,
+    options: PrintOptions = {},
+): Promise<void> {
+    const [{ PDFDocument, degrees }, crop] = await Promise.all([
+        import('pdf-lib'),
+        import('@/lib/label-crop'),
+    ]);
+    const cutting = !options.fullPage && plan.parts.some((p) => p.crop);
+    const lib = cutting ? await import('@/lib/label-pictures') : null;
     const out = await PDFDocument.create();
     const sources = new Map<
         number,
-        Awaited<ReturnType<typeof PDFDocument.load>>
+        {
+            doc: Awaited<ReturnType<typeof PDFDocument.load>>;
+            bytes: ArrayBuffer;
+            seen: PDFDocumentProxy | null;
+        }
     >();
+    const total = plan.parts.reduce((n, p) => n + p.pages.length, 0);
+    let done = 0;
 
-    for (const part of plan.parts) {
-        let source = sources.get(part.file_id);
+    try {
+        for (const part of plan.parts) {
+            const url = plan.files[String(part.file_id)];
+            let source = sources.get(part.file_id);
 
-        if (!source) {
-            const response = await fetch(plan.files[String(part.file_id)], {
-                credentials: 'same-origin',
-            });
+            if (!source) {
+                const response = await fetch(url, {
+                    credentials: 'same-origin',
+                });
 
-            if (!response.ok) {
-                throw new Error(
-                    `A label file could not be fetched (${response.status}).`,
-                );
+                if (!response.ok) {
+                    throw new Error(
+                        `A label file could not be fetched (${response.status}).`,
+                    );
+                }
+
+                const bytes = await response.arrayBuffer();
+                source = {
+                    doc: await PDFDocument.load(bytes, {
+                        ignoreEncryption: true,
+                    }),
+                    bytes,
+                    seen: null,
+                };
+                sources.set(part.file_id, source);
             }
 
-            source = await PDFDocument.load(await response.arrayBuffer(), {
-                ignoreEncryption: true,
-            });
-            sources.set(part.file_id, source);
-        }
+            const indices = part.pages
+                .map((p) => p - 1)
+                .filter((i) => i >= 0 && i < source.doc.getPageCount());
 
-        const indices = part.pages
-            .map((p) => p - 1)
-            .filter((i) => i >= 0 && i < source.getPageCount());
-        const copied = await out.copyPages(source, indices);
-        copied.forEach((page) => out.addPage(page));
+            for (const index of indices) {
+                let box: Box | null = null;
+
+                if (cutting && part.crop && lib) {
+                    const key = `${url}#${index}`;
+
+                    if (measured.has(key)) {
+                        box = measured.get(key) ?? null;
+                    } else {
+                        try {
+                            // pdf.js takes the bytes it is given: hand it a copy.
+                            source.seen ??= await (
+                                await lib.pdfjs()
+                            ).getDocument({
+                                data: new Uint8Array(source.bytes.slice(0)),
+                            }).promise;
+                            const page = await source.seen.getPage(index + 1);
+                            box = await crop.findLabel(page);
+                            page.cleanup();
+                        } catch {
+                            box = null;
+                        }
+
+                        measured.set(key, box);
+                    }
+                }
+
+                if (box) {
+                    const [label] = await out.embedPages(
+                        [source.doc.getPage(index)],
+                        [box],
+                    );
+                    const at = crop.placeOnLabel(box);
+                    out.addPage([crop.LABEL_WIDTH, crop.LABEL_HEIGHT]).drawPage(
+                        label,
+                        {
+                            x: at.x,
+                            y: at.y,
+                            width: (box.right - box.left) * at.scale,
+                            height: (box.top - box.bottom) * at.scale,
+                            rotate: degrees(at.sideways ? 90 : 0),
+                        },
+                    );
+                } else {
+                    const [copied] = await out.copyPages(source.doc, [index]);
+                    out.addPage(copied);
+                }
+
+                options.onProgress?.(++done, total);
+            }
+        }
+    } finally {
+        for (const s of sources.values()) {
+            await s.seen?.destroy();
+        }
     }
 
     const bytes = await out.save();

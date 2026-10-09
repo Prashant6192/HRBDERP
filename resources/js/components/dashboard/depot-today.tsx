@@ -213,7 +213,7 @@ export function DepotToday({
                                         All {n(o.packed)} parcels packed
                                     </p>
                                     <p className="text-muted-foreground text-sm">
-                                        {n(o.handed_over)} handed to couriers ·{' '}
+                                        {n(o.handed_over)} dispatched ·{' '}
                                         {n(o.packed - o.handed_over)} waiting
                                         for pickup
                                     </p>
@@ -231,13 +231,13 @@ export function DepotToday({
                         o.total > 0 && (
                             <div className="mt-6 flex flex-col gap-3">
                                 <Progress
-                                    label="Packed"
+                                    label="Scanned"
                                     value={o.packed}
                                     total={o.total}
                                     className="bg-orange-500"
                                 />
                                 <Progress
-                                    label="Handed to couriers"
+                                    label="Dispatched"
                                     value={o.handed_over}
                                     total={o.total}
                                     className="bg-emerald-600"

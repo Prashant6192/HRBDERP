@@ -18,6 +18,7 @@ use App\Domain\Marketplace\Enums\ShipmentStatus;
 use App\Domain\Marketplace\Enums\StockState;
 use App\Domain\Marketplace\Exceptions\OnlineOrderException;
 use App\Domain\Marketplace\Models\Brand;
+use App\Domain\Marketplace\Models\LabelFile;
 use App\Domain\Marketplace\Models\LabelPrint;
 use App\Domain\Marketplace\Models\Marketplace;
 use App\Domain\Marketplace\Models\Shipment;
@@ -241,6 +242,8 @@ class OnlineOrderServiceTest extends TestCase
         $this->assertSame(4, $plan['shipments']);
         $this->assertSame(['Delhivery', 'Shadowfax', 'Valmo', 'Valmo'], array_column($plan['parts'], 'courier'));
         $this->assertSame([[4], [2], [1], [3]], array_column($plan['parts'], 'pages'));
+        // Meesho prints its label above the invoice: each page is cut to 4×6.
+        $this->assertSame([true, true, true, true], array_column($plan['parts'], 'crop'));
         $this->assertSame(4, Shipment::query()->where('status', ShipmentStatus::Printed->value)->count());
         $this->assertSame(1, LabelPrint::query()->count());
 
@@ -480,6 +483,9 @@ class OnlineOrderServiceTest extends TestCase
         $warning = $batch->files->first()->warnings[0];
         $this->assertStringContainsString('registered to ship from Uttarakhand', $warning);
         $this->assertStringContainsString('but the stock will leave', $warning);
+
+        // Flipkart prints its label above the invoice: the print cuts it to 4×6.
+        $this->assertSame([true], array_column($this->orders->print($batch, 'all', $this->agency)['parts'], 'crop'));
     }
 
     #[Test]
@@ -505,7 +511,7 @@ class OnlineOrderServiceTest extends TestCase
     }
 
     #[Test]
-    public function a_file_can_be_taken_back_out_until_something_in_it_is_printed(): void
+    public function a_file_can_be_taken_back_out_until_something_in_it_is_scanned(): void
     {
         $batch = $this->orders->upload($this->rahatRooh, $this->meesho, $this->depotFg, [
             LabelFixtures::meesho([$this->parcel('VL0000000000001')]),
@@ -519,12 +525,79 @@ class OnlineOrderServiceTest extends TestCase
         $this->assertSame('23', $this->free());
         Storage::disk('files')->assertMissing($file->path);
 
+        // Printed is still only paper: the file can come out, and the same
+        // PDF can be uploaded again (a file put under the wrong marketplace).
         $batch = $this->orders->upload($this->rahatRooh, $this->meesho, $this->depotFg, [
             LabelFixtures::meesho([$this->parcel('VL0000000000001')], 'again.pdf'),
         ], $this->agency);
         $this->orders->print($batch, 'all', $this->agency);
-
-        $this->expectExceptionMessage('some of its labels have already been printed or packed');
         $this->orders->removeFile($batch->files()->first());
+        $this->assertSame(0, Shipment::query()->count());
+        $this->assertSame('23', $this->free());
+
+        // Once a parcel is scanned, stock has gone out: the file stays.
+        $batch = $this->orders->upload($this->rahatRooh, $this->meesho, $this->depotFg, [
+            LabelFixtures::meesho([$this->parcel('VL0000000000001')], 'again.pdf'),
+        ], $this->agency);
+        $this->orders->print($batch, 'all', $this->agency);
+        $this->orders->pack($this->orders->findByCode('VL0000000000001'), $this->packer);
+
+        $this->expectExceptionMessage('some of its parcels have already been scanned, dispatched or returned');
+        $this->orders->removeFile($batch->files()->first());
+    }
+
+    #[Test]
+    public function a_meesho_file_chosen_under_another_marketplace_is_refused_naming_meesho(): void
+    {
+        $myntra = Marketplace::query()->where('code', 'MYNTRA')->sole();
+
+        try {
+            $this->orders->upload($this->rahatRooh, $myntra, $this->depotFg, [
+                LabelFixtures::meesho([$this->parcel('VL0000000000001'), $this->parcel('VL0000000000002')], 'Sub_Order_Labels.pdf'),
+            ], $this->agency);
+            $this->fail('A Meesho file was taken under Myntra.');
+        } catch (OnlineOrderException $e) {
+            $this->assertSame('Sub_Order_Labels.pdf looks like Meesho labels, but Myntra was chosen. Upload it again with Meesho selected.', $e->getMessage());
+        }
+
+        $this->assertSame(0, Shipment::query()->count());
+        $this->assertSame(0, LabelFile::query()->count());
+
+        // A file of pictures (Myntra, Amazon) chosen under Meesho.
+        try {
+            $this->orders->upload($this->rahatRooh, $this->meesho, $this->depotFg, [LabelFixtures::imageOnly(2, 'myntra.pdf')], $this->agency);
+            $this->fail('A picture-only file was taken under Meesho.');
+        } catch (OnlineOrderException $e) {
+            $this->assertStringContainsString('has only pictures, unlike Meesho', $e->getMessage());
+        }
+
+        // Under Meesho it reads as always.
+        $this->orders->upload($this->rahatRooh, $this->meesho, $this->depotFg, [
+            LabelFixtures::meesho([$this->parcel('VL0000000000001'), $this->parcel('VL0000000000002')], 'Sub_Order_Labels.pdf'),
+        ], $this->agency);
+        $this->assertSame(['Valmo', 'Valmo'], Shipment::query()->orderBy('id')->pluck('courier')->all());
+    }
+
+    #[Test]
+    public function a_value_too_long_for_its_field_is_flagged_not_a_stopped_upload(): void
+    {
+        // A re-saved PDF can run a label's words together: one parcel's
+        // order number and state came out longer than their fields.
+        $this->app->instance(AiLabelReader::class, new FakeLabelReader([
+            ['pages' => [1], 'awb' => 'AMZ0000000001', 'courier' => 'Amazon Shipping', 'order_number' => str_repeat('402-1234567-1234567 ', 6),
+                'customer_state' => str_repeat('Uttar Pradesh Sold by ', 5), 'customer_name' => str_repeat('A', 300), 'payable_amount' => '99999999999',
+                'lines' => [['seller_sku' => 'Hair_Oil_500ml', 'description' => null, 'quantity' => 1]]],
+        ]));
+
+        app(OnlineOrderService::class)->upload($this->rahatRooh, $this->amazon, $this->depotFg, [LabelFixtures::imageOnly(1, 'amazon.pdf')], $this->agency);
+
+        $parcel = Shipment::query()->sole();
+        $this->assertSame('AMZ0000000001', $parcel->awb, 'The rest of the parcel is kept.');
+        $this->assertNull($parcel->order_number);
+        $this->assertNull($parcel->customer_state);
+        $this->assertNull($parcel->payable_amount);
+        $this->assertSame(255, mb_strlen((string) $parcel->customer_name));
+        $this->assertTrue(collect($parcel->warnings)->contains(fn ($w) => str_contains($w, 'order number read from this label made no sense')));
+        $this->assertTrue(collect($parcel->warnings)->contains(fn ($w) => str_contains($w, 'customer name read from this label was too long')));
     }
 }

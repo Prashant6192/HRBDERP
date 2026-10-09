@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/dialog';
 import {
     DropdownMenu,
+    DropdownMenuCheckboxItem,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
@@ -50,6 +51,8 @@ import {
     needsAttention,
     postJson,
     printPlan,
+    printsFullPage,
+    rememberFullPage,
     type Abilities,
     type Batch,
     type Parcel,
@@ -406,6 +409,9 @@ export default function OnlineOrderBatch({
 }) {
     const [filter, setFilter] = useState<Filter>('all');
     const [printing, setPrinting] = useState(false);
+    const [progress, setProgress] = useState<string | null>(null);
+    const [fullPage, setFullPage] = useState(printsFullPage);
+    const crops = ['Meesho', 'Flipkart'].includes(batch.marketplace ?? '');
     const [editing, setEditing] = useState<Parcel | null>(null);
     const [cancelling, setCancelling] = useState<Parcel | null>(null);
     const [forcing, setForcing] = useState<Parcel | null>(null);
@@ -460,6 +466,28 @@ export default function OnlineOrderBatch({
         scope: 'all' | 'unprinted' | 'courier' | 'one',
         extra: { courier?: string | null; shipment_id?: number } = {},
     ) => {
+        // A label printed twice is how a parcel gets packed twice.
+        const going = shipments.filter((p) =>
+            scope === 'one'
+                ? p.id === extra.shipment_id
+                : scope === 'courier'
+                  ? p.courier === (extra.courier ?? null) &&
+                    p.status !== 'cancelled'
+                  : scope === 'unprinted'
+                    ? p.status === 'uploaded'
+                    : p.status !== 'cancelled',
+        );
+        const again = going.filter((p) => p.print_count > 0).length;
+
+        if (
+            again > 0 &&
+            !window.confirm(
+                `${again} of these label(s) were printed before. Printing them again can lead to the same order being packed twice. Print anyway?`,
+            )
+        ) {
+            return;
+        }
+
         setPrinting(true);
 
         try {
@@ -473,7 +501,11 @@ export default function OnlineOrderBatch({
                 return;
             }
 
-            await printPlan(data);
+            await printPlan(data, {
+                fullPage,
+                onProgress: (done, total) =>
+                    setProgress(total > 20 ? `${done}/${total}` : null),
+            });
             toast.success(
                 `${data.shipments} label(s), ${data.pages} page(s) sent to print.`,
             );
@@ -482,6 +514,7 @@ export default function OnlineOrderBatch({
             toast.error(e instanceof Error ? e.message : String(e));
         } finally {
             setPrinting(false);
+            setProgress(null);
         }
     };
 
@@ -541,7 +574,9 @@ export default function OnlineOrderBatch({
                                             ) : (
                                                 <Printer className="size-4" />
                                             )}
-                                            Print labels
+                                            {printing && progress
+                                                ? `Preparing ${progress}…`
+                                                : 'Print labels'}
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent
@@ -585,6 +620,28 @@ export default function OnlineOrderBatch({
                                                 )
                                             </DropdownMenuItem>
                                         ))}
+                                        {crops && (
+                                            <>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuCheckboxItem
+                                                    checked={fullPage}
+                                                    onSelect={(e) =>
+                                                        e.preventDefault()
+                                                    }
+                                                    onCheckedChange={(on) => {
+                                                        setFullPage(on);
+                                                        rememberFullPage(on);
+                                                    }}
+                                                >
+                                                    Full page with invoice
+                                                </DropdownMenuCheckboxItem>
+                                                <p className="text-muted-foreground px-2 pb-1.5 text-xs">
+                                                    {fullPage
+                                                        ? 'Prints the whole A4 page.'
+                                                        : 'Labels print cut to 4×6 inch for the label printer.'}
+                                                </p>
+                                            </>
+                                        )}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             )}
@@ -843,7 +900,7 @@ export default function OnlineOrderBatch({
                                                 </Button>
                                             }
                                             title={`Remove ${f.name}?`}
-                                            description="Its parcels are removed with it and what was held for them is let go. Not possible once any of its labels has been printed."
+                                            description="Its parcels are removed with it and what was held for them is let go. Use it for a file uploaded under the wrong brand or marketplace. Not possible once any of its parcels has been scanned."
                                             confirmLabel="Remove"
                                             destructive
                                             action={() =>

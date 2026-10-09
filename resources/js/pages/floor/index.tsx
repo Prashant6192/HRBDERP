@@ -9,14 +9,12 @@ import {
     PackageCheck,
     PackagePlus,
     ScanLine,
-    Truck,
     Undo2,
     type LucideIcon,
 } from 'lucide-react';
 import { create as createReceipt } from '@/routes/goods-receipts';
 import { index as countsIndex } from '@/routes/counts';
 import {
-    handover,
     issue,
     pack,
     production,
@@ -163,16 +161,8 @@ export default function FloorHome({
                         <Tile
                             href={pack().url}
                             icon={PackageCheck}
-                            label="Pack parcels"
-                            hint="Scan each online order's label"
-                        />
-                    )}
-                    {can.handover && (
-                        <Tile
-                            href={handover().url}
-                            icon={Truck}
-                            label="Courier pickup"
-                            hint="Hand packed parcels over"
+                            label="Scan parcels"
+                            hint="Packed and with the courier, one scan"
                         />
                     )}
                     {can.return && (

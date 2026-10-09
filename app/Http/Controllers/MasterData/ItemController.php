@@ -29,6 +29,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -166,8 +167,31 @@ abstract class ItemController extends Controller
     {
         $this->authorize('create', $this->modelClass());
 
+        $data = $request->validated();
+
+        // The code is unique even among deleted items. A deleted item of
+        // this kind with the same code is brought back with what was just
+        // entered; one of another kind keeps its code, and the form says so.
+        $deleted = Item::onlyTrashed()->where('code', $data['code'])->first();
+
+        if ($deleted !== null && $deleted->type !== $this->itemType()) {
+            throw ValidationException::withMessages(['code' => "{$data['code']} belonged to {$deleted->name}, a deleted {$deleted->type->label()}. Choose another code."]);
+        }
+
+        if ($deleted !== null) {
+            $deleted->restore();
+            $deleted->update([...$data, 'updated_by' => $request->user()->id]);
+
+            Inertia::flash('toast', [
+                'type' => 'success',
+                'message' => "{$deleted->code} had been deleted; it is back, with the details you entered.",
+            ]);
+
+            return to_route("{$this->routeName()}.index");
+        }
+
         $item = $this->modelClass()::create([
-            ...$request->validated(),
+            ...$data,
             'created_by' => $request->user()->id,
             'updated_by' => $request->user()->id,
         ]);
@@ -231,6 +255,12 @@ abstract class ItemController extends Controller
     public function update(UpdateItemRequest $request, Item $item): RedirectResponse
     {
         $this->authorize('update', $item);
+
+        $taken = Item::onlyTrashed()->where('code', $request->validated('code'))->whereKeyNot($item->id)->first();
+
+        if ($taken !== null) {
+            throw ValidationException::withMessages(['code' => "{$taken->code} belongs to {$taken->name}, a deleted {$taken->type->label()}. Choose another code."]);
+        }
 
         $item->update([
             ...$request->validated(),

@@ -38,6 +38,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\UomSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\FakeLabelReader;
@@ -157,6 +158,14 @@ class CombosCancelAndReturnsTest extends TestCase
     private function onHand(Product $product, Warehouse $store, ?InventoryLot $lot = null): string
     {
         return (string) app(StockBalanceService::class)->onHand($product, $store, $lot)->strippedOfTrailingZeros();
+    }
+
+    /**
+     * @return array{type: string, message: string}
+     */
+    private function toast(): array
+    {
+        return Inertia::getFlashed()['toast'] ?? ['type' => '', 'message' => ''];
     }
 
     private function packAndHandOver(string $awb): Shipment
@@ -530,18 +539,102 @@ class CombosCancelAndReturnsTest extends TestCase
 
         $this->actingAs($this->packer)->get(route('floor.return'))
             ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->component('floor/return')->has('kinds', 2)->has('stores', 1));
+            ->assertInertia(fn (Assert $page) => $page->component('floor/return')->has('stores', 1));
 
+        // Every parcel that comes back is a customer return: RTO is no longer offered.
         $this->actingAs($this->packer)->post(route('online-orders.returns.store'), [
             'shipment_id' => $shipment->id,
             'kind' => 'rto',
+            'lines' => [['item_id' => $this->oil->id, 'good' => '1', 'damaged' => '0']],
+        ])->assertInvalid('kind');
+
+        $this->actingAs($this->packer)->post(route('online-orders.returns.store'), [
+            'shipment_id' => $shipment->id,
             'lines' => [['item_id' => $this->oil->id, 'good' => '1', 'damaged' => '0']],
             'from' => 'floor',
         ])->assertRedirect(route('floor.return'));
 
         $this->assertSame(ShipmentStatus::Returned, $shipment->refresh()->status);
+        $this->assertSame(ReturnKind::Customer, $shipment->shipmentReturn->kind);
 
         // The agency has no floor return screen.
         $this->actingAs($this->agency)->get(route('floor.return'))->assertRedirect(route('online-orders.index'));
+    }
+
+    // ---- Cancelled orders scanned back on the returns screen ---------------
+
+    #[Test]
+    public function a_parcel_back_from_the_courier_marked_cancelled_puts_its_stock_back(): void
+    {
+        $this->orders->mapSku($this->meesho, $this->rahatRooh, 'RR 500 ml', $this->oil, 1, $this->agency);
+        $this->upload([$this->label('VL1000000000091', ['qty' => 2])]);
+        $shipment = $this->packAndHandOver('VL1000000000091');
+        $this->assertSame('18', $this->onHand($this->oil, $this->depotFg));
+
+        $found = $this->actingAs($this->packer)->getJson(route('online-orders.returns.lookup', ['code' => 'VL1000000000091']))->assertOk()->json();
+        $this->assertNull($found['why_not']);
+        $this->assertTrue($found['cancel']['allowed']);
+        $this->assertTrue($found['cancel']['puts_back']);
+        $this->assertStringContainsString('goes back into', $found['cancel']['note']);
+
+        $this->actingAs($this->packer)->post(route('online-orders.returns.cancel', $shipment), ['reason' => 'Buyer cancelled'])
+            ->assertRedirect(route('online-orders.returns.create'));
+        $this->assertStringContainsString('Its stock is back in Paper Market Depot', $this->toast()['message']);
+
+        $shipment->refresh();
+        $this->assertSame(ShipmentStatus::Cancelled, $shipment->status);
+        $this->assertSame('Buyer cancelled', $shipment->cancel_reason);
+        $this->assertSame('20', $this->onHand($this->oil, $this->depotFg));
+        $this->assertNull($shipment->shipmentReturn);
+
+        // Scanned again, it is not taken twice.
+        $again = $this->actingAs($this->packer)->getJson(route('online-orders.returns.lookup', ['code' => 'VL1000000000091']))->json();
+        $this->assertFalse($again['cancel']['allowed']);
+        $this->assertNotNull($again['why_not']);
+    }
+
+    #[Test]
+    public function a_label_never_packed_can_be_cancelled_from_the_returns_screen_too(): void
+    {
+        $this->orders->mapSku($this->meesho, $this->rahatRooh, 'RR 500 ml', $this->oil, 1, $this->agency);
+        $this->upload([$this->label('VL1000000000092')]);
+        $shipment = Shipment::query()->sole();
+        $this->assertSame('19', $this->free($this->oil));
+
+        $found = $this->actingAs($this->packer)->getJson(route('online-orders.returns.lookup', ['code' => 'VL1000000000092']))->json();
+        $this->assertStringContainsString('never packed', $found['why_not']);
+        $this->assertTrue($found['cancel']['allowed']);
+        $this->assertFalse($found['cancel']['puts_back']);
+
+        $this->actingAs($this->packer)->post(route('online-orders.returns.cancel', $shipment), ['from' => 'floor'])
+            ->assertRedirect(route('floor.return'));
+        $this->assertStringContainsString('Nothing had left the shelf', $this->toast()['message']);
+
+        $this->assertSame(ShipmentStatus::Cancelled, $shipment->refresh()->status);
+        $this->assertNotEmpty($shipment->cancel_reason);
+        $this->assertSame('20', $this->free($this->oil));
+    }
+
+    #[Test]
+    public function a_parcel_already_received_back_cannot_also_be_cancelled(): void
+    {
+        $this->orders->mapSku($this->meesho, $this->rahatRooh, 'RR 500 ml', $this->oil, 1, $this->agency);
+        $this->upload([$this->label('VL1000000000093')]);
+        $shipment = $this->packAndHandOver('VL1000000000093');
+        $this->returns->receive($shipment, ReturnKind::Customer, [$this->oil->id => ['good' => 1]], $this->packer);
+
+        $found = $this->actingAs($this->packer)->getJson(route('online-orders.returns.lookup', ['code' => 'VL1000000000093']))->json();
+        $this->assertFalse($found['cancel']['allowed']);
+
+        $this->actingAs($this->packer)->from(route('online-orders.returns.create'))
+            ->post(route('online-orders.returns.cancel', $shipment))
+            ->assertRedirect(route('online-orders.returns.create'));
+        $this->assertSame('error', $this->toast()['type']);
+        $this->assertStringContainsString('already received back', $this->toast()['message']);
+        $this->assertSame(ShipmentStatus::Returned, $shipment->refresh()->status);
+        $this->assertSame('20', $this->onHand($this->oil, $this->depotFg));
+
+        // The agency cannot cancel from here.
+        $this->actingAs($this->agency)->post(route('online-orders.returns.cancel', $shipment))->assertForbidden();
     }
 }

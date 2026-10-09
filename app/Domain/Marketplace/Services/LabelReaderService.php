@@ -13,6 +13,7 @@ use App\Domain\Marketplace\Exceptions\OnlineOrderException;
 use App\Domain\Marketplace\Models\Marketplace;
 use App\Domain\Marketplace\Readers\FlipkartLabelParser;
 use App\Domain\Marketplace\Readers\MeeshoLabelParser;
+use App\Domain\Marketplace\Readers\MyntraLabelParser;
 use Smalot\PdfParser\Parser;
 use Throwable;
 
@@ -20,9 +21,11 @@ use Throwable;
  * Turns a label PDF into parcels.
  *
  * Where the marketplace prints text (Meesho, Flipkart) each page is read
- * exactly, on this server, at no cost. Pages that carry no text — Amazon
- * and Myntra send pictures — or that the text reader could not place go to
- * the AI reader, which also groups an Amazon label with the invoice pages
+ * exactly, on this server, at no cost. Myntra's pages are pictures: the
+ * uploader's browser reads their words and barcodes and sends them with
+ * the file ($seen), and the Myntra parser reads those — no AI involved.
+ * Amazon's pictures, and pages a text reader could not place, go to the
+ * AI reader, which also groups an Amazon label with the invoice pages
  * after it. A page nobody could read still becomes a parcel, flagged, so
  * it is never silently dropped from the day's work.
  */
@@ -30,7 +33,10 @@ class LabelReaderService
 {
     public function __construct(private readonly AiLabelReader $ai) {}
 
-    public function read(string $contents, string $filename, Marketplace $marketplace): LabelReading
+    /**
+     * @param  array<int, string>  $seen  what the browser read on picture pages, by page number
+     */
+    public function read(string $contents, string $filename, Marketplace $marketplace, array $seen = []): LabelReading
     {
         [$texts, $pageCount] = $this->pages($contents);
 
@@ -38,11 +44,17 @@ class LabelReaderService
             throw new OnlineOrderException("{$filename} has no pages that could be opened. Check it is the label PDF the marketplace gave you.");
         }
 
+        $this->assertRightMarketplace($texts, $filename, $marketplace);
+
         $parser = $this->parserFor($marketplace->reader);
         $parcels = [];
 
         if ($parser !== null) {
             foreach ($texts as $page => $text) {
+                if (trim($text) === '' && isset($seen[$page])) {
+                    $text = $seen[$page];
+                }
+
                 $parcel = trim($text) === '' ? null : $parser->parse($text, $page);
 
                 if ($parcel !== null && ! $parcel->isBlank()) {
@@ -62,7 +74,13 @@ class LabelReaderService
         $model = null;
         $readWith = $parcels === [] ? 'ai' : $marketplace->reader->value.'+ai';
 
-        if ($this->ai->available()) {
+        if ($marketplace->reader === LabelReaderKind::Myntra) {
+            // Myntra is never sent to the AI reader.
+            $readWith = $marketplace->reader->value;
+            $warnings[] = $seen === []
+                ? 'These pages are pictures and this upload did not bring their reading. Upload from the ERP\'s Upload labels page in Chrome or Edge so the computer reads them, or type the AWB and product on each flagged parcel.'
+                : count($unread).' page(s) could not be read. Type their AWB and product on each flagged parcel.';
+        } elseif ($this->ai->available()) {
             $reading = $this->ai->read($contents, $filename, $marketplace->name, $pageCount);
             $model = $reading->model;
             $warnings = $reading->warnings;
@@ -96,6 +114,53 @@ class LabelReaderService
         ksort($parcels);
 
         return new LabelReading(array_values($parcels), $readWith, $model, $ignored, $warnings, $pageCount);
+    }
+
+    /**
+     * A file chosen under the wrong marketplace reads as nothing: a Meesho
+     * PDF under Myntra became 146 parcels with no AWB, product or courier.
+     * Meesho's and Flipkart's labels print text that says whose they are,
+     * so a file most of whose pages read as another marketplace's labels
+     * is refused, naming the right one.
+     *
+     * @param  array<int, string>  $texts
+     */
+    private function assertRightMarketplace(array $texts, string $filename, Marketplace $marketplace): void
+    {
+        $pages = array_filter($texts, fn (string $t) => trim($t) !== '');
+
+        // Meesho's and Flipkart's labels always carry text; a file of
+        // pictures only is a Myntra or Amazon file chosen under them.
+        if ($pages === []) {
+            if (in_array($marketplace->reader, [LabelReaderKind::Meesho, LabelReaderKind::Flipkart], true)) {
+                throw new OnlineOrderException("{$filename} has only pictures, unlike {$marketplace->name}'s labels. If it is a Myntra or Amazon file, upload it again with that marketplace selected.");
+            }
+
+            return;
+        }
+
+        foreach ([LabelReaderKind::Meesho, LabelReaderKind::Flipkart] as $kind) {
+            if ($kind === $marketplace->reader) {
+                continue;
+            }
+
+            $parser = $this->parserFor($kind);
+            $read = 0;
+
+            foreach ($pages as $page => $text) {
+                $parcel = $parser?->parse($text, $page);
+
+                if ($parcel !== null && $parcel->awb !== null) {
+                    $read++;
+                }
+            }
+
+            if ($read * 2 >= count($texts)) {
+                $name = Marketplace::query()->where('reader', $kind->value)->value('name') ?? ucfirst($kind->value);
+
+                throw new OnlineOrderException("{$filename} looks like {$name} labels, but {$marketplace->name} was chosen. Upload it again with {$name} selected.");
+            }
+        }
     }
 
     /**
@@ -133,6 +198,7 @@ class LabelReaderService
         return match ($kind) {
             LabelReaderKind::Meesho => new MeeshoLabelParser,
             LabelReaderKind::Flipkart => new FlipkartLabelParser,
+            LabelReaderKind::Myntra => new MyntraLabelParser,
             LabelReaderKind::Ai => null,
         };
     }

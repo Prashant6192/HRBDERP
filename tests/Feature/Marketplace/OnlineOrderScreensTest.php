@@ -306,15 +306,17 @@ class OnlineOrderScreensTest extends TestCase
 
         $this->actingAs($this->packer)->get(route('floor.pack'))
             ->assertOk()
-            ->assertInertia(fn (AssertableInertia $page) => $page->component('floor/pack')->where('waiting', 3));
+            ->assertInertia(fn (AssertableInertia $page) => $page->component('floor/pack')->where('counts.to_scan', 3));
 
         $ok = $this->actingAs($this->packer)->postJson(route('floor.pack.scan'), ['code' => 'vl1000000000001'])->assertOk()->json();
         $this->assertTrue($ok['ok']);
         $this->assertSame('Rahat Rooh Hair Oil 200 ml', $ok['shipment']['lines'][0]['item']);
         $this->assertSame('2', $ok['shipment']['lines'][0]['units']);
 
-        $again = $this->actingAs($this->packer)->postJson(route('floor.pack.scan'), ['code' => 'VL1000000000001'])->assertStatus(422)->json();
-        $this->assertStringContainsString('Already packed by Packing Table', $again['message']);
+        // A second scan is not a second parcel: it says so, and takes nothing.
+        $again = $this->actingAs($this->packer)->postJson(route('floor.pack.scan'), ['code' => 'VL1000000000001'])->assertOk()->json();
+        $this->assertSame('already', $again['result']);
+        $this->assertStringContainsString('Already scanned by Packing Table', $again['message']);
 
         $unmapped = $this->actingAs($this->packer)->postJson(route('floor.pack.scan'), ['code' => 'VL1000000000003'])->assertStatus(422)->json();
         $this->assertStringContainsString('does not know which product', $unmapped['message']);
@@ -326,14 +328,15 @@ class OnlineOrderScreensTest extends TestCase
         $stop = $this->actingAs($this->packer)->postJson(route('floor.pack.scan'), ['code' => 'VL1000000000002'])->assertStatus(422)->json();
         $this->assertStringContainsString('Do not pack this parcel', $stop['message']);
 
-        // Someone assigned to another facility cannot pack the depot's parcels.
+        // Whoever packs works every facility's parcels: someone assigned to
+        // the factory packs the depot's too.
         $elsewhere = User::factory()->create();
         $elsewhere->assignRole(RoleName::StoreExecutive->value);
         $factory = Facility::factory()->withStores([WarehouseType::FinishedGoods])->create(['can_dispatch' => true]);
         app(EmployeeAssignmentService::class)->assign($elsewhere, $factory, null, ['is_primary' => true], null);
         $this->mapOil();
         $batch2 = $this->upload($this->agency, $this->rahatRooh, [$this->label('VL1000000000004')], 'b2.pdf');
-        $this->actingAs($elsewhere)->postJson(route('floor.pack.scan'), ['code' => 'VL1000000000004'])->assertForbidden();
+        $this->assertTrue($this->actingAs($elsewhere)->postJson(route('floor.pack.scan'), ['code' => 'VL1000000000004'])->assertOk()->json('ok'));
         $this->assertNotNull($batch2);
     }
 
@@ -343,8 +346,9 @@ class OnlineOrderScreensTest extends TestCase
         $this->upload($this->agency, $this->rahatRooh, [$this->label('VL1000000000001'), $this->label('VL1000000000002')]);
         $this->mapOil();
 
-        foreach (['VL1000000000001', 'VL1000000000002'] as $awb) {
-            $this->actingAs($this->packer)->postJson(route('floor.pack.scan'), ['code' => $awb])->assertOk();
+        // Packed without a scan (the office's way), so they wait for a sheet.
+        foreach (Shipment::query()->get() as $parcel) {
+            app(OnlineOrderService::class)->pack($parcel, $this->packer, 'manual', 'Scanner down');
         }
 
         $this->actingAs($this->packer)->get(route('floor.handover'))

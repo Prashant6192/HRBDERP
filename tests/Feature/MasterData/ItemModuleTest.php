@@ -336,4 +336,49 @@ class ItemModuleTest extends TestCase
             $this->assertSame('1.000000000000', $base->first()->factor_to_base);
         }
     }
+
+    #[Test]
+    public function a_product_deleted_earlier_comes_back_when_its_code_is_used_again(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RoleName::SuperAdmin->value);
+        $old = Product::factory()->create(['code' => 'FG-OIL-300', 'name' => 'Old name']);
+        $old->delete();
+
+        // The database keeps codes unique even among deleted items: this
+        // used to end in a server error.
+        $this->actingAs($admin)->post(route('products.store'), [
+            'code' => 'fg-oil-300',
+            'name' => 'Medicated Oil 300ml',
+            'stock_uom_id' => $this->kilogram->id,
+        ])->assertSessionHasNoErrors()->assertRedirect(route('products.index'));
+
+        $this->assertSame(1, Item::withTrashed()->where('code', 'FG-OIL-300')->count());
+        $back = Product::query()->where('code', 'FG-OIL-300')->sole();
+        $this->assertSame($old->id, $back->id);
+        $this->assertSame('Medicated Oil 300ml', $back->name);
+    }
+
+    #[Test]
+    public function a_code_held_by_a_deleted_item_of_another_kind_is_refused_in_words(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RoleName::SuperAdmin->value);
+        RawMaterial::factory()->create(['code' => 'RM-SLES', 'name' => 'SLES'])->delete();
+
+        $this->actingAs($admin)->post(route('products.store'), [
+            'code' => 'RM-SLES',
+            'name' => 'A product',
+            'stock_uom_id' => $this->kilogram->id,
+        ])->assertSessionHasErrors(['code']);
+
+        $product = Product::factory()->create(['code' => 'FG-1']);
+        $this->actingAs($admin)->put(route('products.update', $product), [
+            'code' => 'RM-SLES',
+            'name' => $product->name,
+            'stock_uom_id' => $this->kilogram->id,
+        ])->assertSessionHasErrors(['code']);
+
+        $this->assertSame('FG-1', $product->refresh()->code);
+    }
 }

@@ -41,9 +41,12 @@ final class LabelFixtures
     /**
      * A file of pictures only, as Amazon and Myntra send: pages with no text.
      */
-    public static function imageOnly(int $pages, string $name = 'amazon_labels.pdf'): UploadedFile
+    public static function imageOnly(int $pages, string $name = 'amazon_labels.pdf', int $variant = 0): UploadedFile
     {
-        return self::pdf(array_fill(0, $pages, '<div style="width:100px;height:100px;background:#000"></div>'), $name);
+        // The variant changes the picture, so two picture-only files differ.
+        $size = 100 + $variant;
+
+        return self::pdf(array_fill(0, $pages, "<div style=\"width:{$size}px;height:100px;background:#000\"></div>"), $name);
     }
 
     /**

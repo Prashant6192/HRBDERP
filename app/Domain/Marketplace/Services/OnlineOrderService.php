@@ -48,7 +48,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -84,8 +83,9 @@ class OnlineOrderService
      * store — opening one if there is none still open.
      *
      * @param  list<UploadedFile>  $files
+     * @param  array<string, array<int, string>>  $seen  what the browser read on each file's picture pages, by the file's SHA-256
      */
-    public function upload(Brand $brand, Marketplace $marketplace, Warehouse $store, array $files, User $user, ?CarbonImmutable $forDate = null): LabelBatch
+    public function upload(Brand $brand, Marketplace $marketplace, Warehouse $store, array $files, User $user, ?CarbonImmutable $forDate = null, array $seen = []): LabelBatch
     {
         if ($files === []) {
             throw new OnlineOrderException('Choose the label PDF to upload.');
@@ -119,7 +119,7 @@ class OnlineOrderService
         ]);
 
         foreach ($files as $file) {
-            $this->addFile($batch, $file, $user);
+            $this->addFile($batch, $file, $user, $seen);
         }
 
         return $batch->refresh();
@@ -159,8 +159,10 @@ class OnlineOrderService
 
     /**
      * Read one PDF into parcels and hold their stock.
+     *
+     * @param  array<string, array<int, string>>  $seen  what the browser read on picture pages, by the file's SHA-256
      */
-    public function addFile(LabelBatch $batch, UploadedFile $upload, User $user): LabelFile
+    public function addFile(LabelBatch $batch, UploadedFile $upload, User $user, array $seen = []): LabelFile
     {
         if (! $batch->isOpen()) {
             throw new OnlineOrderException("{$batch->number} has been closed. Upload into a new batch.");
@@ -186,7 +188,7 @@ class OnlineOrderService
         }
 
         $batch->loadMissing(['marketplace', 'brand', 'warehouse.facility']);
-        $reading = $this->reader->read($contents, $name, $batch->marketplace);
+        $reading = $this->reader->read($contents, $name, $batch->marketplace, $seen[$hash] ?? []);
 
         $path = sprintf('online-orders/%s/%s.pdf', now()->format('Y/m'), Str::uuid());
 
@@ -221,6 +223,14 @@ class OnlineOrderService
                         continue;
                     }
 
+                    // An invoice on its own (Myntra) has no AWB: its order
+                    // number says whether it came before.
+                    if ($parcel->awb === null && $parcel->orderNumber !== null && $this->orderTaken($batch->marketplace_id, $parcel->orderNumber)) {
+                        $duplicates[] = $parcel->orderNumber;
+
+                        continue;
+                    }
+
                     $created->push($this->createShipment($batch, $file, $parcel));
                 }
 
@@ -243,10 +253,14 @@ class OnlineOrderService
                 return $file;
             });
         } catch (Throwable $e) {
-            Storage::disk(LabelFileStore::DISK)->delete($path);
+            $this->files->discard($path);
 
             throw $e;
         }
+
+        // A label and its invoice sent as two files (Myntra) become one
+        // parcel as soon as both are in.
+        $this->pairSplitParcels($batch);
 
         // Stock is held once the parcels exist, outside the file's
         // transaction, so a store that is short does not undo the upload.
@@ -256,15 +270,18 @@ class OnlineOrderService
     }
 
     /**
-     * Take a file back out — the wrong brand, the wrong day — as long as
-     * nothing in it has been printed or packed.
+     * Take a file back out — the wrong brand, the wrong marketplace, the
+     * wrong day — as long as none of its parcels has been scanned: printing
+     * only used paper, while a scan has taken stock out.
      */
     public function removeFile(LabelFile $file): void
     {
         $file->loadMissing(['shipments', 'batch']);
 
-        if ($file->shipments->contains(fn (Shipment $s) => $s->status !== ShipmentStatus::Uploaded)) {
-            throw new OnlineOrderException("{$file->original_name} cannot be removed: some of its labels have already been printed or packed. Cancel those parcels one by one instead.");
+        $moved = [ShipmentStatus::Packed, ShipmentStatus::HandedOver, ShipmentStatus::Returned];
+
+        if ($file->shipments->contains(fn (Shipment $s) => in_array($s->status, $moved, true))) {
+            throw new OnlineOrderException("{$file->original_name} cannot be removed: some of its parcels have already been scanned, dispatched or returned. Cancel those parcels one by one instead.");
         }
 
         DB::transaction(function () use ($file): void {
@@ -804,7 +821,7 @@ class OnlineOrderService
         // Nothing is marked printed if a label's PDF is not there to print.
         $missing = LabelFile::query()
             ->with('batch:id,number')
-            ->whereKey($shipments->pluck('label_file_id')->unique())
+            ->whereKey($shipments->pluck('label_file_id')->merge($shipments->pluck('invoice_file_id')->filter())->unique())
             ->get()
             ->reject(fn (LabelFile $f) => $this->files->has($f));
 
@@ -845,15 +862,23 @@ class OnlineOrderService
         $shipments->filter(fn (Shipment $s) => in_array($s->stock_state, [StockState::Short, StockState::Unmapped], true))
             ->each(fn (Shipment $s) => $this->hold($s));
 
+        // Meesho and Flipkart print the label above the tax invoice on one
+        // page: the browser cuts those to the label for a 4×6 printer.
+        $readers = Marketplace::query()->whereKey($shipments->pluck('marketplace_id')->unique())->get(['id', 'reader'])->keyBy('id');
+        $crop = fn (Shipment $s): bool => $readers->get($s->marketplace_id)?->reader?->labelAboveInvoice() ?? false;
+
+        // Each label, then its invoice when it came in a separate file (Myntra).
+        $parts = $shipments->flatMap(fn (Shipment $s) => array_values(array_filter([
+            ['shipment_id' => $s->id, 'file_id' => $s->label_file_id, 'pages' => array_values($s->pages), 'courier' => $s->courier, 'crop' => $crop($s)],
+            $s->invoice_file_id !== null && $s->invoice_pages
+                ? ['shipment_id' => $s->id, 'file_id' => $s->invoice_file_id, 'pages' => array_values($s->invoice_pages), 'courier' => $s->courier, 'crop' => false]
+                : null,
+        ])))->values();
+
         return [
             'shipments' => $shipments->count(),
-            'pages' => $shipments->sum(fn (Shipment $s) => count($s->pages)),
-            'parts' => $shipments->map(fn (Shipment $s) => [
-                'shipment_id' => $s->id,
-                'file_id' => $s->label_file_id,
-                'pages' => array_values($s->pages),
-                'courier' => $s->courier,
-            ])->all(),
+            'pages' => $parts->sum(fn (array $p) => count($p['pages'])),
+            'parts' => $parts->all(),
         ];
     }
 
@@ -933,6 +958,244 @@ class OnlineOrderService
         });
     }
 
+    // ---- Split labels ---------------------------------------------------------
+
+    /**
+     * Myntra sends a day's courier labels and its tax invoices as two PDFs.
+     * A label read alone has the AWB and the buyer but no product; an
+     * invoice read alone has the product, the order and the PacketID but
+     * no AWB. The two halves of the same order — same buyer name and PIN
+     * code, same day, marketplace, brand and store — become one parcel: the
+     * label's AWB and pages, the invoice's product, order, PacketID and
+     * pages (printed right after the label).
+     *
+     * @return int the parcels made whole
+     */
+    public function pairSplitParcels(LabelBatch $batch): int
+    {
+        $sameDay = LabelBatch::query()->select('id')
+            ->where('marketplace_id', $batch->marketplace_id)
+            ->where('brand_id', $batch->brand_id)
+            ->where('warehouse_id', $batch->warehouse_id)
+            ->whereDate('for_date', $batch->for_date->toDateString());
+
+        $halves = fn () => Shipment::query()
+            ->whereIn('label_batch_id', $sameDay)
+            ->whereIn('status', ShipmentStatus::awaitingPacking())
+            ->orderBy('label_file_id')
+            ->orderBy('id');
+
+        $labels = $halves()->whereNotNull('awb')->whereDoesntHave('lines')->get();
+        $invoices = $halves()->whereNull('awb')->whereHas('lines')->get();
+
+        if ($labels->isEmpty() || $invoices->isEmpty()) {
+            $this->markWaitingForInvoice($labels);
+
+            return 0;
+        }
+
+        $key = fn (Shipment $s): ?string => ($name = $this->buyerKey($s->customer_name)) === null
+            ? null
+            : $name.'|'.($s->customer_pincode ?? '');
+
+        $byKey = $invoices->groupBy(fn (Shipment $s) => $key($s) ?? '');
+        $labelsByKey = $labels->groupBy(fn (Shipment $s) => $key($s) ?? '');
+        $paired = 0;
+
+        foreach ($labelsByKey as $k => $group) {
+            $candidates = $byKey->get($k);
+
+            // A label without a PIN code read, or an invoice without one,
+            // still pairs on the name alone — only when that is certain.
+            if ($candidates === null && $k !== '' && str_ends_with($k, '|')) {
+                $candidates = $invoices->filter(fn (Shipment $s) => str_starts_with((string) $key($s), $k));
+            }
+
+            if ($k === '' || $candidates === null || $candidates->isEmpty()) {
+                continue;
+            }
+
+            // The same buyer twice in a day: pair only when the counts agree,
+            // in the order the pages came.
+            if ($candidates->count() !== $group->count()) {
+                continue;
+            }
+
+            foreach ($group->values() as $i => $label) {
+                $this->mergeHalves($label, $candidates->values()[$i]);
+                $invoices = $invoices->reject(fn (Shipment $s) => $s->id === $candidates->values()[$i]->id);
+                $paired++;
+            }
+        }
+
+        // Names are read from pictures, and a letter can come out wrong. A
+        // label and an invoice that are the only two left with a PIN code,
+        // and whose names all but agree, are the same parcel.
+        $invoicesLeft = $halves()->whereNull('awb')->whereHas('lines')->get();
+
+        foreach ($halves()->whereNotNull('awb')->whereDoesntHave('lines')->whereNotNull('customer_pincode')->get()->groupBy('customer_pincode') as $pincode => $group) {
+            $match = $invoicesLeft->where('customer_pincode', $pincode);
+
+            if ($group->count() === 1 && $match->count() === 1 && $this->namesAgree($group->first()->customer_name, $match->first()->customer_name)) {
+                $this->mergeHalves($group->first(), $match->first());
+                $paired++;
+            }
+        }
+
+        $this->markWaitingForInvoice($halves()->whereNotNull('awb')->whereDoesntHave('lines')->get());
+
+        return $paired;
+    }
+
+    /**
+     * Two readings of one buyer's name: the same letters, give or take a
+     * misread one or two.
+     */
+    private function namesAgree(?string $a, ?string $b): bool
+    {
+        $a = $this->buyerKey($a);
+        $b = $this->buyerKey($b);
+
+        if ($a === null || $b === null) {
+            return false;
+        }
+
+        return levenshtein($a, $b) <= max(1, intdiv(min(strlen($a), strlen($b)), 6));
+    }
+
+    private function mergeHalves(Shipment $label, Shipment $invoice): void
+    {
+        DB::transaction(function () use ($label, $invoice): void {
+            $label = Shipment::query()->lockForUpdate()->findOrFail($label->id);
+            $invoice = Shipment::query()->lockForUpdate()->findOrFail($invoice->id);
+
+            $this->reservations->releaseAllFor($invoice);
+            $invoice->picks()->delete();
+            $invoice->lines()->update(['shipment_id' => $label->id]);
+
+            $label->fill([
+                'order_number' => $label->order_number ?? $invoice->order_number,
+                'alt_code' => $label->alt_code ?? $invoice->alt_code,
+                'invoice_number' => $label->invoice_number ?? $invoice->invoice_number,
+                'invoice_date' => $label->invoice_date ?? $invoice->invoice_date,
+                'seller_gstin' => $label->seller_gstin ?? $invoice->seller_gstin,
+                'customer_state' => $label->customer_state ?? $invoice->customer_state,
+                'customer_pincode' => $label->customer_pincode ?? $invoice->customer_pincode,
+                'payable_amount' => $label->payment_mode === PaymentMode::Cod ? $label->payable_amount : ($invoice->payable_amount ?? $label->payable_amount),
+                'invoice_file_id' => $invoice->label_file_id,
+                'invoice_pages' => $invoice->pages,
+                'warnings' => array_values(array_filter(
+                    array_merge($label->warnings ?? [], $invoice->warnings ?? []),
+                    // Each half fills the other's gaps: the product, the AWB.
+                    fn (string $w) => ! str_starts_with($w, self::WAITING_FOR_INVOICE)
+                        && ! str_starts_with($w, 'The label does not say what goes in')
+                        && ! str_starts_with($w, 'No AWB was read'),
+                )) ?: null,
+            ])->save();
+
+            $invoice->delete();
+
+            $this->mapLines($label->refresh());
+        });
+
+        // The product is known now: hold its stock, as for any new parcel.
+        $this->hold($label->refresh());
+    }
+
+    private const string WAITING_FOR_INVOICE = 'Waiting for the invoice file';
+
+    /**
+     * @param  Collection<int, Shipment>  $labels
+     */
+    private function markWaitingForInvoice(Collection $labels): void
+    {
+        $labels->each(function (Shipment $s): void {
+            $s->loadMissing('marketplace:id,code');
+
+            if ($s->marketplace?->code !== 'MYNTRA') {
+                return;
+            }
+
+            $warnings = $s->warnings ?? [];
+
+            if (collect($warnings)->contains(fn (string $w) => str_starts_with($w, self::WAITING_FOR_INVOICE))) {
+                return;
+            }
+
+            $warnings[] = self::WAITING_FOR_INVOICE.': Myntra sends the product on a separate invoice PDF. Upload it for the same day and this label is completed.';
+            $s->forceFill(['warnings' => $warnings])->save();
+        });
+    }
+
+    private function buyerKey(?string $name): ?string
+    {
+        $key = (string) preg_replace('/[^a-z]/', '', strtolower((string) $name));
+
+        return $key === '' ? null : $key;
+    }
+
+    private function orderTaken(int $marketplaceId, string $orderNumber): bool
+    {
+        return Shipment::query()
+            ->where('marketplace_id', $marketplaceId)
+            ->where('order_number', $orderNumber)
+            ->where('status', '<>', ShipmentStatus::Cancelled->value)
+            ->exists();
+    }
+
+    // ---- Scan out -----------------------------------------------------------
+
+    /**
+     * The depot's one scan: the goods are in the box, the parcel is packed
+     * (stock out) and waits on the courier's pile as Scanned. A parcel
+     * already scanned or already dispatched is reported, not scanned twice.
+     *
+     * @return array{result: 'scanned'|'already'|'dispatched', shipment: Shipment}
+     */
+    public function scanOut(Shipment $shipment, User $user): array
+    {
+        return DB::transaction(function () use ($shipment, $user): array {
+            $current = Shipment::query()->lockForUpdate()->findOrFail($shipment->id);
+
+            if ($current->status === ShipmentStatus::Packed) {
+                return ['result' => 'already', 'shipment' => $this->forScreen($current)];
+            }
+
+            if ($current->status === ShipmentStatus::HandedOver) {
+                return ['result' => 'dispatched', 'shipment' => $this->forScreen($current)];
+            }
+
+            // Refuses cancelled, returned and unmapped parcels, and short stock.
+            return ['result' => 'scanned', 'shipment' => $this->forScreen($this->pack($current, $user))];
+        });
+    }
+
+    /**
+     * The courier has left with them: scanned parcels become Dispatched.
+     * Anything not scanned is skipped.
+     *
+     * @param  list<int>  $shipmentIds
+     */
+    public function dispatch(Builder $visible, array $shipmentIds, User $user): int
+    {
+        return DB::transaction(function () use ($visible, $shipmentIds, $user): int {
+            return $visible
+                ->whereKey($shipmentIds)
+                ->where('status', ShipmentStatus::Packed->value)
+                ->update([
+                    'status' => ShipmentStatus::HandedOver->value,
+                    'handed_over_at' => now(),
+                    'handed_over_by' => $user->id,
+                    'updated_at' => now(),
+                ]);
+        });
+    }
+
+    private function forScreen(Shipment $shipment): Shipment
+    {
+        return $shipment->refresh()->load(['lines.item:id,code,name', 'picks.item:id,code,name', 'picks.line:id,seller_sku', 'marketplace:id,name', 'brand:id,name', 'packer:id,name', 'handedOverBy:id,name']);
+    }
+
     // ---- Hand over ----------------------------------------------------------
 
     /**
@@ -990,25 +1253,36 @@ class OnlineOrderService
      * The marketplace cancelled the order. Before packing, what was held is
      * let go; after packing, and before the courier has it, the goods go
      * back on the shelf by reversing the posting.
+     *
+     * $backInHand: the parcel is in the depot's hands again, scanned on the
+     * returns screen, so even one the courier signed for can be cancelled
+     * and its goods put back.
      */
-    public function cancel(Shipment $shipment, string $reason, User $user): Shipment
+    public function cancel(Shipment $shipment, string $reason, User $user, bool $backInHand = false): Shipment
     {
         if (trim($reason) === '') {
             throw new OnlineOrderException('Say why the parcel is cancelled.');
         }
 
-        return DB::transaction(function () use ($shipment, $reason, $user): Shipment {
+        return DB::transaction(function () use ($shipment, $reason, $user, $backInHand): Shipment {
             $shipment = Shipment::query()->lockForUpdate()->findOrFail($shipment->id);
 
             if ($shipment->status === ShipmentStatus::Cancelled) {
                 return $shipment;
             }
 
-            if ($shipment->status === ShipmentStatus::HandedOver) {
+            if (($why = $this->cannotCancelInHand($shipment)) !== null) {
+                throw new OnlineOrderException($why);
+            }
+
+            // A parcel handed over on a signed sheet has left the building:
+            // it comes back as a return. One only scanned out is still on
+            // the courier's pile when the courier finds it cancelled.
+            if (! $backInHand && $shipment->status === ShipmentStatus::HandedOver && $shipment->handover_sheet_id !== null) {
                 throw new OnlineOrderException("{$shipment->reference()} is with the courier. It comes back as a return, not a cancellation.");
             }
 
-            if ($shipment->status === ShipmentStatus::Packed) {
+            if ($shipment->status === ShipmentStatus::Packed || $shipment->status === ShipmentStatus::HandedOver) {
                 $posting = $shipment->transactions()->where('type', InventoryTransactionType::MarketplaceSale->value)->latest('id')->first();
 
                 if ($posting !== null) {
@@ -1030,10 +1304,46 @@ class OnlineOrderService
         });
     }
 
+    /**
+     * Why a parcel in hand cannot be cancelled, or null when it can.
+     */
+    public function cannotCancelInHand(Shipment $shipment): ?string
+    {
+        $shipment->loadMissing('shipmentReturn');
+
+        if ($shipment->shipmentReturn !== null) {
+            return "{$shipment->reference()} was already received back as {$shipment->shipmentReturn->number}.";
+        }
+
+        return match ($shipment->status) {
+            ShipmentStatus::Cancelled => "{$shipment->reference()} is already cancelled.",
+            ShipmentStatus::Returned => "{$shipment->reference()} has already come back.",
+            default => null,
+        };
+    }
+
     // ---- Internals ----------------------------------------------------------
 
     private function createShipment(LabelBatch $batch, LabelFile $file, LabelExtraction $parcel): Shipment
     {
+        // A label read badly (a re-saved PDF runs its words together) must
+        // not stop the whole file: a value too long for its field is left
+        // out or cut, and the parcel says so.
+        $warnings = $this->parcelWarnings($parcel) ?? [];
+        $fit = function (?string $value, int $max, string $what, bool $cut = false) use (&$warnings): ?string {
+            if ($value === null || mb_strlen($value) <= $max) {
+                return $value;
+            }
+
+            $warnings[] = $cut
+                ? "The {$what} read from this label was too long and was cut. Check it."
+                : "The {$what} read from this label made no sense and was left out. Type it in from the label.";
+
+            return $cut ? mb_substr($value, 0, $max) : null;
+        };
+
+        $amount = $parcel->payableAmount !== null && (float) $parcel->payableAmount >= 1e9 ? null : $parcel->payableAmount;
+
         $shipment = Shipment::create([
             'label_batch_id' => $batch->id,
             'label_file_id' => $file->id,
@@ -1041,27 +1351,28 @@ class OnlineOrderService
             'brand_id' => $batch->brand_id,
             'warehouse_id' => $batch->warehouse_id,
             'pages' => $parcel->pages,
-            'awb' => $parcel->awb,
-            'alt_code' => $parcel->altCode,
-            'order_number' => $parcel->orderNumber,
-            'courier' => $parcel->courier,
+            'awb' => $fit($parcel->awb, 64, 'AWB'),
+            'alt_code' => $fit($parcel->altCode, 64, 'second tracking code'),
+            'order_number' => $fit($parcel->orderNumber, 64, 'order number'),
+            'courier' => $fit($parcel->courier, 64, 'courier'),
             'payment_mode' => $parcel->paymentMode,
-            'payable_amount' => $parcel->payableAmount,
-            'invoice_number' => $parcel->invoiceNumber,
+            'payable_amount' => $amount,
+            'invoice_number' => $fit($parcel->invoiceNumber, 64, 'invoice number'),
             'invoice_date' => $parcel->invoiceDate,
-            'customer_name' => $parcel->customerName,
-            'customer_state' => $parcel->customerState,
-            'seller_gstin' => $parcel->sellerGstin,
+            'customer_name' => $fit($parcel->customerName, 255, 'customer name', cut: true),
+            'customer_state' => $fit($parcel->customerState, 64, 'state'),
+            'customer_pincode' => $fit($parcel->customerPincode, 10, 'PIN code'),
+            'seller_gstin' => $fit($parcel->sellerGstin, 20, 'seller GSTIN'),
             'status' => ShipmentStatus::Uploaded,
             'stock_state' => StockState::Unmapped,
             'extraction' => $parcel->toArray(),
-            'warnings' => $this->parcelWarnings($parcel),
+            'warnings' => $warnings === [] ? null : array_values(array_unique($warnings)),
         ]);
 
         foreach ($parcel->lines as $i => $line) {
             $shipment->lines()->create([
                 'line_no' => $i + 1,
-                'seller_sku' => $line['seller_sku'],
+                'seller_sku' => Str::limit($line['seller_sku'], 250, ''),
                 'description' => $line['description'] !== null ? Str::limit($line['description'], 250, '') : null,
                 'quantity' => $line['quantity'],
             ]);

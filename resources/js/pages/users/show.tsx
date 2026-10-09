@@ -1,6 +1,7 @@
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import {
     AlertTriangle,
+    Boxes,
     Building2,
     CheckCircle2,
     PackageOpen,
@@ -11,6 +12,7 @@ import {
     UserPlus,
     UserX,
     X,
+    type LucideIcon,
 } from 'lucide-react';
 import { useState } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -49,6 +51,46 @@ type FacilityOption = {
     label: string;
     stores: { value: number; label: string }[];
 };
+
+/** Plain-words answers to "why can't they…", one tick or warning per line. */
+function AccessPanel({
+    icon: Icon,
+    title,
+    lines,
+}: {
+    icon: LucideIcon;
+    title: string;
+    lines: { ok: boolean; text: string }[];
+}) {
+    return (
+        <section className="bg-card rounded-xl border">
+            <div className="flex items-center gap-2 border-b px-5 py-4">
+                <Icon className="text-muted-foreground size-4" />
+                <h2 className="font-semibold">{title}</h2>
+            </div>
+            <ul className="space-y-2 p-5 text-sm">
+                {lines.map((line, i) => (
+                    <li key={i} className="flex gap-2">
+                        {line.ok ? (
+                            <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+                        ) : (
+                            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-red-600" />
+                        )}
+                        <span
+                            className={
+                                line.ok
+                                    ? ''
+                                    : 'font-medium text-red-700 dark:text-red-300'
+                            }
+                        >
+                            {line.text}
+                        </span>
+                    </li>
+                ))}
+            </ul>
+        </section>
+    );
+}
 
 function AssignmentsSection({
     user,
@@ -336,6 +378,7 @@ export default function ShowUser({
     companyWide,
     facilities,
     onlineOrdersAccess,
+    stockAccess,
     can,
 }: {
     user: ErpUser;
@@ -345,6 +388,7 @@ export default function ShowUser({
     companyWide: boolean;
     facilities: FacilityOption[];
     onlineOrdersAccess: { ok: boolean; text: string }[] | null;
+    stockAccess: { ok: boolean; text: string }[] | null;
     can: {
         update: boolean;
         delete: boolean;
@@ -485,34 +529,19 @@ export default function ShowUser({
                 </div>
 
                 {onlineOrdersAccess && (
-                    <section className="bg-card rounded-xl border">
-                        <div className="flex items-center gap-2 border-b px-5 py-4">
-                            <PackageOpen className="text-muted-foreground size-4" />
-                            <h2 className="font-semibold">
-                                Today's online orders: what {user.name} can see
-                            </h2>
-                        </div>
-                        <ul className="space-y-2 p-5 text-sm">
-                            {onlineOrdersAccess.map((line, i) => (
-                                <li key={i} className="flex gap-2">
-                                    {line.ok ? (
-                                        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-                                    ) : (
-                                        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-red-600" />
-                                    )}
-                                    <span
-                                        className={
-                                            line.ok
-                                                ? ''
-                                                : 'font-medium text-red-700 dark:text-red-300'
-                                        }
-                                    >
-                                        {line.text}
-                                    </span>
-                                </li>
-                            ))}
-                        </ul>
-                    </section>
+                    <AccessPanel
+                        icon={PackageOpen}
+                        title={`Today's online orders: what ${user.name} can see`}
+                        lines={onlineOrdersAccess}
+                    />
+                )}
+
+                {stockAccess && (
+                    <AccessPanel
+                        icon={Boxes}
+                        title={`Stock: what ${user.name} can change`}
+                        lines={stockAccess}
+                    />
                 )}
 
                 <AssignmentsSection

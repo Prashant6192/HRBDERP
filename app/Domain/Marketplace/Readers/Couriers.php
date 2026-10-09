@@ -54,6 +54,44 @@ final class Couriers
     }
 
     /**
+     * Flipkart-group labels (Flipkart, Myntra) print a route code instead of
+     * the courier's name: two letters for the courier, then "_E2E" —
+     * "EK_E2E" is Ekart, "DE_E2E-ON-M7" Delhivery.
+     *
+     * @var array<string, string>
+     */
+    private const array ROUTE_CODES = [
+        'EK' => 'Ekart',
+        'DE' => 'Delhivery',
+        'XB' => 'Xpress Bees',
+        'SF' => 'Shadowfax',
+        'EC' => 'Ecom Express',
+    ];
+
+    /**
+     * The courier a route code such as "DE_E2E-ON-M7" names — read with or
+     * without its underscore, as OCR sometimes drops it.
+     */
+    public static function fromRouteCode(string $text): ?string
+    {
+        if (preg_match('/\b([A-Z]{2})[ _-]?E2E\b/', strtoupper($text), $m) !== 1) {
+            return null;
+        }
+
+        return self::ROUTE_CODES[$m[1]] ?? null;
+    }
+
+    /**
+     * Every courier the ERP knows by name, for choosing one by hand.
+     *
+     * @return list<string>
+     */
+    public static function names(): array
+    {
+        return array_keys(self::NAMES);
+    }
+
+    /**
      * Who carries a parcel, from the shape of its AWB, when the label does
      * not say in words.
      */

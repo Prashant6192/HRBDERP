@@ -11,6 +11,190 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Changed — The depot works every facility's online orders
+
+- Whoever prints, scans, dispatches, takes returns or runs the online
+  orders (Warehouse Manager, Store Executive, Dispatch, E-commerce
+  Manager) now works the labels of every dispatch facility, whatever
+  facility they are assigned to. A warehouse manager assigned to the
+  factory, with the agency's labels filed under the depot, prints, scans,
+  cancels and dispatches them all. The facility picker lists every
+  facility for them.
+- Someone who may only look (for example Marketing or Sales) still sees
+  only their own facility's labels, with the note naming where the rest
+  are. The agency still sees only its brands.
+- The user page explains it: "… prints, scans or dispatches online
+  orders, so works every facility's labels".
+
+### Changed — Returns: Customer return or Order cancelled
+
+- After scanning a parcel on Receive a return (desk and floor phone), the
+  choice is **Customer return** (count good and damaged, as before) or
+  **Order cancelled**. RTO is no longer offered; returns already received
+  as RTO keep their label.
+- Order cancelled marks the parcel cancelled and puts everything packed
+  in it back into the store it was packed from, even when the courier had
+  signed for it. A label never packed is cancelled and what was held for
+  it is let go. A reason is optional.
+
+### Changed — Meesho and Flipkart labels print at 4×6 inch
+
+- Printing Meesho and Flipkart labels now gives one 4×6 inch page per
+  label for the label printer: the label is cut from the A4 page above
+  "Tax Invoice", trimmed to its border. Meesho's wide label is turned
+  sideways; Flipkart's prints upright. Myntra and Amazon print as before.
+- Tick **Full page with invoice** (next to Print on Online orders, or in
+  the Print labels menu of a batch) to print the whole A4 page instead.
+  The choice is remembered on that computer.
+- A page where "Tax Invoice" cannot be found prints whole. The label PDFs
+  on the server are never changed.
+
+### Fixed — One badly read label no longer stops the whole upload
+
+- A Meesho PDF re-saved through "Save as PDF" ran its words together and
+  one parcel's value came out longer than its field, which stopped the
+  upload with a database error. Such a value is now left out (an AWB,
+  order or invoice number, state) or cut (a name), and the parcel says
+  so; the rest of the file goes in.
+- The Meesho reader only takes an order number that is a run of digits
+  and an invoice number shaped like one, so a run-together line is never
+  taken for either.
+
+### Fixed — A label file under the wrong marketplace
+
+- A Meesho PDF uploaded with Myntra chosen became 146 parcels with no
+  AWB, product or courier. The upload now refuses a file whose pages read
+  as another marketplace's labels and names the right one: "… looks like
+  Meesho labels, but Myntra was chosen. Upload it again with Meesho
+  selected." The same for Flipkart files, and a file of pictures only
+  (Myntra, Amazon) is refused under Meesho or Flipkart.
+- A file can now be taken out of a batch (bin icon under Files) until any
+  of its parcels is scanned — printing alone no longer stops it. The
+  same PDF can then be uploaded again under the right marketplace.
+
+### Changed — Every courier card shows dispatched too
+
+- Each courier card on Online orders shows all four counts again: to
+  print, to scan, scanned and **dispatched**, each opening its list. On a
+  narrow card they sit two by two instead of crowding.
+
+### Fixed — Myntra parcels sorted by courier
+
+- Myntra's label prints no courier name, so its parcels all fell under
+  "Courier not read". The courier is now read from the label's route code
+  ("DE_E2E-ON-M7" is Delhivery; EK Ekart, XB Xpress Bees, SF Shadowfax,
+  EC Ecom Express).
+- Parcels already in without a courier can be given one in one go: the
+  "Courier not read" card has a courier list and **Set courier**. Only
+  parcels with no courier are changed.
+
+### Fixed — Creating a product with the code of a deleted one
+
+- Saving a product, raw material or packaging material whose code had
+  belonged to a deleted item ended in a server error: the database keeps
+  codes unique even among deleted items. A deleted item of the same kind
+  now comes back with the details just entered; a code held by a deleted
+  item of another kind is refused with a message naming it. Changing an
+  item's code to a deleted item's code is refused the same way.
+
+### Changed — Why someone cannot change stock, in plain words
+
+- A person's page (Users → name) has a new panel, **Stock: what … can
+  change**: what their role allows (receive, transfer, count, add opening
+  stock, change and remove opening stock lines), then facility by
+  facility whether they can — or why not: not assigned there, or opening
+  stock entry closed.
+- A store's page says why its stock buttons are missing instead of
+  leaving them out silently: not assigned to that facility, or opening
+  stock closed there (with how to correct a quantity instead).
+
+### Changed — An empty Online orders screen says why
+
+- Someone who works at one facility now sees its name beside the date on
+  Online orders, where the office sees the facility picker.
+- A warehouse manager sees the labels of the facilities he is assigned
+  to. When the day's labels were filed at another facility, his screen
+  now says so — "2 parcel(s) at Second Depot are not shown to you. You
+  are assigned to Delhi Warehouse." — and how to fix it, instead of
+  showing nothing.
+
+### Fixed — Upload labels no longer ends in a bare server error
+
+- Label files are kept in the database first; the storage bucket is a
+  convenience. A bucket that is down or not set up right is written to the
+  log and no longer stops an upload, a print or opening a label file.
+- Any other unexpected error during an upload is said on the Upload labels
+  page instead of a "500" page: the office sees the reason itself, the
+  agency is told to try again and quote the time shown.
+
+### Changed — Myntra labels are read on the uploader's computer, not by AI
+
+- Myntra's label and invoice PDFs are pictures. They no longer go to the
+  AI reader, so no API key is needed and an AI outage cannot stop a
+  Myntra upload. The **Upload labels** page reads each picture page on
+  the uploader's own computer before sending it: the barcodes (the AWB on
+  the label, the invoice's QR code) and the printed words (buyer, PIN
+  code, SKU, quantity, order number, PacketID). It takes about 2 seconds a
+  page and shows _Reading … page 3 of 20_ while it works. Everything it
+  needs is served by the ERP itself.
+- A new Myntra reader on the server turns that reading into a label half
+  and an invoice half, which are joined into one parcel as before. When a
+  letter of the buyer's name is misread, a label and an invoice that are
+  the only two with that PIN code, and whose names all but agree, are
+  still joined.
+- A Myntra upload that arrives without the reading (an old browser) makes
+  flagged parcels to type in, rather than calling the AI reader.
+- The page title no longer squeezes to a word a line when a page has many
+  buttons, and the parcel table gives the product column room so a long
+  SKU no longer runs over the payment column.
+- The Myntra tests now use made-up buyers and numbers only.
+
+### Changed — Orders, In packing, Scanned, Dispatched; Myntra's two PDFs
+
+- The Online orders screen opens with four boxes: **Orders**, **In
+  packing** (with _Print_ while labels are unprinted, then _Start
+  scanning_), **Scanned** (with _Mark all dispatched_) and **Dispatched**.
+  The step strip and the other tiles are gone; Cancelled, Returned and
+  Need attention show as tabs only when there are any.
+- **Scan = Scanned.** A scan packs the parcel (stock out) and it waits on
+  its courier's pile. When the courier leaves, **Valmo picked up (70)** on
+  the courier's card — or _Mark all dispatched_ — marks them
+  **Dispatched**. A second scan says _Already scanned_ or _Already
+  dispatched_ with one button, **Order cancelled**, which puts the stock
+  back. The "left behind" button is gone.
+- Parcels the previous version marked "with the courier" without a
+  courier's signature are back to Scanned, to be marked Dispatched.
+- **Myntra** sends labels and invoices as two PDFs. Each label is now
+  joined to its invoice by the buyer's name and PIN code, whichever file
+  comes first: one parcel with the label's AWB and the invoice's product,
+  order and PacketID. Either barcode scans it, and printing puts the
+  invoice right after its label. A label still waiting for its invoice
+  says so, and an invoice for an order already in is not added twice.
+  The upload screen reminds to add both PDFs for Myntra.
+
+### Changed — One scan per parcel; reports for online orders
+
+- **One scan = packed and with the courier.** The depot seals the parcel
+  and scans its label once: the stock goes out and the parcel is marked
+  **Scanned · with courier**. There is no second scan at pickup and no
+  pickup sheet; the Courier pickup screen is gone from the menu.
+- **Scan parcels** is the first item in the depot's menu: the day (today
+  unless changed), to scan and scanned counts, and one scan box.
+- **Scanning a parcel again** shows **ALREADY SCANNED** with who scanned
+  it and when (a second parcel for the same label is a duplicate: open it
+  and put the goods back), and two buttons: **Courier left it behind**
+  (back on the pile; the next scan sends it, no stock taken again) and
+  **Order cancelled** (stock back on the shelf). The office's _Cancel an
+  order_ also works on a scanned parcel still at the depot.
+- Printing a label that was printed before asks first, since that is how
+  an order gets packed twice.
+- The Online orders screen: **1 Print → 2 Scan**, tiles and tabs for
+  Scanned · with courier, Left behind and Cancelled.
+- **Online orders report** (menu, or _Report_ on Online orders): any day
+  or range — by day, courier and brand; pieces of each product that went
+  out; who scanned how many; and the cancelled and left-behind parcels —
+  with **Download Excel**.
+
 ### Changed — The depot's day in three steps; the Warehouse Manager's full menu
 
 - The Online orders screen opens with the day's three steps, each with its

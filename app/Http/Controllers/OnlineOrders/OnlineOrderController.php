@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\OnlineOrders;
 
+use App\Domain\Marketplace\DTOs\BrowserPages;
 use App\Domain\Marketplace\Enums\LabelBatchStatus;
+use App\Domain\Marketplace\Enums\LabelReaderKind;
 use App\Domain\Marketplace\Enums\ShipmentStatus;
 use App\Domain\Marketplace\Enums\StockState;
 use App\Domain\Marketplace\Exceptions\OnlineOrderException;
@@ -16,7 +18,9 @@ use App\Domain\Marketplace\Models\LabelPrint;
 use App\Domain\Marketplace\Models\Marketplace;
 use App\Domain\Marketplace\Models\Shipment;
 use App\Domain\Marketplace\Models\ShipmentLine;
+use App\Domain\Marketplace\Readers\Couriers;
 use App\Domain\Marketplace\Services\BrandAccess;
+use App\Domain\Marketplace\Services\OnlineOrderAccess;
 use App\Domain\Marketplace\Services\OnlineOrderService;
 use App\Domain\Marketplace\Support\Cutoff;
 use App\Domain\Marketplace\Support\LabelFileStore;
@@ -33,11 +37,12 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\HeaderUtils;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
@@ -69,6 +74,7 @@ class OnlineOrderController extends Controller
         private readonly OnlineOrderService $orders,
         private readonly BrandAccess $brands,
         private readonly FacilityAccess $facilities,
+        private readonly OnlineOrderAccess $access,
     ) {}
 
     public function index(Request $request): Response
@@ -195,7 +201,25 @@ class OnlineOrderController extends Controller
             ])->all(),
             'totals' => $totals,
             'shortfall' => $this->brands->isRestricted($user) ? [] : $this->orders->shortfallFor($batches),
+            // Scanned parcels waiting for their courier, by courier.
+            'dispatchable' => $this->brands->isRestricted($user) ? (object) [] : (object) Shipment::query()
+                ->whereIn('label_batch_id', $batchIds)
+                ->where('status', ShipmentStatus::Packed->value)
+                ->get(['id', 'courier'])
+                ->groupBy(fn (Shipment $s) => $s->courier ?? '')
+                ->map(fn ($g) => $g->pluck('id')->values()->all())
+                ->all(),
             'couriers' => $couriers,
+            // The day's parcels whose courier the label did not say, for
+            // naming it in one go, and the couriers to choose from.
+            'courierless' => Shipment::query()
+                ->whereIn('label_batch_id', $batchIds)
+                ->whereNull('courier')
+                ->whereNotIn('status', [ShipmentStatus::Cancelled->value, ShipmentStatus::Returned->value])
+                ->pluck('id')->all(),
+            'courier_names' => collect(Couriers::names())
+                ->merge(Shipment::query()->whereNotNull('courier')->distinct()->pluck('courier'))
+                ->unique()->sort()->values()->all(),
             'parcels' => $parcels,
             'show' => $show,
             'courier' => $courier,
@@ -203,10 +227,11 @@ class OnlineOrderController extends Controller
             'search' => $search,
             'found' => $found,
             'facility' => $facilityId,
-            'facilities' => $this->brands->isRestricted($user) ? [] : $this->facilities->scopeFacilities($user, Facility::query())
+            'facilities' => $this->brands->isRestricted($user) ? [] : $this->access->scopeFacilities($user, Facility::query())
                 ->active()->where('can_dispatch', true)->ordered()->get(['id', 'name'])
                 ->map(fn (Facility $f) => ['value' => (string) $f->id, 'label' => $f->name])->all(),
             'can' => $this->abilities($user),
+            'elsewhere' => $this->elsewhere($user, $day),
         ]);
     }
 
@@ -230,8 +255,14 @@ class OnlineOrderController extends Controller
                 'store_id' => $b->default_warehouse_id,
                 'store' => $b->defaultWarehouse ? "{$b->defaultWarehouse->facility?->name} · {$b->defaultWarehouse->name}" : null,
             ])->all(),
-            'marketplaces' => Marketplace::query()->where('is_active', true)->orderBy('name')->get(['id', 'name', 'reader'])
-                ->map(fn (Marketplace $m) => ['id' => $m->id, 'name' => $m->name, 'reads' => $m->reader->label()])->all(),
+            'marketplaces' => Marketplace::query()->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name', 'reader'])
+                ->map(fn (Marketplace $m) => [
+                    'id' => $m->id, 'name' => $m->name, 'reads' => $m->reader->label(),
+                    // Myntra's labels and invoices come as two PDFs.
+                    'two_files' => $m->code === 'MYNTRA',
+                    // Picture pages this browser reads before uploading.
+                    'reads_in_browser' => $m->reader === LabelReaderKind::Myntra,
+                ])->all(),
             'stores' => $canChooseStore ? $this->dispatchStores($user) : [],
             'can_choose_store' => $canChooseStore,
             'today' => Cutoff::today()->toDateString(),
@@ -255,6 +286,9 @@ class OnlineOrderController extends Controller
             'warehouse_id' => ['nullable', 'integer', Rule::exists('warehouses', 'id')],
             'files' => ['required', 'array', 'min:1', 'max:10'],
             'files.*' => ['required', 'file', 'mimes:pdf', 'max:20480'],
+            // What the browser read on picture pages (Myntra), by file SHA-256.
+            'seen' => ['nullable', 'array', 'max:10'],
+            'seen.*' => ['nullable', 'string', 'max:4000000'],
         ], [
             'files.required' => 'Choose the label PDF to upload.',
             'files.*.mimes' => 'Upload the label PDF exactly as the marketplace gave it.',
@@ -289,9 +323,19 @@ class OnlineOrderController extends Controller
         }
 
         try {
-            $batch = $this->orders->upload($brand, $marketplace, $store, $rest, $user);
+            $batch = $this->orders->upload($brand, $marketplace, $store, $rest, $user, seen: $this->seen($data['seen'] ?? []));
         } catch (OnlineOrderException $e) {
             throw ValidationException::withMessages(['files' => $e->getMessage()]);
+        } catch (Throwable $e) {
+            // Say what went wrong on the page, not as a bare server error:
+            // the office sees the reason itself, everyone else a reference.
+            report($e);
+            $at = now()->format('j M H:i:s');
+
+            throw ValidationException::withMessages(['files' => $user->can('marketplace.manage')
+                ? "The upload stopped on an error ({$at}): ".Str::limit(class_basename($e).': '.$e->getMessage(), 400).' Files uploaded before it in this batch are kept.'
+                : "The upload stopped on an error ({$at}). Try again; if it happens again, tell the office the time shown here.",
+            ]);
         }
 
         $parcels = $batch->shipments()->count();
@@ -440,6 +484,57 @@ class OnlineOrderController extends Controller
     }
 
     /**
+     * The courier has left: the scanned parcels named (a courier's, or all
+     * of the day's) become Dispatched.
+     */
+    public function dispatch(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('marketplace.handover') || $user->can('marketplace.manage'), 403);
+
+        $data = $request->validate([
+            'shipment_ids' => ['required', 'array', 'min:1', 'max:2000'],
+            'shipment_ids.*' => ['integer'],
+        ]);
+
+        $visible = Shipment::query()->whereIn('label_batch_id', $this->visibleBatches($user)->select('id'));
+        $n = $this->orders->dispatch($visible, array_map('intval', $data['shipment_ids']), $user);
+
+        return back()->withToast($n > 0 ? 'success' : 'warning', $n > 0
+            ? "{$n} parcel(s) marked dispatched."
+            : 'Nothing to mark: only scanned parcels can be dispatched.');
+    }
+
+    /**
+     * Name the courier for parcels whose label did not say it (Myntra's
+     * older uploads, a label the reader could not make out). Only parcels
+     * with no courier yet are touched.
+     */
+    public function nameCourier(Request $request): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($user->can('marketplace.print') || $user->can('marketplace.handover') || $user->can('marketplace.manage'), 403);
+
+        $data = $request->validate([
+            'shipment_ids' => ['required', 'array', 'min:1', 'max:2000'],
+            'shipment_ids.*' => ['integer'],
+            'courier' => ['required', 'string', 'max:64'],
+        ], ['courier.required' => 'Choose the courier.']);
+
+        $courier = trim($data['courier']);
+        $n = Shipment::query()
+            ->whereIn('label_batch_id', $this->visibleBatches($user)->select('id'))
+            ->whereIn('id', array_map('intval', $data['shipment_ids']))
+            ->whereNull('courier')
+            ->whereNotIn('status', [ShipmentStatus::Cancelled->value, ShipmentStatus::Returned->value])
+            ->update(['courier' => $courier, 'updated_at' => now()]);
+
+        return back()->withToast($n > 0 ? 'success' : 'warning', $n > 0
+            ? "{$n} parcel(s) now go with {$courier}."
+            : 'No parcel without a courier was found.');
+    }
+
+    /**
      * Print the labels ticked on the day's screen, across batches, and mark
      * them printed.
      */
@@ -478,14 +573,20 @@ class OnlineOrderController extends Controller
         $file->loadMissing('batch');
         $this->assertCanSee($user, $file->batch);
 
-        // Back from the database onto the disk if a deploy wiped it.
-        abort_if(app(LabelFileStore::class)->get($file) === null, 404, "{$file->original_name} is missing from the server. Upload the same PDF again to put it back.");
+        // From the disk, or from the database copy when the disk has lost
+        // it or cannot be reached.
+        $contents = app(LabelFileStore::class)->get($file);
+        abort_if($contents === null, 404, "{$file->original_name} is missing from the server. Upload the same PDF again to put it back.");
 
-        // The framework writes the filename into the header safely.
-        return Storage::disk(OnlineOrderService::DISK)->response($file->path, $file->original_name, [
+        $fallback = preg_replace('/[^A-Za-z0-9._-]+/', '_', $file->original_name) ?: 'labels.pdf';
+
+        return response()->stream(function () use ($contents): void {
+            echo $contents;
+        }, 200, [
             'Content-Type' => 'application/pdf',
+            'Content-Disposition' => HeaderUtils::makeDisposition('inline', $file->original_name, $fallback),
             'Cache-Control' => 'private, no-store',
-        ], 'inline');
+        ]);
     }
 
     public function removeFile(Request $request, LabelFile $file): RedirectResponse
@@ -582,7 +683,10 @@ class OnlineOrderController extends Controller
                 || $user->can('marketplace.pack');
         }
 
-        if ($shipment->status === ShipmentStatus::Packed) {
+        // Packed, or scanned out but still on the courier's pile (not yet
+        // signed away on a sheet): the goods can still come back.
+        if ($shipment->status === ShipmentStatus::Packed
+            || ($shipment->status === ShipmentStatus::HandedOver && $shipment->handover_sheet_id === null)) {
             return $user->can('marketplace.manage') || $user->can('marketplace.print') || $user->can('marketplace.pack');
         }
 
@@ -619,15 +723,48 @@ class OnlineOrderController extends Controller
     {
         $query = $this->brands->scopeByBrand($user, LabelBatch::query());
 
-        if (! $this->brands->isRestricted($user)) {
-            $ids = $this->facilities->facilityIds($user);
+        // The depot's people work every facility's labels; someone who may
+        // only look sees their own facilities.
+        $ids = $this->access->facilityIds($user);
 
-            if ($ids !== null) {
-                $query->whereIn('facility_id', $ids);
-            }
+        if ($ids !== null) {
+            $query->whereIn('facility_id', $ids);
         }
 
         return $query;
+    }
+
+    /**
+     * The day's labels this person cannot see because they were filed at
+     * a facility they are not assigned to — said on the screen, so an
+     * empty page explains itself.
+     *
+     * @return array{mine: list<string>, places: list<array{facility: string, parcels: int}>}|null
+     */
+    private function elsewhere(User $user, CarbonImmutable $day): ?array
+    {
+        $ids = $this->access->facilityIds($user);
+
+        if ($ids === null || $this->brands->isRestricted($user)) {
+            return null;
+        }
+
+        $places = LabelBatch::query()
+            ->whereDate('for_date', $day->toDateString())
+            ->whereNotIn('facility_id', $ids)
+            ->with('facility:id,name')
+            ->withCount(['shipments as parcels' => fn ($q) => $q->whereNotIn('status', [ShipmentStatus::Cancelled->value, ShipmentStatus::Returned->value])])
+            ->get()
+            ->groupBy('facility_id')
+            ->map(fn ($g) => ['facility' => (string) $g->first()->facility?->name, 'parcels' => (int) $g->sum('parcels')])
+            ->filter(fn (array $p) => $p['parcels'] > 0)
+            ->values()
+            ->all();
+
+        return $places === [] ? null : [
+            'mine' => Facility::query()->whereKey($ids)->orderBy('name')->pluck('name')->all(),
+            'places' => $places,
+        ];
     }
 
     private function assertCanSee(User $user, LabelBatch $batch): void
@@ -651,6 +788,26 @@ class OnlineOrderController extends Controller
         ];
     }
 
+    /**
+     * What the browser read on each file's picture pages, keyed by the
+     * file's SHA-256.
+     *
+     * @param  array<array-key, mixed>  $seen
+     * @return array<string, array<int, string>>
+     */
+    private function seen(array $seen): array
+    {
+        $pages = [];
+
+        foreach ($seen as $hash => $json) {
+            if (is_string($hash) && preg_match('/^[a-f0-9]{64}$/', $hash) === 1 && is_string($json)) {
+                $pages[$hash] = BrowserPages::fromJson($json);
+            }
+        }
+
+        return array_filter($pages);
+    }
+
     private function day(string $value): CarbonImmutable
     {
         try {
@@ -665,7 +822,7 @@ class OnlineOrderController extends Controller
      */
     private function dispatchStores(User $user): array
     {
-        return $this->facilities->scopeStores($user, Warehouse::query())
+        return $this->access->scopeStores($user, Warehouse::query())
             ->where('type', WarehouseType::FinishedGoods->value)
             ->where('is_active', true)
             ->where('is_system', false)
@@ -678,17 +835,24 @@ class OnlineOrderController extends Controller
     }
 
     /**
-     * Everyone who prints at the batch's facility hears the labels are in.
+     * Everyone who prints at the batch's facility hears the labels are in —
+     * or, when nobody is assigned there, everyone who prints.
      */
     private function tellTheDepot(LabelBatch $batch): void
     {
         $batch->loadMissing(['brand:id,name', 'marketplace:id,name', 'facility:id,name']);
 
-        $recipients = User::query()
+        $printers = User::query()
             ->active()
             ->permission('marketplace.print')
             ->get()
-            ->filter(fn (User $u) => $this->facilities->canWorkAt($u, $batch->facility_id) && ! $this->brands->isRestricted($u));
+            ->reject(fn (User $u) => $this->brands->isRestricted($u));
+        $recipients = $printers->filter(fn (User $u) => $this->facilities->canWorkAt($u, $batch->facility_id));
+
+        // Nobody from the depot is assigned there: tell every depot person.
+        if (! $recipients->contains(fn (User $u) => ! $this->facilities->isCompanyWide($u))) {
+            $recipients = $printers;
+        }
 
         if ($recipients->isEmpty()) {
             return;

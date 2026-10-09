@@ -123,6 +123,7 @@ export default function ShowStore({
     openTransfers,
     openReceipts,
     can,
+    stock_note,
 }: {
     store: StoreView;
     rows: Row[];
@@ -145,6 +146,7 @@ export default function ShowStore({
         transfer: boolean;
         opening_stock: boolean;
     };
+    stock_note: string | null;
 }) {
     const [editing, setEditing] = useState(false);
     const form = useForm({
@@ -256,6 +258,12 @@ export default function ShowStore({
                         </StatusBadge>
                     )}
                 </div>
+
+                {stock_note && (
+                    <p className="rounded-lg border border-amber-600/30 bg-amber-500/10 px-4 py-3 text-sm">
+                        {stock_note}
+                    </p>
+                )}
 
                 {editing && (
                     <form

@@ -51,6 +51,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OnlineOrders\BrandController;
 use App\Http\Controllers\OnlineOrders\ListingController;
 use App\Http\Controllers\OnlineOrders\OnlineOrderController;
+use App\Http\Controllers\OnlineOrders\OnlineOrderReportController;
 use App\Http\Controllers\OnlineOrders\ReturnController;
 use App\Http\Controllers\Planning\MaterialRequestController;
 use App\Http\Controllers\Planning\ProductionPlanController;
@@ -127,6 +128,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('floor/photo', [FloorController::class, 'photo'])->name('floor.photo');
     Route::get('floor/pack', [ParcelController::class, 'pack'])->name('floor.pack');
     Route::post('floor/pack', [ParcelController::class, 'scan'])->name('floor.pack.scan');
+    Route::post('floor/pack/{shipment}/cancel', [ParcelController::class, 'cancelInHand'])->name('floor.pack.cancel');
     Route::get('floor/handover', [ParcelController::class, 'handover'])->name('floor.handover');
     Route::post('floor/handover', [ParcelController::class, 'storeHandover'])->name('floor.handover.store');
     Route::get('floor/return', [ReturnController::class, 'floor'])->name('floor.return');
@@ -236,6 +238,10 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('online-orders/files/{file}', [OnlineOrderController::class, 'file'])->name('online-orders.files.show');
     Route::delete('online-orders/files/{file}', [OnlineOrderController::class, 'removeFile'])->name('online-orders.files.destroy');
     Route::patch('online-orders/parcels/{shipment}', [OnlineOrderController::class, 'correct'])->name('online-orders.parcels.update');
+    Route::get('online-orders/report', [OnlineOrderReportController::class, 'index'])->name('online-orders.report');
+    Route::get('online-orders/report/excel', [OnlineOrderReportController::class, 'export'])->name('online-orders.report.excel');
+    Route::post('online-orders/dispatch', [OnlineOrderController::class, 'dispatch'])->name('online-orders.dispatch');
+    Route::post('online-orders/courier', [OnlineOrderController::class, 'nameCourier'])->name('online-orders.courier');
     Route::post('online-orders/print', [OnlineOrderController::class, 'printSelected'])->name('online-orders.print-selected');
     Route::post('online-orders/check-stock', [OnlineOrderController::class, 'holdAll'])->name('online-orders.hold-all');
     Route::get('online-orders/lookup', [OnlineOrderController::class, 'lookup'])->name('online-orders.lookup');
@@ -243,6 +249,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('online-orders/returns/receive', [ReturnController::class, 'create'])->name('online-orders.returns.create');
     Route::get('online-orders/returns/lookup', [ReturnController::class, 'lookup'])->name('online-orders.returns.lookup');
     Route::post('online-orders/returns', [ReturnController::class, 'store'])->name('online-orders.returns.store');
+    Route::post('online-orders/returns/{shipment}/cancel', [ReturnController::class, 'cancel'])->name('online-orders.returns.cancel');
     Route::patch('online-orders/returns/{return}/claim', [ReturnController::class, 'claim'])->name('online-orders.returns.claim');
     Route::post('online-orders/parcels/{shipment}/cancel', [OnlineOrderController::class, 'cancel'])->name('online-orders.parcels.cancel');
     Route::post('online-orders/parcels/{shipment}/pack', [OnlineOrderController::class, 'packManually'])->name('online-orders.parcels.pack');

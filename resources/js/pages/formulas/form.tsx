@@ -10,6 +10,10 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import {
+    SearchableSelect,
+    type SearchableOption,
+} from '@/components/ui/searchable-select';
+import {
     Select,
     SelectContent,
     SelectItem,
@@ -142,6 +146,18 @@ export default function FormulaForm({
                 j === i ? { ...line, ...patch } : line,
             ),
         );
+
+    // Each line picks from every raw material, by name, code or INCI name;
+    // one already on another line is shown but cannot be picked twice.
+    const materialOptions = (i: number): SearchableOption[] =>
+        materials.map((m) => ({
+            value: String(m.value),
+            label: m.label,
+            hint: m.inci_name ?? undefined,
+            disabled: form.data.lines.some(
+                (l, j) => j !== i && l.item_id === String(m.value),
+            ),
+        }));
 
     const chooseMaterial = (i: number, itemId: string) => {
         const material = materials.find((m) => String(m.value) === itemId);
@@ -461,26 +477,20 @@ export default function FormulaForm({
                                         <span className="text-sm font-medium">
                                             {i + 1}. Material
                                         </span>
-                                        <Select
+                                        <SearchableSelect
                                             value={line.item_id}
                                             onValueChange={(v) =>
                                                 chooseMaterial(i, v)
                                             }
-                                        >
-                                            <SelectTrigger className="w-full">
-                                                <SelectValue placeholder="Select a raw material" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {materials.map((m) => (
-                                                    <SelectItem
-                                                        key={m.value}
-                                                        value={String(m.value)}
-                                                    >
-                                                        {m.label}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                            options={materialOptions(i)}
+                                            placeholder="Select a raw material"
+                                            searchPlaceholder="Search by name, code or INCI…"
+                                            emptyText="No raw material matches"
+                                            searchThreshold={0}
+                                            aria-invalid={
+                                                !!errors[`lines.${i}.item_id`]
+                                            }
+                                        />
                                         <InputError
                                             message={
                                                 errors[`lines.${i}.item_id`]

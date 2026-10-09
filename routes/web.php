@@ -31,6 +31,7 @@ use App\Http\Controllers\Intelligence\ReorderAdviceController;
 use App\Http\Controllers\Intelligence\ScorecardController;
 use App\Http\Controllers\Intelligence\SlowMovingStockController;
 use App\Http\Controllers\Intelligence\WhatIfController;
+use App\Http\Controllers\Inventory\ItemNamesSheetController;
 use App\Http\Controllers\Inventory\LedgerController;
 use App\Http\Controllers\Inventory\LotController;
 use App\Http\Controllers\Inventory\OpeningStockController;
@@ -160,6 +161,11 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     // filled-in sheet matched to the masters before it is booked.
     Route::get('stores/{warehouse}/opening-stock/template', [OpeningStockSheetController::class, 'template'])->name('stores.opening-stock.template');
     Route::post('stores/{warehouse}/opening-stock/parse', [OpeningStockSheetController::class, 'parse'])->name('stores.opening-stock.parse');
+    // A raw material store's ingredients in Excel: codes and names edited
+    // in the sheet, read back and looked over, then applied together.
+    Route::get('stores/{warehouse}/ingredients/sheet', [ItemNamesSheetController::class, 'download'])->name('stores.ingredients.download');
+    Route::post('stores/{warehouse}/ingredients/sheet', [ItemNamesSheetController::class, 'read'])->name('stores.ingredients.read');
+    Route::post('stores/{warehouse}/ingredients', [ItemNamesSheetController::class, 'apply'])->name('stores.ingredients.apply');
 
     Route::get('stores/{warehouse}', [FacilityStoreController::class, 'show'])->name('stores.show');
     Route::get('stores/{warehouse}/labels', [FacilityStoreController::class, 'labels'])->name('stores.labels');

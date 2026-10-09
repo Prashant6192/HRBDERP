@@ -372,6 +372,28 @@ class ProductionPlanningTest extends TestCase
     }
 
     #[Test]
+    public function a_batch_is_planned_in_kg_or_litres_only(): void
+    {
+        $this->actingAs($this->productionManager)->get(route('plans.create'))->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('uoms', fn ($uoms) => collect($uoms)->map(fn ($u) => strtok($u['label'], ' '))->values()->all() === ['KG', 'L'])
+                // The formula is written per 100 g: the screen starts it in KG.
+                ->where('formulas.0.batch_dimension', 'mass'));
+
+        $this->actingAs($this->productionManager)->post(route('plans.store'), [
+            'formula_id' => $this->formula->id,
+            'quantity' => '50000',
+            'uom_id' => Uom::where('code', 'G')->value('id'),
+        ])->assertInvalid(['uom_id' => 'Plan the batch in KG or litres.']);
+
+        $this->actingAs($this->productionManager)->post(route('plans.store'), [
+            'formula_id' => $this->formula->id,
+            'quantity' => '50',
+            'uom_id' => Uom::where('code', 'L')->value('id'),
+        ])->assertSessionHasNoErrors();
+    }
+
+    #[Test]
     public function a_viewer_cannot_plan_and_a_purchase_manager_can_only_look(): void
     {
         $viewer = User::factory()->create();

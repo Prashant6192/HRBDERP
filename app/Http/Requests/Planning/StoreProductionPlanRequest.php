@@ -9,6 +9,13 @@ use Illuminate\Validation\Rule;
 
 class StoreProductionPlanRequest extends FormRequest
 {
+    /**
+     * Batches are planned in kilograms or litres, nothing else.
+     *
+     * @var list<string>
+     */
+    public const array BATCH_UNITS = ['KG', 'L'];
+
     public function authorize(): bool
     {
         return true;
@@ -31,7 +38,7 @@ class StoreProductionPlanRequest extends FormRequest
             'quantity' => ['required', 'numeric', 'gt:0'],
             'uom_id' => [
                 'required', 'integer',
-                Rule::exists('uoms', 'id')->where(fn ($q) => $q->where('is_active', true)->whereIn('dimension', ['mass', 'volume'])),
+                Rule::exists('uoms', 'id')->where(fn ($q) => $q->where('is_active', true)->whereIn('code', self::BATCH_UNITS)),
             ],
             'planned_start_date' => ['nullable', 'date'],
             'notes' => ['nullable', 'string', 'max:2000'],
@@ -61,7 +68,7 @@ class StoreProductionPlanRequest extends FormRequest
             'formula_id.exists' => 'Choose a formula with an active recipe.',
             'facility_id.exists' => 'Choose an active facility with manufacturing enabled.',
             'quantity.gt' => 'The batch quantity must be greater than zero.',
-            'uom_id.exists' => 'The batch unit must be a unit of mass or volume.',
+            'uom_id.exists' => 'Plan the batch in KG or litres.',
             'client_id.required_if' => 'Choose the client the batch is made for.',
             'client_id.exists' => 'Choose an active client.',
         ];

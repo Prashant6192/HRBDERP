@@ -11,6 +11,14 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Fixed — A manager who also has the agency role can print again
+
+- A company account given the E-commerce Agency role as well (to upload
+  labels) was treated as the outside agency: its prints were refused
+  with "This account can only upload marketplace labels." Only an account
+  whose sole role is E-commerce Agency is now kept to uploading; anyone
+  else keeps everything their other roles give them, and uploads too.
+
 ### Changed — The depot works every facility's online orders
 
 - Whoever prints, scans, dispatches, takes returns or runs the online

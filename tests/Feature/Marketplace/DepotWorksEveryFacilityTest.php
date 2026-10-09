@@ -155,6 +155,22 @@ class DepotWorksEveryFacilityTest extends TestCase
     }
 
     #[Test]
+    public function a_manager_who_also_uploads_as_the_agency_still_prints_and_scans(): void
+    {
+        // Given the agency role as well, to upload labels himself.
+        $this->shanu->assignRole(RoleName::EcommerceAgency->value);
+
+        $this->actingAs($this->shanu)->get(route('online-orders.index'))->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('batches', 1)->where('can.restricted', false)->where('can.upload', true));
+
+        $ids = Shipment::query()->pluck('id')->all();
+        $this->actingAs($this->shanu)->postJson(route('online-orders.print-selected'), ['shipment_ids' => $ids])->assertOk();
+        $this->assertSame(3, Shipment::query()->where('status', ShipmentStatus::Printed->value)->count());
+        $this->assertTrue($this->actingAs($this->shanu)->postJson(route('floor.pack.scan'), ['code' => 'VL1000000000001'])->assertOk()->json('ok'));
+        $this->actingAs($this->shanu)->get(route('dashboard'))->assertOk();
+    }
+
+    #[Test]
     public function the_agency_is_still_held_to_its_brand(): void
     {
         $other = User::factory()->create();
@@ -164,6 +180,10 @@ class DepotWorksEveryFacilityTest extends TestCase
         $this->actingAs($other)->get(route('online-orders.index'))->assertOk()
             ->assertInertia(fn (Assert $page) => $page->where('batches', []));
         $this->actingAs($this->agency)->get(route('online-orders.index'))->assertOk()
-            ->assertInertia(fn (Assert $page) => $page->has('batches', 1));
+            ->assertInertia(fn (Assert $page) => $page->has('batches', 1)->where('can.restricted', true));
+
+        // And kept to uploading: it cannot print.
+        $this->actingAs($this->agency)->postJson(route('online-orders.print-selected'), ['shipment_ids' => Shipment::query()->pluck('id')->all()])
+            ->assertForbidden();
     }
 }

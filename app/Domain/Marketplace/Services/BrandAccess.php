@@ -18,12 +18,20 @@ use Illuminate\Database\Eloquent\Builder;
  * Everyone in the company sees every brand. An outside agency sees only
  * the brands it has been given on its user record, and nothing at all
  * until it has been given one.
+ *
+ * The agency is an account whose only role is E-commerce Agency. A company
+ * person who also holds that role (to upload labels as well) keeps
+ * everything their other roles give them.
  */
 class BrandAccess
 {
     public function isRestricted(User $user): bool
     {
-        return ! $user->isSuperAdmin() && $user->hasRole(RoleName::EcommerceAgency->value);
+        if ($user->isSuperAdmin() || ! $user->hasRole(RoleName::EcommerceAgency->value)) {
+            return false;
+        }
+
+        return $user->getRoleNames()->every(fn (string $role): bool => $role === RoleName::EcommerceAgency->value);
     }
 
     /**

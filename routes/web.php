@@ -249,6 +249,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('online-orders/returns/receive', [ReturnController::class, 'create'])->name('online-orders.returns.create');
     Route::get('online-orders/returns/lookup', [ReturnController::class, 'lookup'])->name('online-orders.returns.lookup');
     Route::post('online-orders/returns', [ReturnController::class, 'store'])->name('online-orders.returns.store');
+    Route::post('online-orders/returns/{shipment}/cancel', [ReturnController::class, 'cancel'])->name('online-orders.returns.cancel');
     Route::patch('online-orders/returns/{return}/claim', [ReturnController::class, 'claim'])->name('online-orders.returns.claim');
     Route::post('online-orders/parcels/{shipment}/cancel', [OnlineOrderController::class, 'cancel'])->name('online-orders.parcels.cancel');
     Route::post('online-orders/parcels/{shipment}/pack', [OnlineOrderController::class, 'packManually'])->name('online-orders.parcels.pack');

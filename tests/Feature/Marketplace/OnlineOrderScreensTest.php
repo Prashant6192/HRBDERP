@@ -328,14 +328,15 @@ class OnlineOrderScreensTest extends TestCase
         $stop = $this->actingAs($this->packer)->postJson(route('floor.pack.scan'), ['code' => 'VL1000000000002'])->assertStatus(422)->json();
         $this->assertStringContainsString('Do not pack this parcel', $stop['message']);
 
-        // Someone assigned to another facility cannot pack the depot's parcels.
+        // Whoever packs works every facility's parcels: someone assigned to
+        // the factory packs the depot's too.
         $elsewhere = User::factory()->create();
         $elsewhere->assignRole(RoleName::StoreExecutive->value);
         $factory = Facility::factory()->withStores([WarehouseType::FinishedGoods])->create(['can_dispatch' => true]);
         app(EmployeeAssignmentService::class)->assign($elsewhere, $factory, null, ['is_primary' => true], null);
         $this->mapOil();
         $batch2 = $this->upload($this->agency, $this->rahatRooh, [$this->label('VL1000000000004')], 'b2.pdf');
-        $this->actingAs($elsewhere)->postJson(route('floor.pack.scan'), ['code' => 'VL1000000000004'])->assertForbidden();
+        $this->assertTrue($this->actingAs($elsewhere)->postJson(route('floor.pack.scan'), ['code' => 'VL1000000000004'])->assertOk()->json('ok'));
         $this->assertNotNull($batch2);
     }
 

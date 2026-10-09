@@ -44,6 +44,8 @@ import {
     describeParcel,
     postJson,
     printPlan,
+    printsFullPage,
+    rememberFullPage,
     type Abilities,
     type Batch,
     type Parcel,
@@ -312,6 +314,8 @@ export default function OnlineOrdersIndex({
     // Labels ticked for printing: one by one, or a courier at a time.
     const [selected, setSelected] = useState<Set<number>>(new Set());
     const [printing, setPrinting] = useState(false);
+    const [progress, setProgress] = useState<string | null>(null);
+    const [fullPage, setFullPage] = useState(printsFullPage);
     const visible = useMemo(
         () => new Set(parcels.filter(printable).map((p) => p.id)),
         [parcels],
@@ -359,7 +363,11 @@ export default function OnlineOrdersIndex({
                 return;
             }
 
-            await printPlan(data);
+            await printPlan(data, {
+                fullPage,
+                onProgress: (done, total) =>
+                    setProgress(total > 20 ? `${done}/${total}` : null),
+            });
             toast.success(
                 `${data.shipments} label(s), ${data.pages} page(s) sent to print and marked printed.`,
             );
@@ -373,6 +381,7 @@ export default function OnlineOrdersIndex({
             );
         } finally {
             setPrinting(false);
+            setProgress(null);
         }
     };
 
@@ -1003,7 +1012,22 @@ export default function OnlineOrdersIndex({
                                     of its labels, then print.
                                 </span>
                             )}
-                            <div className="ml-auto flex flex-wrap gap-2">
+                            <div className="ml-auto flex flex-wrap items-center gap-2">
+                                <label
+                                    className="text-muted-foreground flex items-center gap-2 text-xs"
+                                    title="Meesho and Flipkart labels print cut to 4×6 inch for the label printer. Tick to print the whole page with the tax invoice."
+                                >
+                                    <input
+                                        type="checkbox"
+                                        className="size-4"
+                                        checked={fullPage}
+                                        onChange={(e) => {
+                                            setFullPage(e.target.checked);
+                                            rememberFullPage(e.target.checked);
+                                        }}
+                                    />
+                                    Full page with invoice
+                                </label>
                                 {ticked.length > 0 && (
                                     <Button
                                         variant="ghost"
@@ -1031,7 +1055,7 @@ export default function OnlineOrdersIndex({
                                 >
                                     <Printer className="size-4" />
                                     {printing
-                                        ? 'Preparing…'
+                                        ? `Preparing${progress ? ` ${progress}` : ''}…`
                                         : `Print selected${ticked.length > 0 ? ` (${ticked.length})` : ''}`}
                                 </Button>
                             </div>

@@ -184,6 +184,8 @@ class MyntraSplitLabelsTest extends TestCase
         $plan = $this->actingAs($this->shanu)->postJson(route('online-orders.print-selected'), ['shipment_ids' => [$ravi->id]])->assertOk()->json();
         $this->assertCount(2, $plan['parts']);
         $this->assertSame([$ravi->label_file_id, $ravi->invoice_file_id], array_column($plan['parts'], 'file_id'));
+        // Myntra's label is already label-sized: printed as it is.
+        $this->assertSame([false, false], array_column($plan['parts'], 'crop'));
         $this->assertSame(2, $plan['pages']);
 
         // The invoice's PacketID barcode finds the same parcel.
@@ -355,13 +357,33 @@ class MyntraSplitLabelsTest extends TestCase
     }
 
     #[Test]
-    public function labels_filed_at_a_facility_the_manager_does_not_work_at_are_named_on_his_screen(): void
+    public function labels_filed_at_a_facility_the_manager_is_not_assigned_to_are_still_his_to_print_and_scan(): void
     {
         $this->uploadAtSecondDepot();
 
         $this->actingAs($this->shanu)->get(route('online-orders.index'))->assertOk()->assertInertia(fn ($page) => $page
+            ->has('batches', 1)
+            ->where('batches.0.facility', 'Second Depot')
+            // He picks between every dispatch facility, and nothing is hidden.
+            ->where('facilities', fn ($facilities) => collect($facilities)->pluck('label')->contains('Second Depot'))
+            ->where('elsewhere', null));
+
+        $batch = Shipment::query()->firstOrFail()->batch;
+        $this->actingAs($this->shanu)->post(route('online-orders.print', $batch), ['scope' => 'all'])->assertOk();
+        $this->assertSame(2, Shipment::query()->where('status', ShipmentStatus::Printed->value)->count());
+    }
+
+    #[Test]
+    public function someone_who_only_looks_sees_their_own_facility_and_is_told_where_the_rest_are(): void
+    {
+        $this->uploadAtSecondDepot();
+        $viewer = User::factory()->create();
+        $viewer->assignRole(RoleName::MarketingManager->value);
+        app(EmployeeAssignmentService::class)->assign($viewer, Facility::query()->where('name', 'Paper Market Warehouse')->sole(), null, ['is_primary' => true], null);
+
+        $this->actingAs($viewer)->get(route('online-orders.index'))->assertOk()->assertInertia(fn ($page) => $page
             ->where('batches', [])
-            // His one place is named on the screen in place of the picker.
+            // The one place is named on the screen in place of the picker.
             ->has('facilities', 1)
             ->where('facilities.0.label', 'Paper Market Warehouse')
             ->where('elsewhere.mine', ['Paper Market Warehouse'])
@@ -369,11 +391,15 @@ class MyntraSplitLabelsTest extends TestCase
     }
 
     #[Test]
-    public function once_he_works_there_too_he_sees_them_and_the_note_is_gone(): void
+    public function once_the_looker_works_there_too_they_see_them_and_the_note_is_gone(): void
     {
-        app(EmployeeAssignmentService::class)->assign($this->shanu, $this->uploadAtSecondDepot(), null, [], null);
+        $second = $this->uploadAtSecondDepot();
+        $viewer = User::factory()->create();
+        $viewer->assignRole(RoleName::MarketingManager->value);
+        app(EmployeeAssignmentService::class)->assign($viewer, Facility::query()->where('name', 'Paper Market Warehouse')->sole(), null, ['is_primary' => true], null);
+        app(EmployeeAssignmentService::class)->assign($viewer, $second, null, [], null);
 
-        $this->actingAs($this->shanu)->get(route('online-orders.index'))->assertOk()->assertInertia(fn ($page) => $page
+        $this->actingAs($viewer)->get(route('online-orders.index'))->assertOk()->assertInertia(fn ($page) => $page
             ->has('batches', 1)
             ->where('elsewhere', null));
     }

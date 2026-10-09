@@ -33,7 +33,8 @@ let ocr: Promise<OcrWorker> | null = null;
 
 const absolute = (url: string) => new URL(url, window.location.href).href;
 
-async function pdfjs() {
+/** pdf.js with its worker, loaded the first time it is needed. */
+export async function pdfjs() {
     const [lib, PdfWorker] = await Promise.all([
         import('pdfjs-dist'),
         import('pdfjs-dist/build/pdf.worker.min.mjs?worker'),

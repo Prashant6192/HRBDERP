@@ -7,6 +7,7 @@ namespace App\Domain\Access\Services;
 use App\Domain\Marketplace\Enums\ShipmentStatus;
 use App\Domain\Marketplace\Models\LabelBatch;
 use App\Domain\Marketplace\Services\BrandAccess;
+use App\Domain\Marketplace\Services\OnlineOrderAccess;
 use App\Domain\Marketplace\Support\Cutoff;
 use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Services\FacilityAccess;
@@ -23,6 +24,7 @@ final class OnlineOrdersAccessCheck
     public function __construct(
         private readonly FacilityAccess $facilities,
         private readonly BrandAccess $brands,
+        private readonly OnlineOrderAccess $access,
     ) {}
 
     /**
@@ -49,11 +51,13 @@ final class OnlineOrdersAccessCheck
 
         $lines[] = ['ok' => true, 'text' => "{$first} can open Online orders".($abilities->isEmpty() ? ' (view only).' : ' and '.$abilities->implode(', ').'.')];
 
-        $ids = $this->facilities->facilityIds($user);
+        $ids = $this->access->facilityIds($user);
         $names = $ids === null ? null : Facility::query()->whereKey($ids)->orderBy('name')->pluck('name');
 
         $lines[] = $ids === null
-            ? ['ok' => true, 'text' => "{$first} works across every facility, so sees every facility's labels."]
+            ? ['ok' => true, 'text' => $this->facilities->isCompanyWide($user) || $this->brands->isRestricted($user)
+                ? "{$first} works across every facility, so sees every facility's labels."
+                : "{$first} prints, scans or dispatches online orders, so works every facility's labels, whichever facility they are assigned to."]
             : ($names->isEmpty()
                 ? ['ok' => false, 'text' => "{$first} is not assigned to any facility."]
                 : ['ok' => true, 'text' => "{$first} sees the labels of: ".$names->implode(', ').'.']);

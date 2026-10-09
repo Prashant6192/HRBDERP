@@ -20,6 +20,7 @@ use App\Domain\Marketplace\Models\Shipment;
 use App\Domain\Marketplace\Models\ShipmentLine;
 use App\Domain\Marketplace\Readers\Couriers;
 use App\Domain\Marketplace\Services\BrandAccess;
+use App\Domain\Marketplace\Services\OnlineOrderAccess;
 use App\Domain\Marketplace\Services\OnlineOrderService;
 use App\Domain\Marketplace\Support\Cutoff;
 use App\Domain\Marketplace\Support\LabelFileStore;
@@ -73,6 +74,7 @@ class OnlineOrderController extends Controller
         private readonly OnlineOrderService $orders,
         private readonly BrandAccess $brands,
         private readonly FacilityAccess $facilities,
+        private readonly OnlineOrderAccess $access,
     ) {}
 
     public function index(Request $request): Response
@@ -225,7 +227,7 @@ class OnlineOrderController extends Controller
             'search' => $search,
             'found' => $found,
             'facility' => $facilityId,
-            'facilities' => $this->brands->isRestricted($user) ? [] : $this->facilities->scopeFacilities($user, Facility::query())
+            'facilities' => $this->brands->isRestricted($user) ? [] : $this->access->scopeFacilities($user, Facility::query())
                 ->active()->where('can_dispatch', true)->ordered()->get(['id', 'name'])
                 ->map(fn (Facility $f) => ['value' => (string) $f->id, 'label' => $f->name])->all(),
             'can' => $this->abilities($user),
@@ -721,12 +723,12 @@ class OnlineOrderController extends Controller
     {
         $query = $this->brands->scopeByBrand($user, LabelBatch::query());
 
-        if (! $this->brands->isRestricted($user)) {
-            $ids = $this->facilities->facilityIds($user);
+        // The depot's people work every facility's labels; someone who may
+        // only look sees their own facilities.
+        $ids = $this->access->facilityIds($user);
 
-            if ($ids !== null) {
-                $query->whereIn('facility_id', $ids);
-            }
+        if ($ids !== null) {
+            $query->whereIn('facility_id', $ids);
         }
 
         return $query;
@@ -741,7 +743,7 @@ class OnlineOrderController extends Controller
      */
     private function elsewhere(User $user, CarbonImmutable $day): ?array
     {
-        $ids = $this->facilities->facilityIds($user);
+        $ids = $this->access->facilityIds($user);
 
         if ($ids === null || $this->brands->isRestricted($user)) {
             return null;
@@ -820,7 +822,7 @@ class OnlineOrderController extends Controller
      */
     private function dispatchStores(User $user): array
     {
-        return $this->facilities->scopeStores($user, Warehouse::query())
+        return $this->access->scopeStores($user, Warehouse::query())
             ->where('type', WarehouseType::FinishedGoods->value)
             ->where('is_active', true)
             ->where('is_system', false)
@@ -833,17 +835,24 @@ class OnlineOrderController extends Controller
     }
 
     /**
-     * Everyone who prints at the batch's facility hears the labels are in.
+     * Everyone who prints at the batch's facility hears the labels are in —
+     * or, when nobody is assigned there, everyone who prints.
      */
     private function tellTheDepot(LabelBatch $batch): void
     {
         $batch->loadMissing(['brand:id,name', 'marketplace:id,name', 'facility:id,name']);
 
-        $recipients = User::query()
+        $printers = User::query()
             ->active()
             ->permission('marketplace.print')
             ->get()
-            ->filter(fn (User $u) => $this->facilities->canWorkAt($u, $batch->facility_id) && ! $this->brands->isRestricted($u));
+            ->reject(fn (User $u) => $this->brands->isRestricted($u));
+        $recipients = $printers->filter(fn (User $u) => $this->facilities->canWorkAt($u, $batch->facility_id));
+
+        // Nobody from the depot is assigned there: tell every depot person.
+        if (! $recipients->contains(fn (User $u) => ! $this->facilities->isCompanyWide($u))) {
+            $recipients = $printers;
+        }
 
         if ($recipients->isEmpty()) {
             return;

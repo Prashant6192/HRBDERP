@@ -27,4 +27,13 @@ enum LabelReaderKind: string
             self::Ai => 'AI reader',
         };
     }
+
+    /**
+     * Whether a page carries the courier label above its tax invoice, so a
+     * 4×6 label printer is given the label alone (Meesho and Flipkart).
+     */
+    public function labelAboveInvoice(): bool
+    {
+        return $this === self::Meesho || $this === self::Flipkart;
+    }
 }

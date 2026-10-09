@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/dialog';
 import {
     DropdownMenu,
+    DropdownMenuCheckboxItem,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
@@ -50,6 +51,8 @@ import {
     needsAttention,
     postJson,
     printPlan,
+    printsFullPage,
+    rememberFullPage,
     type Abilities,
     type Batch,
     type Parcel,
@@ -406,6 +409,9 @@ export default function OnlineOrderBatch({
 }) {
     const [filter, setFilter] = useState<Filter>('all');
     const [printing, setPrinting] = useState(false);
+    const [progress, setProgress] = useState<string | null>(null);
+    const [fullPage, setFullPage] = useState(printsFullPage);
+    const crops = ['Meesho', 'Flipkart'].includes(batch.marketplace ?? '');
     const [editing, setEditing] = useState<Parcel | null>(null);
     const [cancelling, setCancelling] = useState<Parcel | null>(null);
     const [forcing, setForcing] = useState<Parcel | null>(null);
@@ -495,7 +501,11 @@ export default function OnlineOrderBatch({
                 return;
             }
 
-            await printPlan(data);
+            await printPlan(data, {
+                fullPage,
+                onProgress: (done, total) =>
+                    setProgress(total > 20 ? `${done}/${total}` : null),
+            });
             toast.success(
                 `${data.shipments} label(s), ${data.pages} page(s) sent to print.`,
             );
@@ -504,6 +514,7 @@ export default function OnlineOrderBatch({
             toast.error(e instanceof Error ? e.message : String(e));
         } finally {
             setPrinting(false);
+            setProgress(null);
         }
     };
 
@@ -563,7 +574,9 @@ export default function OnlineOrderBatch({
                                             ) : (
                                                 <Printer className="size-4" />
                                             )}
-                                            Print labels
+                                            {printing && progress
+                                                ? `Preparing ${progress}…`
+                                                : 'Print labels'}
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent
@@ -607,6 +620,28 @@ export default function OnlineOrderBatch({
                                                 )
                                             </DropdownMenuItem>
                                         ))}
+                                        {crops && (
+                                            <>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuCheckboxItem
+                                                    checked={fullPage}
+                                                    onSelect={(e) =>
+                                                        e.preventDefault()
+                                                    }
+                                                    onCheckedChange={(on) => {
+                                                        setFullPage(on);
+                                                        rememberFullPage(on);
+                                                    }}
+                                                >
+                                                    Full page with invoice
+                                                </DropdownMenuCheckboxItem>
+                                                <p className="text-muted-foreground px-2 pb-1.5 text-xs">
+                                                    {fullPage
+                                                        ? 'Prints the whole A4 page.'
+                                                        : 'Labels print cut to 4×6 inch for the label printer.'}
+                                                </p>
+                                            </>
+                                        )}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             )}

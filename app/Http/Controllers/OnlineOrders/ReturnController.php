@@ -12,12 +12,12 @@ use App\Domain\Marketplace\Models\Shipment;
 use App\Domain\Marketplace\Models\ShipmentReturn;
 use App\Domain\Marketplace\Models\ShipmentReturnLine;
 use App\Domain\Marketplace\Services\BrandAccess;
+use App\Domain\Marketplace\Services\OnlineOrderAccess;
 use App\Domain\Marketplace\Services\OnlineOrderService;
 use App\Domain\Marketplace\Services\ReturnService;
 use App\Domain\Marketplace\Support\Cutoff;
 use App\Domain\Warehousing\Enums\WarehouseType;
 use App\Domain\Warehousing\Models\Warehouse;
-use App\Domain\Warehousing\Services\FacilityAccess;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Support\Math\Decimal;
@@ -41,7 +41,7 @@ class ReturnController extends Controller
         private readonly ReturnService $returns,
         private readonly OnlineOrderService $orders,
         private readonly BrandAccess $brands,
-        private readonly FacilityAccess $facilities,
+        private readonly OnlineOrderAccess $access,
     ) {}
 
     public function index(Request $request): Response
@@ -125,7 +125,6 @@ class ReturnController extends Controller
 
         return [
             'code' => trim($request->string('code')->toString()),
-            'kinds' => ReturnKind::options(),
             'stores' => $this->goodStores($user),
             'recent' => $this->visible($user)
                 ->where('received_by', $user->id)
@@ -162,12 +161,66 @@ class ReturnController extends Controller
             ->values()
             ->all();
 
+        $cannotCancel = $this->orders->cannotCancelInHand($shipment);
+        $shipment->loadMissing('warehouse:id,name');
+
         return response()->json([
             'shipment' => OnlineOrderPresenter::shipment($shipment),
             'sent' => $sent,
             'why_not' => $this->returns->cannotReturn($shipment),
             'store_id' => $shipment->warehouse_id,
+            'cancel' => [
+                'allowed' => $cannotCancel === null && $this->mayCancel($user),
+                'why_not' => $cannotCancel,
+                'puts_back' => ! $shipment->status->awaitsPacking(),
+                'note' => $shipment->status->awaitsPacking()
+                    ? 'Nothing left the shelf for this order. Cancelling it lets go of the stock held for it.'
+                    : "Everything packed in it goes back into {$shipment->warehouse?->name}. Put the goods back on the shelf.",
+            ],
         ]);
+    }
+
+    /**
+     * The order was cancelled and the parcel is back in hand: mark it
+     * cancelled and put its stock back where it was packed from.
+     */
+    public function cancel(Request $request, Shipment $shipment): RedirectResponse
+    {
+        $user = $request->user();
+        abort_unless($this->mayCancel($user), 403);
+
+        $data = $request->validate([
+            'reason' => ['nullable', 'string', 'max:255'],
+            'from' => ['nullable', Rule::in(['floor'])],
+        ]);
+
+        if ($this->brands->isRestricted($user) && ! $this->brands->canUse($user, $shipment->brand_id)) {
+            abort(403);
+        }
+
+        abort_unless($this->access->canWorkIn($user, $shipment->warehouse), 403, "You do not work in {$shipment->warehouse?->name}.");
+
+        $wasPacked = ! $shipment->status->awaitsPacking();
+        $reason = trim((string) ($data['reason'] ?? '')) ?: 'Order cancelled; scanned back on the returns screen';
+
+        try {
+            $this->orders->cancel($shipment, $reason, $user, backInHand: true);
+        } catch (OnlineOrderException $e) {
+            return back()->withToast('error', $e->getMessage());
+        }
+
+        $done = $wasPacked
+            ? "{$shipment->reference()} cancelled. Its stock is back in {$shipment->warehouse?->name}: put the goods back on the shelf."
+            : "{$shipment->reference()} cancelled. Nothing had left the shelf.";
+
+        return redirect()->route(($data['from'] ?? null) === 'floor' ? 'floor.return' : 'online-orders.returns.create')
+            ->withToast('success', $done);
+    }
+
+    private function mayCancel(User $user): bool
+    {
+        return $user->can('marketplace.return') || $user->can('marketplace.pack')
+            || $user->can('marketplace.print') || $user->can('marketplace.manage');
     }
 
     public function store(Request $request): RedirectResponse
@@ -177,7 +230,8 @@ class ReturnController extends Controller
 
         $data = $request->validate([
             'shipment_id' => ['required', 'integer', Rule::exists('shipments', 'id')],
-            'kind' => ['required', Rule::enum(ReturnKind::class)],
+            // Every parcel that comes back is received as a customer return.
+            'kind' => ['nullable', Rule::in(array_column(ReturnKind::options(), 'value'))],
             'into_store_id' => ['nullable', 'integer', Rule::exists('warehouses', 'id')],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.item_id' => ['required', 'integer'],
@@ -199,9 +253,9 @@ class ReturnController extends Controller
 
         if (! empty($data['into_store_id'])) {
             $into = Warehouse::query()->findOrFail((int) $data['into_store_id']);
-            $this->facilities->assertCanWorkIn($user, $into);
+            abort_unless($this->access->canWorkIn($user, $into), 403, "You do not work in {$into->name}.");
         } else {
-            $this->facilities->assertCanWorkIn($user, $shipment->warehouse);
+            abort_unless($this->access->canWorkIn($user, $shipment->warehouse), 403, "You do not work in {$shipment->warehouse?->name}.");
         }
 
         $counts = [];
@@ -213,7 +267,7 @@ class ReturnController extends Controller
         try {
             $return = $this->returns->receive(
                 $shipment,
-                ReturnKind::from($data['kind']),
+                ReturnKind::from($data['kind'] ?? ReturnKind::Customer->value),
                 $counts,
                 $user,
                 $into,
@@ -268,7 +322,7 @@ class ReturnController extends Controller
             $query->whereIn('brand_id', $this->brands->brandIds($user) ?? []);
         }
 
-        $facilityIds = $this->facilities->facilityIds($user);
+        $facilityIds = $this->access->facilityIds($user);
 
         return $facilityIds === null ? $query : $query->whereIn('facility_id', $facilityIds);
     }
@@ -286,7 +340,7 @@ class ReturnController extends Controller
      */
     private function goodStores(User $user): array
     {
-        return $this->facilities->scopeStores($user, Warehouse::query())
+        return $this->access->scopeStores($user, Warehouse::query())
             ->where('type', WarehouseType::FinishedGoods->value)
             ->where('is_active', true)
             ->where('is_system', false)

@@ -11,6 +11,30 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Added — Ingredient codes and names corrected in Excel
+
+- Stock → a raw material store now has **Ingredient list (Excel)**: every
+  ingredient with its ERP id, code, name, unit and what the store holds.
+  Correct codes and names in the sheet and choose **Upload edited list**.
+- Every change is shown (old → new) before anything is saved, with the
+  rows that cannot be used and why: a blank code or name, a code another
+  item already has (deleted ones included), a row whose ERP id is not an
+  ingredient. **Apply** saves the changes together, each in the audit
+  trail; two ingredients may swap codes.
+- Rows find their ingredient by ERP id, so a changed code still lands on
+  the right one. Only someone who may edit raw materials can upload.
+
+### Changed — Batches are planned in KG or litres
+
+- Plan a batch offers only KG and Litre. A formula written per 100 g
+  starts the batch in KG, one per 100 ml in litres.
+
+### Changed — Ingredients are searched on the formula screen
+
+- Choosing a material on New formula / Edit formula is now a search box:
+  type part of the name, code or INCI name. A material already on another
+  line cannot be picked twice.
+
 ### Fixed — A manager who also has the agency role can print again
 
 - A company account given the E-commerce Agency role as well (to upload

@@ -88,7 +88,7 @@ class ProductionPlanController extends Controller
                 ->with([
                     'product:id,code,name,net_content,net_content_uom_id,client_id', 'product.netContentUom:id,code',
                     'product.packagingLines.packagingMaterial:id,code,name',
-                    'activeVersion:id,version_number,batch_uom_id', 'activeVersion.batchUom:id,code',
+                    'activeVersion:id,version_number,batch_uom_id', 'activeVersion.batchUom:id,code,dimension',
                     'activeVersion.ingredients.item:id,code,name', 'client:id,name',
                 ])
                 ->orderBy('name')
@@ -103,6 +103,7 @@ class ProductionPlanController extends Controller
                     'version' => $f->activeVersion?->version_number,
                     'batch_uom_id' => $f->activeVersion?->batch_uom_id,
                     'batch_uom' => $f->activeVersion?->batchUom?->code,
+                    'batch_dimension' => $f->activeVersion?->batchUom?->dimension->value,
                     'ownership' => $f->ownership->value,
                     'ownership_label' => $f->ownership->label(),
                     'client_id' => $f->client_id,
@@ -117,7 +118,7 @@ class ProductionPlanController extends Controller
             'clients' => $this->clientOptions(),
             'manufacturingTypes' => ManufacturingType::options(),
             'materialSources' => MaterialSource::options(),
-            'uoms' => Uom::query()->active()->whereIn('dimension', ['mass', 'volume'])->orderBy('dimension')->orderBy('code')->get(['id', 'code', 'name', 'dimension'])
+            'uoms' => Uom::query()->active()->whereIn('code', StoreProductionPlanRequest::BATCH_UNITS)->orderBy('dimension')->orderBy('code')->get(['id', 'code', 'name', 'dimension'])
                 ->map(static fn (Uom $u): array => ['value' => $u->id, 'label' => "{$u->code} — {$u->name}", 'dimension' => $u->dimension->value])->all(),
             'facilities' => $this->access->scopeFacilities($request->user(), Facility::query()->active()->manufacturing())->ordered()->get(['id', 'code', 'name', 'city'])
                 ->map(static fn (Facility $f): array => ['value' => $f->id, 'label' => $f->name, 'description' => $f->city])->all(),

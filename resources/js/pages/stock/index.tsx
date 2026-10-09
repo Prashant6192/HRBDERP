@@ -7,6 +7,7 @@ import {
     Search,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { IngredientSheet } from '@/components/inventory/ingredient-sheet';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
@@ -92,7 +93,12 @@ export default function StockIndex({
     levels: LevelDef[];
     filters: { search: string; level: string };
     expiring: { days: number; count: number };
-    can: { receive: boolean; view_receipts: boolean };
+    can: {
+        receive: boolean;
+        view_receipts: boolean;
+        ingredient_sheet: boolean;
+        ingredient_upload: boolean;
+    };
 }) {
     const [search, setSearch] = useState(filters.search);
     const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -149,6 +155,12 @@ export default function StockIndex({
                                         Past deliveries
                                     </Link>
                                 </Button>
+                            )}
+                            {can.ingredient_sheet && selected && (
+                                <IngredientSheet
+                                    storeId={selected.id}
+                                    canUpload={can.ingredient_upload}
+                                />
                             )}
                             {facilities.length > 1 && (
                                 <Select

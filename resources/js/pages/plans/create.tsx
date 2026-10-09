@@ -32,6 +32,7 @@ type FormulaOption = SelectOption & {
     version: number | null;
     batch_uom_id: number | null;
     batch_uom: string | null;
+    batch_dimension: string | null;
 };
 
 type UomOption = SelectOption & { dimension: string };
@@ -114,12 +115,15 @@ export default function CreatePlan({
 
     const chooseFormula = (id: string) => {
         const chosen = formulas.find((f) => String(f.value) === id);
+        // Batches are planned in KG or litres: a formula written per 100 g
+        // starts the batch in KG, one per 100 ml in litres.
+        const unit =
+            uoms.find((u) => u.value === chosen?.batch_uom_id) ??
+            uoms.find((u) => u.dimension === chosen?.batch_dimension);
         form.setData({
             ...form.data,
             formula_id: id,
-            uom_id: chosen?.batch_uom_id
-                ? String(chosen.batch_uom_id)
-                : form.data.uom_id,
+            uom_id: unit ? String(unit.value) : form.data.uom_id,
         });
     };
 

@@ -142,6 +142,9 @@ class StockController extends Controller
             'can' => [
                 'receive' => $request->user()->can('create', GoodsReceipt::class),
                 'view_receipts' => $request->user()->can('purchase.view'),
+                // The ingredient list in Excel, to correct codes and names.
+                'ingredient_sheet' => $selected?->type === WarehouseType::RawMaterial && ! $selected->is_quarantine && $request->user()->can('raw_material.view'),
+                'ingredient_upload' => $selected?->type === WarehouseType::RawMaterial && ! $selected->is_quarantine && $request->user()->can('raw_material.edit'),
             ],
             'levels' => array_map(fn (StockAlertLevel $l) => [
                 'value' => $l->value, 'label' => $l->shortLabel(), 'variant' => $l->badgeVariant(), 'severity' => $l->severity(),

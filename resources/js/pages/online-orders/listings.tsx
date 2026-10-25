@@ -1,5 +1,5 @@
-import { Head, useForm } from '@inertiajs/react';
-import { Plus, Tags, X } from 'lucide-react';
+import { Head, router, useForm } from '@inertiajs/react';
+import { Boxes, Plus, Tags, X } from 'lucide-react';
 import { useState } from 'react';
 import InputError from '@/components/input-error';
 import { PageHeader } from '@/components/page-header';
@@ -11,7 +11,7 @@ import {
     type SearchableOption,
 } from '@/components/ui/searchable-select';
 import { cn } from '@/lib/utils';
-import { store, update } from '@/routes/listings';
+import { packs, store, update } from '@/routes/listings';
 
 type Waiting = {
     marketplace_id: number;
@@ -47,6 +47,101 @@ type Listing = {
         units: number;
     }[];
 };
+
+type PackMove = {
+    item_id: number;
+    item: string | null;
+    item_code: string | null;
+    quantity: number;
+    pack: string | null;
+    listings: {
+        id: number;
+        marketplace: string | null;
+        brand: string | null;
+        seller_sku: string;
+    }[];
+};
+
+/**
+ * Listings sold as two of one product, to be taken from that product's
+ * Pack of 2 stock instead.
+ */
+function PackMoves({ moves }: { moves: PackMove[] }) {
+    const [busy, setBusy] = useState<number | null>(null);
+
+    if (moves.length === 0) {
+        return null;
+    }
+
+    const move = (m: PackMove) => {
+        if (
+            !window.confirm(
+                `Take ${m.listings.length} listing(s) of ${m.quantity} × ${m.item} from the "${m.item} (Pack of ${m.quantity})" stock? ${m.pack ? '' : 'The Pack of ' + m.quantity + ' product is added now. '}Waiting parcels are matched again at once.`,
+            )
+        ) {
+            return;
+        }
+
+        setBusy(m.item_id);
+        router.post(
+            packs().url,
+            { item_id: m.item_id, quantity: m.quantity },
+            { preserveScroll: true, onFinish: () => setBusy(null) },
+        );
+    };
+
+    return (
+        <section className="bg-card rounded-xl border">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+                <h2 className="flex items-center gap-2 text-sm font-semibold">
+                    <Boxes className="size-4" />
+                    Sold as packs, taken as single pieces
+                </h2>
+                <span className="text-muted-foreground text-xs">
+                    Switch them to the Pack of 2 product once its stock is kept
+                    as packs
+                </span>
+            </div>
+            <ul className="divide-y">
+                {moves.map((m) => (
+                    <li
+                        key={`${m.item_id}-${m.quantity}`}
+                        className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+                    >
+                        <div className="min-w-0">
+                            <div className="font-medium">
+                                {m.quantity} × {m.item}{' '}
+                                <span className="text-muted-foreground font-mono text-xs">
+                                    {m.item_code}
+                                </span>
+                            </div>
+                            <div className="text-muted-foreground text-xs">
+                                {m.listings
+                                    .map(
+                                        (l) =>
+                                            `${l.seller_sku} (${l.brand} · ${l.marketplace})`,
+                                    )
+                                    .join(', ')}
+                            </div>
+                        </div>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busy !== null}
+                            onClick={() => move(m)}
+                        >
+                            {busy === m.item_id
+                                ? 'Switching…'
+                                : m.pack
+                                  ? `Take from ${m.pack}`
+                                  : `Take from Pack of ${m.quantity}`}
+                        </Button>
+                    </li>
+                ))}
+            </ul>
+        </section>
+    );
+}
 
 /** "Pack of 2", "PO2", "(2)", "x2" on the label: two pieces per order. */
 function guessPieces(text: string): number {
@@ -332,10 +427,12 @@ function ListingRow({
 export default function SkuMapping({
     waiting,
     listings,
+    pack_moves: packMoves,
     products,
 }: {
     waiting: Waiting[];
     listings: Listing[];
+    pack_moves: PackMove[];
     products: SearchableOption[];
     marketplaces: { value: string; label: string }[];
     brands: { value: string; label: string }[];
@@ -382,6 +479,8 @@ export default function SkuMapping({
                         </ul>
                     )}
                 </section>
+
+                <PackMoves moves={packMoves} />
 
                 <section className="bg-card rounded-xl border">
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">

@@ -144,6 +144,8 @@ class ReferenceDataSeeder extends Seeder
             ['FLIPKART', 'Flipkart', LabelReaderKind::Flipkart],
             ['AMAZON', 'Amazon', LabelReaderKind::Ai],
             ['MYNTRA', 'Myntra', LabelReaderKind::Myntra],
+            // Orders from the company's own website, shipped through Shiprocket.
+            ['WEBSITE', 'Website', LabelReaderKind::Shiprocket],
         ] as [$code, $name, $reader]) {
             Marketplace::query()->firstOrCreate(['code' => $code], ['name' => $name, 'reader' => $reader, 'is_active' => true]);
         }

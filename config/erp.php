@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 return [
 
+    // The live site. Commands meant for a preview copy (erp:reviewer)
+    // refuse to run where APP_URL is this host.
+    'live_host' => env('ERP_LIVE_HOST', 'erp.rahatrooh.com'),
+
     /*
     |--------------------------------------------------------------------------
     | Version

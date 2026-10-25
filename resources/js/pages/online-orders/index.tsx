@@ -6,6 +6,7 @@ import {
     ChevronLeft,
     ChevronRight,
     FileText,
+    History,
     PackageCheck,
     Printer,
     Send,
@@ -55,6 +56,7 @@ import { cn } from '@/lib/utils';
 import { pack as scanToPack } from '@/routes/floor';
 import { pdf as sheetPdf } from '@/routes/handover-sheets';
 import {
+    catchUp,
     create,
     courier as courierRoute,
     dispatch as dispatchRoute,
@@ -451,6 +453,15 @@ export default function OnlineOrdersIndex({
                                     </Link>
                                 </Button>
                             )}
+                            {!can.restricted &&
+                                ((can.pack && can.handover) || can.manage) && (
+                                    <Button variant="outline" asChild>
+                                        <Link href={catchUp()}>
+                                            <History className="size-4" />
+                                            Catch up
+                                        </Link>
+                                    </Button>
+                                )}
                             {mayCancelAny && (
                                 <Button
                                     variant="outline"

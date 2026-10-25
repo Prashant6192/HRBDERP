@@ -34,6 +34,7 @@ use App\Domain\Marketplace\Models\MarketplaceListing;
 use App\Domain\Marketplace\Models\Shipment;
 use App\Domain\Marketplace\Models\ShipmentLine;
 use App\Domain\Marketplace\Models\ShipmentPick;
+use App\Domain\Marketplace\Support\Cutoff;
 use App\Domain\Marketplace\Support\LabelFileStore;
 use App\Domain\MasterData\Enums\ItemType;
 use App\Domain\MasterData\Models\Item;
@@ -44,6 +45,7 @@ use App\Models\User;
 use App\Support\Math\Decimal;
 use Brick\Math\BigDecimal;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
@@ -908,13 +910,13 @@ class OnlineOrderService
      * The goods are in the box. The stock leaves the store now, batch by
      * batch, against the parcel.
      */
-    public function pack(Shipment $shipment, User $user, string $method = 'scan', ?string $note = null): Shipment
+    public function pack(Shipment $shipment, User $user, string $method = 'scan', ?string $note = null, ?CarbonInterface $at = null): Shipment
     {
         if ($method === 'manual' && trim((string) $note) === '') {
             throw new OnlineOrderException('Say why this parcel is being marked packed without scanning its label.');
         }
 
-        return DB::transaction(function () use ($shipment, $user, $method, $note): Shipment {
+        return DB::transaction(function () use ($shipment, $user, $method, $note, $at): Shipment {
             $shipment = Shipment::query()->lockForUpdate()->with(['lines', 'picks.item.stockUom', 'brand', 'warehouse', 'marketplace'])->findOrFail($shipment->id);
 
             if ($shipment->status === ShipmentStatus::Cancelled) {
@@ -941,12 +943,12 @@ class OnlineOrderService
                 ));
             }
 
-            $transaction = $this->consume($shipment, $user);
+            $transaction = $this->consume($shipment, $user, $at);
 
             $shipment->fill([
                 'status' => ShipmentStatus::Packed,
                 'stock_state' => StockState::Consumed,
-                'packed_at' => now(),
+                'packed_at' => $at ?? now(),
                 'packed_by' => $user->id,
                 'pack_method' => $method,
                 'pack_note' => $note,
@@ -1189,6 +1191,51 @@ class OnlineOrderService
                     'updated_at' => now(),
                 ]);
         });
+    }
+
+    /**
+     * Parcels that went out without being scanned — the labels were
+     * printed and the courier took them — are put right in one go: each is
+     * packed (its stock leaves the store) and dispatched, dated the day its
+     * labels were for. A parcel that cannot be packed (stock short, product
+     * not mapped, cancelled) is left as it is and named.
+     *
+     * @param  Builder<Shipment>  $visible
+     * @param  list<int>  $shipmentIds
+     * @return array{done: int, skipped: list<array{id: int, reference: string, why: string}>}
+     */
+    public function catchUp(Builder $visible, array $shipmentIds, User $user): array
+    {
+        $done = 0;
+        $skipped = [];
+
+        $shipments = $visible->whereKey($shipmentIds)
+            ->whereIn('status', ShipmentStatus::awaitingPacking())
+            ->with('batch:id,for_date')
+            ->orderBy('id')
+            ->get();
+
+        foreach ($shipments as $shipment) {
+            // The evening of the day the labels were for.
+            $day = CarbonImmutable::parse($shipment->batch->for_date->toDateString(), Cutoff::timezone())->setTime(18, 0);
+            $at = $day->isFuture() ? now() : $day->utc();
+
+            try {
+                DB::transaction(function () use ($shipment, $user, $at): void {
+                    $packed = $this->pack($shipment, $user, 'catchup', 'Shipped before it was scanned; caught up.', $at);
+                    $packed->fill([
+                        'status' => ShipmentStatus::HandedOver,
+                        'handed_over_at' => $at,
+                        'handed_over_by' => $user->id,
+                    ])->save();
+                });
+                $done++;
+            } catch (OnlineOrderException $e) {
+                $skipped[] = ['id' => $shipment->id, 'reference' => $shipment->reference(), 'why' => $e->getMessage()];
+            }
+        }
+
+        return ['done' => $done, 'skipped' => $skipped];
     }
 
     private function forScreen(Shipment $shipment): Shipment
@@ -1471,7 +1518,7 @@ class OnlineOrderService
     /**
      * Lower what is held and post it out, one line per batch, in one posting.
      */
-    private function consume(Shipment $shipment, User $user): InventoryTransaction
+    private function consume(Shipment $shipment, User $user, ?CarbonInterface $at = null): InventoryTransaction
     {
         $held = StockReservation::query()
             ->lockForUpdate()
@@ -1519,6 +1566,7 @@ class OnlineOrderService
                 $shipment->order_number ?? '—',
                 $shipment->awb ?? '—',
             ),
+            transactedAt: $at,
             createdBy: $user->id,
         ));
     }

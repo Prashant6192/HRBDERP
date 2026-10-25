@@ -8,6 +8,10 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { IngredientSheet } from '@/components/inventory/ingredient-sheet';
+import {
+    ScanInPanel,
+    type ScanProduct,
+} from '@/components/inventory/scan-in-panel';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
@@ -83,6 +87,7 @@ export default function StockIndex({
     filters,
     expiring,
     can,
+    scan_products,
 }: {
     facilities: FacilityOption[];
     facility: number | null;
@@ -98,7 +103,9 @@ export default function StockIndex({
         view_receipts: boolean;
         ingredient_sheet: boolean;
         ingredient_upload: boolean;
+        scan_in: boolean;
     };
+    scan_products: ScanProduct[];
 }) {
     const [search, setSearch] = useState(filters.search);
     const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -155,6 +162,13 @@ export default function StockIndex({
                                         Past deliveries
                                     </Link>
                                 </Button>
+                            )}
+                            {can.scan_in && selected && (
+                                <ScanInPanel
+                                    storeId={selected.id}
+                                    storeName={selected.name}
+                                    products={scan_products}
+                                />
                             )}
                             {can.ingredient_sheet && selected && (
                                 <IngredientSheet

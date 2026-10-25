@@ -33,6 +33,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property ItemType $type
  * @property string|null $density_g_per_ml
  * @property Uom $stockUom
+ * @property int|null $pack_of_item_id
+ * @property int|null $pack_quantity
  */
 class Item extends Model
 {
@@ -48,6 +50,7 @@ class Item extends Model
         'stock_uom_id', 'purchase_uom_id', 'density_g_per_ml',
         'hsn_code', 'gst_rate', 'standard_cost',
         'brand', 'client_id', 'mrp', 'net_content', 'net_content_uom_id', 'units_per_carton', 'barcode',
+        'pack_of_item_id', 'pack_quantity',
         'is_batch_tracked', 'requires_qc', 'shelf_life_days',
         'reorder_level', 'minimum_stock', 'maximum_stock', 'lead_time_days',
         'min_order_quantity', 'order_multiple',
@@ -63,6 +66,7 @@ class Item extends Model
             'is_active' => 'boolean',
             'shelf_life_days' => 'integer',
             'lead_time_days' => 'integer',
+            'pack_quantity' => 'integer',
         ];
     }
 
@@ -89,6 +93,26 @@ class Item extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(ItemCategory::class, 'category_id');
+    }
+
+    /**
+     * For a pack (Pack of 2): the single product it is made of.
+     *
+     * @return BelongsTo<Item, $this>
+     */
+    public function packOf(): BelongsTo
+    {
+        return $this->belongsTo(Item::class, 'pack_of_item_id');
+    }
+
+    /**
+     * For a single product: its packs (Pack of 2, …).
+     *
+     * @return HasMany<Item, $this>
+     */
+    public function packs(): HasMany
+    {
+        return $this->hasMany(Item::class, 'pack_of_item_id');
     }
 
     /**

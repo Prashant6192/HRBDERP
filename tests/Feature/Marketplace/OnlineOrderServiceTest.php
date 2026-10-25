@@ -150,7 +150,7 @@ class OnlineOrderServiceTest extends TestCase
     public function the_brand_ships_from_the_paper_market_depot_by_default(): void
     {
         $this->assertSame($this->depotFg->id, $this->rahatRooh->default_warehouse_id);
-        $this->assertSame(['AMAZON', 'FLIPKART', 'MEESHO', 'MYNTRA'], Marketplace::query()->orderBy('code')->pluck('code')->all());
+        $this->assertSame(['AMAZON', 'FLIPKART', 'MEESHO', 'MYNTRA', 'WEBSITE'], Marketplace::query()->orderBy('code')->pluck('code')->all());
     }
 
     #[Test]

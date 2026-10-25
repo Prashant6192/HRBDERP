@@ -33,6 +33,8 @@ enum InventoryTransactionType: string
     case MarketplaceSale = 'MARKETPLACE_SALE';
     case MarketplaceReturn = 'MARKETPLACE_RETURN';
     case MarketplaceTransfer = 'MARKETPLACE_TRANSFER';
+    // Finished goods scanned in on the Stock screen.
+    case ScanReceipt = 'SCAN_RECEIPT';
     case Reversal = 'REVERSAL';
 
     public function label(): string
@@ -57,6 +59,7 @@ enum InventoryTransactionType: string
             self::MarketplaceSale => 'Sold online (packed)',
             self::MarketplaceReturn => 'Online order returned',
             self::MarketplaceTransfer => 'Transferred to marketplace',
+            self::ScanReceipt => 'Scanned in',
             self::Reversal => 'Reversal of an earlier posting',
         };
     }
@@ -75,7 +78,8 @@ enum InventoryTransactionType: string
             self::ProductionReturn,
             self::ProductionOutput,
             self::StockAdjustmentIn,
-            self::MarketplaceReturn => 'in',
+            self::MarketplaceReturn,
+            self::ScanReceipt => 'in',
 
             self::PurchaseReturn,
             self::ProductionConsumption,

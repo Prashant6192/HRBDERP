@@ -14,6 +14,7 @@ use App\Domain\Marketplace\Models\Marketplace;
 use App\Domain\Marketplace\Readers\FlipkartLabelParser;
 use App\Domain\Marketplace\Readers\MeeshoLabelParser;
 use App\Domain\Marketplace\Readers\MyntraLabelParser;
+use App\Domain\Marketplace\Readers\ShiprocketLabelParser;
 use Smalot\PdfParser\Parser;
 use Throwable;
 
@@ -132,7 +133,7 @@ class LabelReaderService
         // Meesho's and Flipkart's labels always carry text; a file of
         // pictures only is a Myntra or Amazon file chosen under them.
         if ($pages === []) {
-            if (in_array($marketplace->reader, [LabelReaderKind::Meesho, LabelReaderKind::Flipkart], true)) {
+            if (in_array($marketplace->reader, [LabelReaderKind::Meesho, LabelReaderKind::Flipkart, LabelReaderKind::Shiprocket], true)) {
                 throw new OnlineOrderException("{$filename} has only pictures, unlike {$marketplace->name}'s labels. If it is a Myntra or Amazon file, upload it again with that marketplace selected.");
             }
 
@@ -199,6 +200,7 @@ class LabelReaderService
             LabelReaderKind::Meesho => new MeeshoLabelParser,
             LabelReaderKind::Flipkart => new FlipkartLabelParser,
             LabelReaderKind::Myntra => new MyntraLabelParser,
+            LabelReaderKind::Shiprocket => new ShiprocketLabelParser,
             LabelReaderKind::Ai => null,
         };
     }

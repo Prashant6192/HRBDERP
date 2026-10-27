@@ -11,6 +11,19 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Fixed — Warnings during deployment
+
+- Caching routes on deploy (`php artisan optimize`) stopped with "The
+  [files] disk conflicts with the [local] disk at [/storage]". The files
+  disk (label PDFs, photos) copied the local disk's setting to be served
+  from /storage; it is never served from there (the ERP's own pages hand
+  the files out), so it no longer claims it.
+- The front-end build warned that its main file was over 500 kB. The
+  libraries every page uses (React, Inertia, the UI kit, the icons) now
+  build into files of their own: the main file is about 330 kB, and a
+  deploy that only changes the ERP's own screens leaves the browser's copy
+  of the libraries in place.
+
 ### Fixed — Shiprocket labels read as Shiprocket prints them
 
 - Shiprocket's label PDF has two labels side by side on each A4 page.

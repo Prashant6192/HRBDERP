@@ -16,6 +16,7 @@ final class LabelExtraction
      * @param  list<int>  $pages  1-based pages of the file, in order
      * @param  list<array{seller_sku: string, description: string|null, quantity: int}>  $lines
      * @param  list<string>  $warnings
+     * @param  int|null  $slot  where on its page the label sits, when a page holds several (0 = first, left to right)
      */
     public function __construct(
         public readonly array $pages,
@@ -33,6 +34,7 @@ final class LabelExtraction
         public readonly ?string $customerPincode = null,
         public readonly array $lines = [],
         public readonly array $warnings = [],
+        public readonly ?int $slot = null,
     ) {}
 
     /**
@@ -79,6 +81,7 @@ final class LabelExtraction
             customerPincode: self::pincode($data['customer_pincode'] ?? null),
             lines: $lines,
             warnings: array_values(array_filter(array_map(fn ($w) => self::clean($w), (array) ($data['warnings'] ?? [])))),
+            slot: isset($data['slot']) && is_numeric($data['slot']) && (int) $data['slot'] >= 0 ? (int) $data['slot'] : null,
         );
     }
 
@@ -103,6 +106,7 @@ final class LabelExtraction
             'customer_pincode' => $this->customerPincode,
             'lines' => $this->lines,
             'warnings' => $this->warnings,
+            'slot' => $this->slot,
         ];
     }
 

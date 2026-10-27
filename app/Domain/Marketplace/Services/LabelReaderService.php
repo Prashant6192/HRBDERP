@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Marketplace\Services;
 
 use App\Domain\Marketplace\Contracts\AiLabelReader;
+use App\Domain\Marketplace\Contracts\LabelSheetParser;
 use App\Domain\Marketplace\Contracts\LabelTextParser;
 use App\Domain\Marketplace\DTOs\LabelExtraction;
 use App\Domain\Marketplace\DTOs\LabelReading;
@@ -56,10 +57,17 @@ class LabelReaderService
                     $text = $seen[$page];
                 }
 
-                $parcel = trim($text) === '' ? null : $parser->parse($text, $page);
+                if (trim($text) === '') {
+                    continue;
+                }
 
-                if ($parcel !== null && ! $parcel->isBlank()) {
-                    $parcels[$page] = $parcel;
+                // Shiprocket prints two labels to a page.
+                $found = $parser instanceof LabelSheetParser
+                    ? array_values(array_filter($parser->parsePage($text, $page), fn (LabelExtraction $p) => ! $p->isBlank()))
+                    : array_filter([$parser->parse($text, $page)], fn (?LabelExtraction $p) => $p !== null && ! $p->isBlank());
+
+                if ($found !== []) {
+                    $parcels[$page] = array_values($found);
                 }
             }
         }
@@ -67,7 +75,9 @@ class LabelReaderService
         $unread = array_values(array_diff(range(1, $pageCount), array_keys($parcels)));
 
         if ($unread === []) {
-            return new LabelReading(array_values($parcels), $marketplace->reader->value, pageCount: $pageCount);
+            ksort($parcels);
+
+            return new LabelReading(array_merge(...array_values($parcels)), $marketplace->reader->value, pageCount: $pageCount);
         }
 
         $warnings = [];
@@ -95,7 +105,7 @@ class LabelReaderService
                     continue;
                 }
 
-                $parcels[$pages[0]] = $parcel;
+                $parcels[$pages[0]] = [$parcel];
                 $unread = array_values(array_diff($unread, $pages));
             }
 
@@ -109,12 +119,12 @@ class LabelReaderService
         // Nobody could read these pages. They still become parcels, flagged
         // for someone to fill in, rather than vanishing.
         foreach ($unread as $page) {
-            $parcels[$page] = new LabelExtraction(pages: [$page], warnings: ['This page could not be read. Type the AWB, courier and product.']);
+            $parcels[$page] = [new LabelExtraction(pages: [$page], warnings: ['This page could not be read. Type the AWB, courier and product.'])];
         }
 
         ksort($parcels);
 
-        return new LabelReading(array_values($parcels), $readWith, $model, $ignored, $warnings, $pageCount);
+        return new LabelReading(array_merge(...array_values($parcels)), $readWith, $model, $ignored, $warnings, $pageCount);
     }
 
     /**

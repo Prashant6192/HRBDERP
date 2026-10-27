@@ -39,42 +39,71 @@ final class LabelFixtures
     }
 
     /**
-     * Shiprocket's labels for website orders, one page per parcel.
+     * Shiprocket's labels for website orders, laid out as Shiprocket prints
+     * them: two labels side by side to a page.
      *
-     * @param  list<array{awb: string, courier: string, payment: 'cod'|'prepaid', sku: string, description: string, qty: int, order: string, total: string, name: string, state: string, pincode: string}>  $parcels
+     * @param  list<array{awb: string, courier: string, payment: 'cod'|'prepaid', order: string, total: string, name: string, state: string, pincode: string, items: list<array{sku: string, item: string, qty: int, price: string}>}>  $parcels
      */
     public static function shiprocket(array $parcels, string $name = 'shiprocket_labels.pdf'): UploadedFile
     {
-        $pages = array_map(fn (array $p) => self::lines(self::shiprocketPageText($p)), $parcels);
+        $pages = array_map(
+            fn (array $pair) => implode('', array_map(fn (array $p) => self::lines(self::shiprocketLabelText($p)), $pair)),
+            array_chunk($parcels, 2),
+        );
 
         return self::pdf($pages, $name);
     }
 
     /**
+     * One Shiprocket label's text as the PDF gives it. A SKU with a pack
+     * size runs past its column and ends on a later line, as Shiprocket's
+     * does ("RR-MED-500 (500ML-2P" … "acK)").
+     *
      * @param  array<string, mixed>  $p
      */
-    public static function shiprocketPageText(array $p): string
+    public static function shiprocketLabelText(array $p): string
     {
+        $rows = [];
+        $qty = 0;
+
+        foreach ($p['items'] as $item) {
+            $qty += $item['qty'];
+
+            if (preg_match('/^(.+\(\d+ML-2P)(acK\))$/', $item['sku'], $m) === 1) {
+                $rows[] = $m[1];
+                $rows[] = "{$item['item']}{$item['qty']} Rs.{$item['price']}";
+                $rows[] = $m[2];
+            } else {
+                $rows[] = "{$item['sku']} {$item['item']}{$item['qty']} Rs.{$item['price']}";
+            }
+        }
+
         return implode("\n", [
-            'Ship To',
+            "DELIVER To:\tShipped By (If undelivered, return to) :",
             $p['name'],
             '14 Sample Road, Test Colony',
-            "Sampleganj, {$p['state']} - {$p['pincode']}",
-            'Dimensions: 10 x 10 x 10 cm',
-            'Weight: 0.5 kg',
-            $p['payment'] === 'cod' ? "COD Amount: Rs. {$p['total']}" : 'Prepaid',
-            "{$p['courier']} Surface",
-            "AWB: {$p['awb']}",
-            "Order#: {$p['order']}",
-            'Invoice No: WEB/'.substr($p['order'], -4),
-            'Invoice Date: 2026-10-24',
-            'Shipped By (if undelivered, return to)',
-            'TEST SELLER PRIVATE LIMITED, Rudrapur',
-            'GSTIN: 05AAAAA0000A1Z5',
-            "Product Name & SKU\tQty\tTotal",
-            $p['description'],
-            "SKU: {$p['sku']}\t{$p['qty']}\t{$p['total']}",
-            'Powered by Shiprocket',
+            'Sampleganj',
+            "{$p['state']}, {$p['pincode']}, India",
+            'MOBILE NO. : 9000000001',
+            'Test Seller',
+            'Plot 1, Sample Market, New Delhi, Pincode - 110096',
+            '110096, India,Mobile No.: 9000000002',
+            "ORDER # : {$p['order']}",
+            'ROUTING CODE : W20',
+            'WEIGHT : 1.00 kg',
+            'DIMENSIONS : 10* 10*10(cm)',
+            $p['payment'] === 'cod' ? 'CASH ON DELIVERY' : 'PREPAID',
+            $p['payment'] === 'cod' ? "COLLECT COD - Rs.{$p['total']}" : 'DO NOT COLLECT CASH',
+            "COURIER : {$p['courier']}",
+            "AWB # : {$p['awb']}",
+            "SKU\tITEM\tQTY PRICE",
+            ...$rows,
+            'SHIPPING CHARGES Rs.99.00',
+            "TOTAL {$qty} Rs.{$p['total']}.00",
+            'Invoice No. : Retail0'.$p['order'].' | Invoice Date : 2026-10-27 10:45:59',
+            'Gstin No : 07AAAAA0000A1Z5',
+            "1. Visit official website of {$p['courier']} to view the Conditions of Carriage.",
+            'THIS IS AN AUTO-GENERATED LABEL AND DOES NOT NEED SIGNATURE.',
         ]);
     }
 

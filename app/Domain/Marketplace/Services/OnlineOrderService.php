@@ -871,9 +871,9 @@ class OnlineOrderService
 
         // Each label, then its invoice when it came in a separate file (Myntra).
         $parts = $shipments->flatMap(fn (Shipment $s) => array_values(array_filter([
-            ['shipment_id' => $s->id, 'file_id' => $s->label_file_id, 'pages' => array_values($s->pages), 'courier' => $s->courier, 'crop' => $crop($s)],
+            ['shipment_id' => $s->id, 'file_id' => $s->label_file_id, 'pages' => array_values($s->pages), 'courier' => $s->courier, 'crop' => $crop($s), 'slot' => $s->page_slot],
             $s->invoice_file_id !== null && $s->invoice_pages
-                ? ['shipment_id' => $s->id, 'file_id' => $s->invoice_file_id, 'pages' => array_values($s->invoice_pages), 'courier' => $s->courier, 'crop' => false]
+                ? ['shipment_id' => $s->id, 'file_id' => $s->invoice_file_id, 'pages' => array_values($s->invoice_pages), 'courier' => $s->courier, 'crop' => false, 'slot' => null]
                 : null,
         ])))->values();
 
@@ -1398,6 +1398,7 @@ class OnlineOrderService
             'brand_id' => $batch->brand_id,
             'warehouse_id' => $batch->warehouse_id,
             'pages' => $parcel->pages,
+            'page_slot' => $parcel->slot,
             'awb' => $fit($parcel->awb, 64, 'AWB'),
             'alt_code' => $fit($parcel->altCode, 64, 'second tracking code'),
             'order_number' => $fit($parcel->orderNumber, 64, 'order number'),

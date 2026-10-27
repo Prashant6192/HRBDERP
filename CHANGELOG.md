@@ -11,6 +11,18 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Fixed — Shiprocket labels read as Shiprocket prints them
+
+- Shiprocket's label PDF has two labels side by side on each A4 page.
+  Each label is now its own parcel: the AWB, order number, the courier
+  booked in Shiprocket (Shadowfax, Xpressbees, Delhivery, …), COD or
+  prepaid with the amount to collect, the buyer's state and PIN code, and
+  every SKU with its quantity. A SKU that runs past its column
+  ("RR-MED-HMO-005 (500ML-2P" … "acK)") is put back together.
+- Printing cuts each label from its half of the page onto its own 4×6
+  page. **Full page with invoice** prints the A4 pages as they are, each
+  page once.
+
 ### Added — Scan in stock on the Stock screen
 
 - A finished goods store has **Scan in stock**: set the day it came in

@@ -30,9 +30,9 @@ use Tests\TestCase;
 
 /**
  * Website orders are shipped through Shiprocket: the courier is chosen
- * there and its labels are uploaded here under "Website", read like any
- * marketplace's, printed as they are (already label-sized). All names and
- * numbers are made up.
+ * there and its labels, two to an A4 page, are uploaded here under
+ * "Website". Each label becomes its own parcel and prints on its own. All
+ * names and numbers are made up.
  */
 class WebsiteOrdersTest extends TestCase
 {
@@ -45,11 +45,13 @@ class WebsiteOrdersTest extends TestCase
     /**
      * @return array<string, mixed>
      */
-    private function parcel(string $awb, array $overrides = []): array
+    private function parcel(string $awb, string $order, array $overrides = []): array
     {
         return [
-            'awb' => $awb, 'courier' => 'Delhivery', 'payment' => 'cod', 'sku' => 'RR-MED-500', 'description' => 'Rahat Rooh Medicated Oil 500ml',
-            'qty' => 2, 'order' => '1042', 'total' => '798.00', 'name' => 'Test Customer', 'state' => 'Bihar', 'pincode' => '800001', ...$overrides,
+            'awb' => $awb, 'courier' => 'Instant pickup - Shadowfax', 'payment' => 'cod', 'order' => $order, 'total' => '998',
+            'name' => 'Test Customer', 'state' => 'Maharashtra', 'pincode' => '443301',
+            'items' => [['sku' => 'RR-MED-500 (500ML-2PacK)', 'item' => 'Rahat Rooh Medicated Oil - ...', 'qty' => 1, 'price' => '899.00']],
+            ...$overrides,
         ];
     }
 
@@ -82,46 +84,74 @@ class WebsiteOrdersTest extends TestCase
     }
 
     #[Test]
-    public function a_shiprocket_label_is_read_field_by_field(): void
+    public function both_labels_on_a_page_are_read_field_by_field(): void
     {
-        $parcel = (new ShiprocketLabelParser)->parse(LabelFixtures::shiprocketPageText($this->parcel('14327000000123')), 1);
+        $text = LabelFixtures::shiprocketLabelText($this->parcel('SF4300000001SPF', '2844'))."\n"
+            .LabelFixtures::shiprocketLabelText($this->parcel('14326000000001', '2845', [
+                'courier' => 'Xpressbees Surface 2kg', 'total' => '454', 'state' => 'Haryana', 'pincode' => '121102',
+                'items' => [['sku' => 'RR-SAT-SH-002 (1000ML)', 'item' => 'Rahat Rooh Satreetha Shampoo - 1000ml', 'qty' => 1, 'price' => '355.00']],
+            ]));
 
-        $this->assertNotNull($parcel);
-        $this->assertSame('14327000000123', $parcel->awb);
-        $this->assertSame('1042', $parcel->orderNumber);
-        $this->assertSame('Delhivery', $parcel->courier);
-        $this->assertSame(PaymentMode::Cod, $parcel->paymentMode);
-        $this->assertSame('798.00', $parcel->payableAmount);
-        $this->assertSame('Test Customer', $parcel->customerName);
-        $this->assertSame('Bihar', $parcel->customerState);
-        $this->assertSame('800001', $parcel->customerPincode);
-        $this->assertSame([['seller_sku' => 'RR-MED-500', 'description' => 'Rahat Rooh Medicated Oil 500ml', 'quantity' => 2]], $parcel->lines);
-        $this->assertSame([], $parcel->warnings);
+        [$left, $right] = (new ShiprocketLabelParser)->parsePage($text, 1);
 
-        // Prepaid: nothing to collect.
-        $prepaid = (new ShiprocketLabelParser)->parse(LabelFixtures::shiprocketPageText($this->parcel('SF123456789FPL', ['payment' => 'prepaid', 'courier' => 'Shadowfax'])), 1);
-        $this->assertSame(PaymentMode::Prepaid, $prepaid->paymentMode);
-        $this->assertSame('Shadowfax', $prepaid->courier);
+        $this->assertSame([0, 'SF4300000001SPF', '2844', 'Shadowfax'], [$left->slot, $left->awb, $left->orderNumber, $left->courier]);
+        $this->assertSame([PaymentMode::Cod, '998.00'], [$left->paymentMode, $left->payableAmount]);
+        $this->assertSame(['Test Customer', 'Maharashtra', '443301'], [$left->customerName, $left->customerState, $left->customerPincode]);
+        // The SKU that ran past its column is put back together.
+        $this->assertSame([['seller_sku' => 'RR-MED-500 (500ML-2PacK)', 'description' => 'Rahat Rooh Medicated Oil', 'quantity' => 1]], $left->lines);
+        $this->assertSame(['Retail02844', '2026-10-27', '07AAAAA0000A1Z5'], [$left->invoiceNumber, $left->invoiceDate, $left->sellerGstin]);
 
-        // A page with no AWB is not a label.
-        $this->assertNull((new ShiprocketLabelParser)->parse("Shipping manifest\nTotal parcels: 4", 1));
+        $this->assertSame([1, '14326000000001', '2845', 'Xpress Bees', 'Haryana'], [$right->slot, $right->awb, $right->orderNumber, $right->courier, $right->customerState]);
+        $this->assertSame([['seller_sku' => 'RR-SAT-SH-002 (1000ML)', 'description' => 'Rahat Rooh Satreetha Shampoo - 1000ml', 'quantity' => 1]], $right->lines);
     }
 
     #[Test]
-    public function an_uploaded_shiprocket_file_becomes_parcels(): void
+    public function a_label_with_two_products_and_a_prepaid_one_are_read(): void
+    {
+        $two = (new ShiprocketLabelParser)->parse(LabelFixtures::shiprocketLabelText($this->parcel('1904000000001', '2846', [
+            'courier' => 'Delhivery Surface 2 Kgs', 'total' => '1,338',
+            'items' => [
+                ['sku' => 'RR-SUK-300 (300ML)', 'item' => 'Rahat Rooh Sukoon Oil - 300ml', 'qty' => 1, 'price' => '439.00'],
+                ['sku' => 'RR-MED-500 (500ML-2PacK)', 'item' => 'Rahat Rooh Medicated Oil - ...', 'qty' => 1, 'price' => '899.00'],
+            ],
+        ])), 2);
+
+        $this->assertSame('Delhivery', $two->courier);
+        $this->assertSame('1338.00', $two->payableAmount);
+        $this->assertSame([['RR-SUK-300 (300ML)', 1], ['RR-MED-500 (500ML-2PacK)', 1]], array_map(fn ($l) => [$l['seller_sku'], $l['quantity']], $two->lines));
+        $this->assertSame([], $two->warnings);
+
+        $prepaid = (new ShiprocketLabelParser)->parse(LabelFixtures::shiprocketLabelText($this->parcel('1904000000002', '2847', ['payment' => 'prepaid'])), 1);
+        $this->assertSame([PaymentMode::Prepaid, '0.00'], [$prepaid->paymentMode, $prepaid->payableAmount]);
+
+        // A page with no AWB is not a label.
+        $this->assertSame([], (new ShiprocketLabelParser)->parsePage("Shipping manifest\nTotal parcels: 4", 1));
+    }
+
+    #[Test]
+    public function an_uploaded_file_becomes_one_parcel_per_label_each_printed_on_its_own(): void
     {
         $batch = app(OnlineOrderService::class)->upload(
             Brand::query()->where('code', 'RR')->sole(),
             Marketplace::query()->where('code', 'WEBSITE')->sole(),
             $this->depotFg,
-            [LabelFixtures::shiprocket([$this->parcel('14327000000123'), $this->parcel('14327000000124', ['order' => '1043', 'qty' => 1])])],
+            [LabelFixtures::shiprocket([
+                $this->parcel('SF4300000001SPF', '2844'),
+                $this->parcel('14326000000001', '2845', ['courier' => 'Xpressbees Surface 2kg']),
+                $this->parcel('1904000000001', '2846', ['courier' => 'Delhivery Surface 2 Kgs']),
+            ])],
             $this->office,
         );
 
-        $this->assertSame(2, $batch->shipments()->count());
-        $first = Shipment::query()->where('awb', '14327000000123')->with('lines')->sole();
-        $this->assertSame(['1042', 'Delhivery', [1]], [$first->order_number, $first->courier, $first->pages]);
-        $this->assertSame([['RR-MED-500', 2]], $first->lines->map(fn ($l) => [$l->seller_sku, $l->quantity])->all());
+        $this->assertSame(3, $batch->shipments()->count());
+        $this->assertSame(
+            [['SF4300000001SPF', [1], 0], ['14326000000001', [1], 1], ['1904000000001', [2], 0]],
+            Shipment::query()->orderBy('id')->get()->map(fn (Shipment $s) => [$s->awb, $s->pages, $s->page_slot])->all(),
+        );
+
+        $plan = app(OnlineOrderService::class)->print($batch, 'all', $this->office);
+        $this->assertEqualsCanonicalizing([0, 1, 0], array_column($plan['parts'], 'slot'));
+        $this->assertSame([false, false, false], array_column($plan['parts'], 'crop'));
     }
 
     #[Test]

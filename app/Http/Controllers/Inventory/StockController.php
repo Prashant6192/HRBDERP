@@ -9,10 +9,12 @@ use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Models\StockBalance;
 use App\Domain\Inventory\Services\StockAlertService;
 use App\Domain\Inventory\Services\StockBalanceService;
+use App\Domain\MasterData\Models\Product;
 use App\Domain\Procurement\Models\GoodsReceipt;
 use App\Domain\Warehousing\Enums\WarehouseType;
 use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Models\Warehouse;
+use App\Domain\Warehousing\Services\FacilityAccess;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -27,6 +29,7 @@ class StockController extends Controller
     public function __construct(
         private readonly StockBalanceService $balances,
         private readonly StockAlertService $alerts,
+        private readonly FacilityAccess $access,
     ) {}
 
     public function index(Request $request): Response
@@ -125,6 +128,12 @@ class StockController extends Controller
 
         $expiringDays = (int) config('erp.stock_alerts.expiry_warning_days', 90);
 
+        // Finished goods are scanned onto the shelf here.
+        $scanIn = $selected !== null && ! $selected->is_quarantine
+            && in_array($selected->type, [WarehouseType::FinishedGoods, WarehouseType::Marketplace], true)
+            && $request->user()->can('inventory.receive_transfer')
+            && $this->access->canWorkIn($request->user(), $selected);
+
         return Inertia::render('stock/index', [
             'facilities' => $facilities->map(fn (Facility $f) => ['id' => $f->id, 'code' => $f->code, 'name' => $f->name])->all(),
             'facility' => $facilityId,
@@ -145,7 +154,15 @@ class StockController extends Controller
                 // The ingredient list in Excel, to correct codes and names.
                 'ingredient_sheet' => $selected?->type === WarehouseType::RawMaterial && ! $selected->is_quarantine && $request->user()->can('raw_material.view'),
                 'ingredient_upload' => $selected?->type === WarehouseType::RawMaterial && ! $selected->is_quarantine && $request->user()->can('raw_material.edit'),
+                'scan_in' => $scanIn,
             ],
+            'scan_products' => $scanIn ? Product::query()
+                ->where('is_active', true)
+                ->whereNull('pack_of_item_id')
+                ->orderBy('name')
+                ->get(['id', 'code', 'name', 'shelf_life_days'])
+                ->map(fn (Product $p) => ['value' => (string) $p->id, 'label' => $p->name, 'hint' => $p->code, 'shelf_life_days' => $p->shelf_life_days])
+                ->all() : [],
             'levels' => array_map(fn (StockAlertLevel $l) => [
                 'value' => $l->value, 'label' => $l->shortLabel(), 'variant' => $l->badgeVariant(), 'severity' => $l->severity(),
             ], StockAlertLevel::cases()),

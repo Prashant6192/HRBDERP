@@ -39,6 +39,46 @@ final class LabelFixtures
     }
 
     /**
+     * Shiprocket's labels for website orders, one page per parcel.
+     *
+     * @param  list<array{awb: string, courier: string, payment: 'cod'|'prepaid', sku: string, description: string, qty: int, order: string, total: string, name: string, state: string, pincode: string}>  $parcels
+     */
+    public static function shiprocket(array $parcels, string $name = 'shiprocket_labels.pdf'): UploadedFile
+    {
+        $pages = array_map(fn (array $p) => self::lines(self::shiprocketPageText($p)), $parcels);
+
+        return self::pdf($pages, $name);
+    }
+
+    /**
+     * @param  array<string, mixed>  $p
+     */
+    public static function shiprocketPageText(array $p): string
+    {
+        return implode("\n", [
+            'Ship To',
+            $p['name'],
+            '14 Sample Road, Test Colony',
+            "Sampleganj, {$p['state']} - {$p['pincode']}",
+            'Dimensions: 10 x 10 x 10 cm',
+            'Weight: 0.5 kg',
+            $p['payment'] === 'cod' ? "COD Amount: Rs. {$p['total']}" : 'Prepaid',
+            "{$p['courier']} Surface",
+            "AWB: {$p['awb']}",
+            "Order#: {$p['order']}",
+            'Invoice No: WEB/'.substr($p['order'], -4),
+            'Invoice Date: 2026-10-24',
+            'Shipped By (if undelivered, return to)',
+            'TEST SELLER PRIVATE LIMITED, Rudrapur',
+            'GSTIN: 05AAAAA0000A1Z5',
+            "Product Name & SKU\tQty\tTotal",
+            $p['description'],
+            "SKU: {$p['sku']}\t{$p['qty']}\t{$p['total']}",
+            'Powered by Shiprocket',
+        ]);
+    }
+
+    /**
      * A file of pictures only, as Amazon and Myntra send: pages with no text.
      */
     public static function imageOnly(int $pages, string $name = 'amazon_labels.pdf', int $variant = 0): UploadedFile

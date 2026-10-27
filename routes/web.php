@@ -37,6 +37,7 @@ use App\Http\Controllers\Inventory\LotController;
 use App\Http\Controllers\Inventory\OpeningStockController;
 use App\Http\Controllers\Inventory\OpeningStockSheetController;
 use App\Http\Controllers\Inventory\ReceiveByScanController;
+use App\Http\Controllers\Inventory\ScanInController;
 use App\Http\Controllers\Inventory\StockController;
 use App\Http\Controllers\Inventory\StockCountController;
 use App\Http\Controllers\Inventory\StockTransferController;
@@ -50,6 +51,7 @@ use App\Http\Controllers\MasterData\RawMaterialController;
 use App\Http\Controllers\Navigation\NavigationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OnlineOrders\BrandController;
+use App\Http\Controllers\OnlineOrders\CatchUpController;
 use App\Http\Controllers\OnlineOrders\ListingController;
 use App\Http\Controllers\OnlineOrders\OnlineOrderController;
 use App\Http\Controllers\OnlineOrders\OnlineOrderReportController;
@@ -239,12 +241,16 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('online-orders/sku-mapping', [ListingController::class, 'index'])->name('listings.index');
     Route::post('online-orders/sku-mapping', [ListingController::class, 'store'])->name('listings.store');
     Route::patch('online-orders/sku-mapping/{listing}', [ListingController::class, 'update'])->name('listings.update');
+    Route::post('online-orders/sku-mapping/packs', [ListingController::class, 'usePacks'])->name('listings.packs');
     Route::get('online-orders/brands', [BrandController::class, 'index'])->name('brands.index');
     Route::patch('online-orders/brands/{brand}', [BrandController::class, 'update'])->name('brands.update');
     Route::get('online-orders/files/{file}', [OnlineOrderController::class, 'file'])->name('online-orders.files.show');
     Route::delete('online-orders/files/{file}', [OnlineOrderController::class, 'removeFile'])->name('online-orders.files.destroy');
     Route::patch('online-orders/parcels/{shipment}', [OnlineOrderController::class, 'correct'])->name('online-orders.parcels.update');
     Route::get('online-orders/report', [OnlineOrderReportController::class, 'index'])->name('online-orders.report');
+    // Parcels that went out without being scanned, put right in one go.
+    Route::get('online-orders/catch-up', [CatchUpController::class, 'index'])->name('online-orders.catch-up');
+    Route::post('online-orders/catch-up', [CatchUpController::class, 'store'])->name('online-orders.catch-up.store');
     Route::get('online-orders/report/excel', [OnlineOrderReportController::class, 'export'])->name('online-orders.report.excel');
     Route::post('online-orders/dispatch', [OnlineOrderController::class, 'dispatch'])->name('online-orders.dispatch');
     Route::post('online-orders/courier', [OnlineOrderController::class, 'nameCourier'])->name('online-orders.courier');
@@ -294,6 +300,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('qc/{qcInspection}/slip', [QcInspectionController::class, 'slip'])->name('qc.slip');
 
     Route::get('stock', [StockController::class, 'index'])->name('stock.index');
+    // Finished goods scanned onto a store's shelf from the Stock screen.
+    Route::get('stock/scan-in/lookup', [ScanInController::class, 'lookup'])->name('stock.scan-in.lookup');
+    Route::post('stock/{warehouse}/scan-in', [ScanInController::class, 'book'])->name('stock.scan-in.book');
     Route::get('stock/slow-moving', SlowMovingStockController::class)->name('stock.slow-moving');
     Route::get('stock/expiry-risk', ExpiryRiskController::class)->name('stock.expiry-risk');
     Route::get('purchase/reorder-advice', ReorderAdviceController::class)->name('purchase.reorder-advice');

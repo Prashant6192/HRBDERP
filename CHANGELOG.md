@@ -11,6 +11,51 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Added — Scan in stock on the Stock screen
+
+- A finished goods store has **Scan in stock**: set the day it came in
+  (today, editable), and if known the manufacturing and expiry dates, then
+  scan each piece with a handheld scanner, the camera, or by typing. Pick
+  **Single** or **Pack of 2**. **Book stock in** puts it on the shelf in
+  one batch per product and dates, dated the day it came in, so stock that
+  arrived earlier lands on the right day.
+- A barcode the ERP does not know is matched once to a product from the
+  dropdown and kept on it; after that one scan is one piece. Expiry is
+  worked out from the product's shelf life when left blank.
+- Parcels waiting on the product get their stock the moment it is booked,
+  and the message says how many.
+
+### Added — Pack of 2 as its own product
+
+- Scanning in as Pack of 2 keeps the stock on its own product, for example
+  "Rahat Rooh Medicated Oil 500ml (Pack of 2)" (code …-P2), added the
+  first time it is needed.
+- SKU mapping lists the listings sold as two of one product. **Take from
+  Pack of 2** switches them to the pack product, so pack-of-2 orders take
+  pack stock; waiting parcels are matched again at once.
+
+### Added — Catch up parcels that went out unscanned
+
+- Online orders → **Catch up**: choose the label dates (1 October to
+  today by default) and see, day by day, every printed or uploaded parcel
+  never scanned. Untick any that did not ship; the rest are marked packed
+  and dispatched dated the evening of their labels' day, and their stock
+  leaves the store. Short or unmapped parcels are left out and named.
+
+### Added — Website orders through Shiprocket
+
+- **Website** is on Upload labels. Download the labels from Shiprocket
+  after choosing the courier there and upload them here: the AWB, courier,
+  order number, COD or prepaid, customer and SKU lines are read from each
+  page. Printing, scanning, dispatch and returns work as for the other
+  marketplaces. Map the website SKUs once on SKU mapping.
+
+### Added — A reviewer login for a preview copy
+
+- `php artisan erp:reviewer` creates review@hrbd.local with full rights
+  and prints a fresh password (run again for a new one). It refuses to run
+  on the live site.
+
 ### Added — Ingredient codes and names corrected in Excel
 
 - Stock → a raw material store now has **Ingredient list (Excel)**: every

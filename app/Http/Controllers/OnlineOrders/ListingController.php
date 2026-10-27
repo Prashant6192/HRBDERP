@@ -13,9 +13,12 @@ use App\Domain\Marketplace\Models\ShipmentLine;
 use App\Domain\Marketplace\Services\OnlineOrderService;
 use App\Domain\MasterData\Enums\ItemType;
 use App\Domain\MasterData\Models\Item;
+use App\Domain\MasterData\Models\Product;
+use App\Domain\MasterData\Services\ProductPackService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -26,7 +29,10 @@ use Inertia\Response;
  */
 class ListingController extends Controller
 {
-    public function __construct(private readonly OnlineOrderService $orders) {}
+    public function __construct(
+        private readonly OnlineOrderService $orders,
+        private readonly ProductPackService $packs,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -67,11 +73,47 @@ class ListingController extends Controller
         return Inertia::render('online-orders/listings', [
             'waiting' => $waiting,
             'listings' => $listings,
+            'pack_moves' => $this->packMoves(),
             'products' => Item::query()->where('type', ItemType::FinishedGood->value)->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name'])
                 ->map(fn (Item $i) => ['value' => (string) $i->id, 'label' => $i->name, 'hint' => $i->code])->all(),
             'marketplaces' => Marketplace::query()->orderBy('name')->get(['id', 'name'])->map(fn ($m) => ['value' => (string) $m->id, 'label' => $m->name])->all(),
             'brands' => Brand::query()->orderBy('name')->get(['id', 'name'])->map(fn ($b) => ['value' => (string) $b->id, 'label' => $b->name])->all(),
         ]);
+    }
+
+    /**
+     * Listings sold as two of one product, now to be taken from that
+     * product's Pack of 2 (added if it is not on file yet). Waiting parcels
+     * are matched again at once.
+     */
+    public function usePacks(Request $request): RedirectResponse
+    {
+        $this->authorize('marketplace.manage');
+
+        $data = $request->validate([
+            'item_id' => ['required', 'integer', Rule::exists('items', 'id')->where('type', ItemType::FinishedGood->value)->whereNull('deleted_at')],
+            'quantity' => ['required', 'integer', 'min:2', 'max:12'],
+        ]);
+
+        $single = Product::query()->findOrFail($data['item_id']);
+
+        if ($single->pack_of_item_id !== null) {
+            return back()->withToast('error', "{$single->name} is already a pack.");
+        }
+
+        $pack = $this->packs->packOf($single, (int) $data['quantity'], $request->user()->id);
+        $moved = 0;
+
+        try {
+            foreach ($this->singlesSoldAsPacks($single->id, (int) $data['quantity']) as $listing) {
+                $this->orders->mapSkuTo($listing->marketplace, $listing->brand, $listing->seller_sku, [['item' => $pack, 'units' => 1]], $request->user());
+                $moved++;
+            }
+        } catch (OnlineOrderException $e) {
+            return back()->withToast('error', $e->getMessage());
+        }
+
+        return back()->withToast('success', "{$moved} listing(s) now take {$pack->name} ({$pack->code}). Scan its stock in as Pack of {$data['quantity']} on the Stock screen.");
     }
 
     public function store(Request $request): RedirectResponse
@@ -128,6 +170,56 @@ class ListingController extends Controller
         }
 
         return back()->withToast('success', "\"{$listing->seller_sku}\" is now {$this->describe($listing)}.");
+    }
+
+    /**
+     * Products sold in listings as two (or more) of the one product, not
+     * yet taken from a pack.
+     *
+     * @return list<array{item_id: int, item: string|null, item_code: string|null, quantity: int, pack: string|null, listings: list<array{id: int, marketplace: string|null, brand: string|null, seller_sku: string}>}>
+     */
+    private function packMoves(): array
+    {
+        return MarketplaceListing::query()
+            ->where('is_active', true)
+            ->where('units_per_order', '>', 1)
+            ->whereHas('item', fn ($q) => $q->whereNull('pack_of_item_id'))
+            ->has('components', '=', 1)
+            ->with(['marketplace:id,name', 'brand:id,name', 'item:id,code,name', 'item.packs:id,code,name,pack_of_item_id,pack_quantity'])
+            ->orderBy('item_id')
+            ->get()
+            ->groupBy(fn (MarketplaceListing $l) => $l->item_id.':'.$l->units_per_order)
+            ->map(function ($group) {
+                $first = $group->first();
+                $pack = $first->item?->packs->firstWhere('pack_quantity', $first->units_per_order);
+
+                return [
+                    'item_id' => $first->item_id,
+                    'item' => $first->item?->name,
+                    'item_code' => $first->item?->code,
+                    'quantity' => $first->units_per_order,
+                    'pack' => $pack?->name,
+                    'listings' => $group->map(fn (MarketplaceListing $l) => [
+                        'id' => $l->id, 'marketplace' => $l->marketplace?->name, 'brand' => $l->brand?->name, 'seller_sku' => $l->seller_sku,
+                    ])->values()->all(),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return Collection<int, MarketplaceListing>
+     */
+    private function singlesSoldAsPacks(int $itemId, int $quantity): Collection
+    {
+        return MarketplaceListing::query()
+            ->where('is_active', true)
+            ->where('item_id', $itemId)
+            ->where('units_per_order', $quantity)
+            ->has('components', '=', 1)
+            ->with(['marketplace', 'brand'])
+            ->get();
     }
 
     /**

@@ -115,6 +115,8 @@ export type PrintPlan = {
         courier: string | null;
         /** Meesho and Flipkart: cut to the label for a 4×6 printer. */
         crop?: boolean;
+        /** Shiprocket: which of the page's labels is this parcel's (0 = left). */
+        slot?: number | null;
     }[];
     files: Record<string, string>;
 };
@@ -219,7 +221,12 @@ export async function printPlan(
         import('pdf-lib'),
         import('@/lib/label-crop'),
     ]);
-    const cutting = !options.fullPage && plan.parts.some((p) => p.crop);
+    const slotted = (p: PrintPlan['parts'][number]) =>
+        p.slot !== null && p.slot !== undefined;
+    const cutting =
+        !options.fullPage && plan.parts.some((p) => p.crop || slotted(p));
+    // Pages printed whole that hold several parcels' labels go once.
+    const wholePages = new Set<string>();
     const lib = cutting ? await import('@/lib/label-pictures') : null;
     const out = await PDFDocument.create();
     const sources = new Map<
@@ -267,8 +274,19 @@ export async function printPlan(
             for (const index of indices) {
                 let box: Box | null = null;
 
-                if (cutting && part.crop && lib) {
-                    const key = `${url}#${index}`;
+                if (options.fullPage && slotted(part)) {
+                    const whole = `${part.file_id}#${index}`;
+
+                    if (wholePages.has(whole)) {
+                        options.onProgress?.(++done, total);
+                        continue;
+                    }
+
+                    wholePages.add(whole);
+                }
+
+                if (cutting && (part.crop || slotted(part)) && lib) {
+                    const key = `${url}#${index}#${part.slot ?? ''}`;
 
                     if (measured.has(key)) {
                         box = measured.get(key) ?? null;
@@ -281,7 +299,9 @@ export async function printPlan(
                                 data: new Uint8Array(source.bytes.slice(0)),
                             }).promise;
                             const page = await source.seen.getPage(index + 1);
-                            box = await crop.findLabel(page);
+                            box = slotted(part)
+                                ? await crop.findSlot(page, part.slot as number)
+                                : await crop.findLabel(page);
                             page.cleanup();
                         } catch {
                             box = null;

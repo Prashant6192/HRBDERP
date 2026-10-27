@@ -270,6 +270,122 @@ export async function findLabel(page: PDFPageProxy): Promise<Box | null> {
 }
 
 /**
+ * One of two labels printed side by side on a landscape page (Shiprocket
+ * prints two to an A4 page): its half, split at the blank gap between
+ * them, trimmed to what is printed in it. A page in portrait holds one
+ * label and prints as it is: null.
+ */
+export async function findSlot(
+    page: PDFPageProxy,
+    slot: number,
+): Promise<Box | null> {
+    if (page.rotate % 360 !== 0 || slot < 0 || slot > 1) {
+        return null;
+    }
+
+    const viewport = page.getViewport({ scale: SCALE });
+
+    if (viewport.width <= viewport.height) {
+        return null;
+    }
+
+    const width = Math.ceil(viewport.width);
+    const height = Math.ceil(viewport.height);
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+
+    if (!context) {
+        return null;
+    }
+
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, width, height);
+
+    try {
+        await page.render({ canvasContext: context, viewport }).promise;
+
+        const { data } = context.getImageData(0, 0, width, height);
+        const inkIn = (x: number) => {
+            let n = 0;
+
+            for (let y = 0; y < height; y++) {
+                if (luminance(data, (y * width + x) * 4) < PAPER) {
+                    n++;
+                }
+            }
+
+            return n;
+        };
+
+        // The gap between the two labels: the emptiest column near the
+        // middle, the one nearest the middle among equals.
+        const middle = Math.round(width / 2);
+        const reach = Math.round(width * 0.06);
+        let split = middle;
+        let least = Number.POSITIVE_INFINITY;
+
+        for (let d = 0; d <= reach; d++) {
+            for (const x of [middle - d, middle + d]) {
+                const n = inkIn(x);
+
+                if (n < least) {
+                    least = n;
+                    split = x;
+                }
+            }
+
+            if (least === 0) {
+                break;
+            }
+        }
+
+        const [fromX, toX] =
+            slot === 0 ? [0, split - 1] : [split + 1, width - 1];
+        let minX = width;
+        let maxX = -1;
+        let minY = height;
+        let maxY = -1;
+
+        for (let y = 0; y < height; y++) {
+            for (let x = fromX; x <= toX; x++) {
+                if (luminance(data, (y * width + x) * 4) < PAPER) {
+                    minX = Math.min(minX, x);
+                    maxX = Math.max(maxX, x);
+                    minY = Math.min(minY, y);
+                    maxY = Math.max(maxY, y);
+                }
+            }
+        }
+
+        if (maxX < 0 || maxY - minY < height * 0.2) {
+            return null;
+        }
+
+        const pad = 1.5 * SCALE;
+        const [x1, y1] = viewport.convertToPdfPoint(
+            Math.max(fromX, minX - pad),
+            Math.max(0, minY - pad),
+        );
+        const [x2, y2] = viewport.convertToPdfPoint(
+            Math.min(toX + 1, maxX + 1 + pad),
+            Math.min(height, maxY + 1 + pad),
+        );
+
+        return {
+            left: Math.min(x1, x2),
+            right: Math.max(x1, x2),
+            bottom: Math.min(y1, y2),
+            top: Math.max(y1, y2),
+        };
+    } finally {
+        canvas.width = 0;
+        canvas.height = 0;
+    }
+}
+
+/**
  * Where a label of the given size goes on a 4×6 page: its scale, whether
  * it is turned a quarter to the left (when wider than tall), and where the
  * turned or upright label's own bottom-left corner lands.

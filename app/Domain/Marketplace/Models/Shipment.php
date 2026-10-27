@@ -49,6 +49,7 @@ use Illuminate\Support\Carbon;
  * @property StockState $stock_state
  * @property int $print_count
  * @property string|null $pack_method
+ * @property int|null $page_slot
  * @property list<string>|null $warnings
  * @property array<string, mixed>|null $extraction
  * @property Carbon|null $printed_at
@@ -61,7 +62,7 @@ class Shipment extends Model
     use RecordsAuditTrail;
 
     protected $fillable = [
-        'label_batch_id', 'label_file_id', 'marketplace_id', 'brand_id', 'warehouse_id', 'pages',
+        'label_batch_id', 'label_file_id', 'marketplace_id', 'brand_id', 'warehouse_id', 'pages', 'page_slot',
         'awb', 'alt_code', 'order_number', 'courier', 'payment_mode', 'payable_amount',
         'invoice_number', 'invoice_date', 'customer_name', 'customer_state', 'customer_pincode', 'invoice_file_id', 'invoice_pages', 'seller_gstin',
         'status', 'stock_state',

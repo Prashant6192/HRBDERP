@@ -195,7 +195,8 @@ class OnlineOrderService
         $path = sprintf('online-orders/%s/%s.pdf', now()->format('Y/m'), Str::uuid());
 
         try {
-            $file = DB::transaction(function () use ($batch, $upload, $user, $reading, $path, $name, $hash, $contents): LabelFile {
+            $attached = collect();
+            $file = DB::transaction(function () use ($batch, $upload, $user, $reading, $path, $name, $hash, $contents, $attached): LabelFile {
                 $warnings = $reading->warnings;
 
                 $file = LabelFile::create([
@@ -219,6 +220,28 @@ class OnlineOrderService
                 $created = collect();
 
                 foreach ($reading->parcels as $parcel) {
+                    // A tax invoice sent as its own file (website orders)
+                    // completes the parcel whose label has its AWB.
+                    if ($parcel->invoiceOnly && $parcel->awb !== null && ($existing = $this->openShipmentWithAwb($batch->marketplace_id, $parcel->awb)) !== null) {
+                        if ($existing->invoice_file_id !== null) {
+                            $duplicates[] = $parcel->awb;
+                        } else {
+                            $this->attachInvoice($existing, $file, $parcel);
+                            $attached->push($existing->id);
+                        }
+
+                        continue;
+                    }
+
+                    // The label for an invoice that came first.
+                    if (! $parcel->invoiceOnly && $parcel->awb !== null && ($existing = $this->openShipmentWithAwb($batch->marketplace_id, $parcel->awb)) !== null
+                        && $existing->invoice_file_id !== null && $existing->invoice_file_id === $existing->label_file_id) {
+                        $this->adoptLabel($existing, $file, $parcel);
+                        $attached->push($existing->id);
+
+                        continue;
+                    }
+
                     if ($parcel->awb !== null && $this->awbTaken($batch->marketplace_id, $parcel->awb)) {
                         $duplicates[] = $parcel->awb;
 
@@ -233,10 +256,20 @@ class OnlineOrderService
                         continue;
                     }
 
-                    $created->push($this->createShipment($batch, $file, $parcel));
+                    $shipment = $this->createShipment($batch, $file, $parcel);
+
+                    if ($parcel->invoiceOnly) {
+                        $shipment->forceFill([
+                            'invoice_file_id' => $file->id,
+                            'invoice_pages' => $parcel->pages,
+                            'warnings' => [...($shipment->warnings ?? []), self::WAITING_FOR_LABEL],
+                        ])->save();
+                    }
+
+                    $created->push($shipment);
                 }
 
-                if ($created->isEmpty()) {
+                if ($created->isEmpty() && $attached->isEmpty()) {
                     throw new OnlineOrderException($duplicates === []
                         ? "No labels were found in {$name}. Check it is the marketplace's label PDF."
                         : "Every label in {$name} was already uploaded earlier. Nothing new to add.");
@@ -267,6 +300,7 @@ class OnlineOrderService
         // Stock is held once the parcels exist, outside the file's
         // transaction, so a store that is short does not undo the upload.
         $file->shipments()->orderBy('id')->get()->each(fn (Shipment $s) => $this->hold($s));
+        Shipment::query()->whereKey($attached->all())->orderBy('id')->get()->each(fn (Shipment $s) => $this->hold($s));
 
         return $file->refresh();
     }
@@ -868,11 +902,16 @@ class OnlineOrderService
         // page: the browser cuts those to the label for a 4×6 printer.
         $readers = Marketplace::query()->whereKey($shipments->pluck('marketplace_id')->unique())->get(['id', 'reader'])->keyBy('id');
         $crop = fn (Shipment $s): bool => $readers->get($s->marketplace_id)?->reader?->labelAboveInvoice() ?? false;
+        $withInvoice = fn (Shipment $s): bool => $s->invoice_file_id !== null && (bool) $s->invoice_pages
+            && $s->invoice_file_id !== $s->label_file_id
+            && ($readers->get($s->marketplace_id)?->reader?->printsSeparateInvoice() ?? false);
 
-        // Each label, then its invoice when it came in a separate file (Myntra).
+        // Each label, then its invoice when it came in a separate file and
+        // is label-sized (Myntra). The website's A4 invoices stay off the
+        // label printer.
         $parts = $shipments->flatMap(fn (Shipment $s) => array_values(array_filter([
             ['shipment_id' => $s->id, 'file_id' => $s->label_file_id, 'pages' => array_values($s->pages), 'courier' => $s->courier, 'crop' => $crop($s), 'slot' => $s->page_slot],
-            $s->invoice_file_id !== null && $s->invoice_pages
+            $withInvoice($s)
                 ? ['shipment_id' => $s->id, 'file_id' => $s->invoice_file_id, 'pages' => array_values($s->invoice_pages), 'courier' => $s->courier, 'crop' => false, 'slot' => null]
                 : null,
         ])))->values();
@@ -1105,6 +1144,89 @@ class OnlineOrderService
     }
 
     private const string WAITING_FOR_INVOICE = 'Waiting for the invoice file';
+
+    private const string WAITING_FOR_LABEL = 'Waiting for the label file: this parcel was read from its invoice. Upload the labels PDF for the same day and its label is added.';
+
+    private function openShipmentWithAwb(int $marketplaceId, string $awb): ?Shipment
+    {
+        return Shipment::query()
+            ->where('marketplace_id', $marketplaceId)
+            ->where('awb', $awb)
+            ->where('status', '<>', ShipmentStatus::Cancelled->value)
+            ->lockForUpdate()
+            ->first();
+    }
+
+    /**
+     * A tax invoice read from its own file joins the parcel with its AWB:
+     * the invoice's pages are kept with the parcel, the invoice fills what
+     * the label did not say, and a label that printed no product (a 4×6
+     * picture label) takes the invoice's products.
+     */
+    private function attachInvoice(Shipment $shipment, LabelFile $file, LabelExtraction $invoice): void
+    {
+        $fill = [
+            'invoice_file_id' => $file->id,
+            'invoice_pages' => $invoice->pages,
+            'order_number' => $shipment->order_number ?? $invoice->orderNumber,
+            'invoice_number' => $shipment->invoice_number ?? $invoice->invoiceNumber,
+            'invoice_date' => $shipment->invoice_date ?? $invoice->invoiceDate,
+            'seller_gstin' => $shipment->seller_gstin ?? $invoice->sellerGstin,
+            'customer_name' => $shipment->customer_name ?? $invoice->customerName,
+            'customer_state' => $shipment->customer_state ?? $invoice->customerState,
+            'customer_pincode' => $shipment->customer_pincode ?? $invoice->customerPincode,
+            'courier' => $shipment->courier ?? $invoice->courier,
+        ];
+
+        // The invoice says COD or prepaid exactly; a picture label may not.
+        if ($shipment->payment_mode === PaymentMode::Unknown) {
+            $fill['payment_mode'] = $invoice->paymentMode;
+            $fill['payable_amount'] = $invoice->payableAmount;
+        } elseif ($shipment->payable_amount === null) {
+            $fill['payable_amount'] = $invoice->payableAmount;
+        }
+
+        $productless = ! $shipment->lines()->exists() && $invoice->lines !== [];
+
+        $fill['warnings'] = array_values(array_filter(
+            $shipment->warnings ?? [],
+            fn (string $w) => ! str_starts_with($w, self::WAITING_FOR_INVOICE)
+                && ! ($productless && str_starts_with($w, 'The product on this label could not be read')),
+        )) ?: null;
+
+        $shipment->fill($fill)->save();
+
+        if ($productless) {
+            $this->createLines($shipment, $invoice->lines);
+            $this->mapLines($shipment);
+        }
+    }
+
+    /**
+     * The label of a parcel first read from its invoice: the parcel prints
+     * the label's pages from now on.
+     */
+    private function adoptLabel(Shipment $shipment, LabelFile $file, LabelExtraction $label): void
+    {
+        $shipment->fill([
+            'label_file_id' => $file->id,
+            'pages' => $label->pages,
+            'page_slot' => $label->slot,
+            'courier' => $label->courier ?? $shipment->courier,
+            'payment_mode' => $shipment->payment_mode === PaymentMode::Unknown ? $label->paymentMode : $shipment->payment_mode,
+            'customer_name' => $shipment->customer_name ?? $label->customerName,
+            'customer_pincode' => $shipment->customer_pincode ?? $label->customerPincode,
+            'warnings' => array_values(array_filter(
+                $shipment->warnings ?? [],
+                fn (string $w) => $w !== self::WAITING_FOR_LABEL,
+            )) ?: null,
+        ])->save();
+
+        if (! $shipment->lines()->exists() && $label->lines !== []) {
+            $this->createLines($shipment, $label->lines);
+            $this->mapLines($shipment);
+        }
+    }
 
     /**
      * @param  Collection<int, Shipment>  $labels
@@ -1417,7 +1539,18 @@ class OnlineOrderService
             'warnings' => $warnings === [] ? null : array_values(array_unique($warnings)),
         ]);
 
-        foreach ($parcel->lines as $i => $line) {
+        $this->createLines($shipment, $parcel->lines);
+        $this->mapLines($shipment);
+
+        return $shipment;
+    }
+
+    /**
+     * @param  list<array{seller_sku: string, description: string|null, quantity: int}>  $lines
+     */
+    private function createLines(Shipment $shipment, array $lines): void
+    {
+        foreach ($lines as $i => $line) {
             $shipment->lines()->create([
                 'line_no' => $i + 1,
                 'seller_sku' => Str::limit($line['seller_sku'], 250, ''),
@@ -1425,10 +1558,6 @@ class OnlineOrderService
                 'quantity' => $line['quantity'],
             ]);
         }
-
-        $this->mapLines($shipment);
-
-        return $shipment;
     }
 
     /**

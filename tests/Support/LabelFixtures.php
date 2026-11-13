@@ -55,6 +55,113 @@ final class LabelFixtures
     }
 
     /**
+     * The website's labels file as Shiprocket gives it: 4×6 picture labels
+     * (orders booked on Amazon Shipping) first, then the text labels two to
+     * a page.
+     *
+     * @param  list<array<string, mixed>>  $parcels  see shiprocketLabelText()
+     */
+    public static function websiteLabels(int $pictures, array $parcels, string $name = 'final_labels.pdf'): UploadedFile
+    {
+        $pages = [];
+
+        for ($i = 0; $i < $pictures; $i++) {
+            $size = 90 + $i;
+            $pages[] = "<div style=\"width:{$size}px;height:140px;background:#000\"></div>";
+        }
+
+        foreach (array_chunk($parcels, 2) as $pair) {
+            $pages[] = implode('', array_map(fn (array $p) => self::lines(self::shiprocketLabelText($p)), $pair));
+        }
+
+        return self::pdf($pages, $name);
+    }
+
+    /**
+     * What the browser reads on one of the website's 4×6 picture labels.
+     *
+     * @param  array{awb: string, order: string, invoice: string, name: string, pincode: string}  $p
+     * @return array{text: string, codes: list<array{format: string, text: string}>}
+     */
+    public static function websitePictureSeen(array $p): array
+    {
+        return [
+            'text' => implode("\n", [
+                "AWB {$p['awb']} [1]",
+                'Ship To: 19/11',
+                $p['name'],
+                'Village Sample, Test Road',
+                "{$p['pincode']}",
+                'Ship Date: 14/11/2026 PDD : 19/11',
+                "GST# D7AAAAA0000A1Z5 | INVOICE 1D: {$p['invoice']}/{$p['order']} | DATE: 11-13-2026",
+                'Ordered From:',
+                '[#] Item description',
+                'amazon shipping',
+            ]),
+            'codes' => [['format' => 'code_128', 'text' => $p['awb']], ['format' => 'qr_code', 'text' => 'TEST']],
+        ];
+    }
+
+    /**
+     * The website's tax invoices, one per order, as the store prints them.
+     *
+     * @param  list<array<string, mixed>>  $invoices  see websiteInvoiceText()
+     */
+    public static function websiteInvoices(array $invoices, string $name = 'invoices.pdf'): UploadedFile
+    {
+        return self::pdf(array_map(fn (array $p) => self::lines(self::websiteInvoiceText($p)), $invoices), $name);
+    }
+
+    /**
+     * One of the website's tax invoices in the order the PDF gives its text.
+     *
+     * @param  array{awb: string, order: string, invoice: string, courier: string, payment: 'cod'|'prepaid', name: string, state: string, pincode: string, total: string, items: list<array{sku: string, item: string, qty: int, price: string}>}  $p
+     */
+    public static function websiteInvoiceText(array $p): string
+    {
+        $rows = [];
+
+        foreach ($p['items'] as $n => $item) {
+            $rows[] = ($n + 1).' '.$item['item'];
+            $rows[] = 'Model : 200ml';
+            $rows[] = "SKU : {$item['sku']}";
+            $rows[] = "{$item['qty']} Rs. {$item['price']} 0.00 {$item['price']} 0.00 | 5.00 {$item['price']}";
+        }
+
+        return implode("\n", [
+            'Test Seller Ayurvedic',
+            'TAX INVOICE',
+            "SHIPPING ADDRESS:\tSOLD BY:\tINVOICE DETAILS:",
+            $p['name'],
+            '14 Sample Road, Test Colony',
+            "Sampleganj {$p['pincode']}",
+            $p['state'],
+            'India',
+            'State Code : 09',
+            'Test Seller Ayurvedic',
+            'Plot 1, Sample Market, New Delhi',
+            'GSTIN No. 07AAAAA0000A1Z5',
+            'INVOICE NO.',
+            " : {$p['invoice']}",
+            'INVOICE DATE',
+            ' : 13/11/2026',
+            'ORDER NO.',
+            " : {$p['order']}",
+            'SHIPPED BY',
+            " : {$p['courier']}",
+            'AWB NO.',
+            " : {$p['awb']}",
+            'PAYMENT',
+            'METHOD',
+            " : {$p['payment']}",
+            "S.NO.PRODUCT NAME\tHSN QTY UNIT PRICE UNIT DISCOUNT",
+            ...$rows,
+            "NET TOTAL (In Value) Rs. {$p['total']}",
+            'Whether tax is payable under reverse charge- No',
+        ]);
+    }
+
+    /**
      * One Shiprocket label's text as the PDF gives it. A SKU with a pack
      * size runs past its column and ends on a later line, as Shiprocket's
      * does ("RR-MED-500 (500ML-2P" … "acK)").

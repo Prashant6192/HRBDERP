@@ -257,8 +257,8 @@ class OnlineOrderController extends Controller
             'marketplaces' => Marketplace::query()->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name', 'reader'])
                 ->map(fn (Marketplace $m) => [
                     'id' => $m->id, 'name' => $m->name, 'reads' => $m->reader->label(),
-                    // Myntra's labels and invoices come as two PDFs.
-                    'two_files' => $m->code === 'MYNTRA',
+                    // Myntra's and the website's labels and invoices come as two PDFs.
+                    'two_files' => in_array($m->code, ['MYNTRA', 'WEBSITE'], true),
                     // Picture pages this browser reads before uploading.
                     'reads_in_browser' => $m->reader->readsInBrowser(),
                 ])->all(),

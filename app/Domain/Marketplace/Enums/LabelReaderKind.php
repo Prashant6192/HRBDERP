@@ -31,7 +31,7 @@ enum LabelReaderKind: string
             self::Flipkart => 'Flipkart label text',
             self::Myntra => 'Read on this computer',
             self::Amazon => 'Label read on this computer, invoice text',
-            self::Shiprocket => 'Shiprocket label text',
+            self::Shiprocket => 'Shiprocket labels and invoices',
             self::Ai => 'AI reader',
         };
     }
@@ -51,6 +51,16 @@ enum LabelReaderKind: string
      */
     public function readsInBrowser(): bool
     {
-        return $this === self::Myntra || $this === self::Amazon;
+        return in_array($this, [self::Myntra, self::Amazon, self::Shiprocket], true);
+    }
+
+    /**
+     * Whether a tax invoice that came as its own file prints after the
+     * label. Myntra's invoice is a 4×6 page; the website's is A4 and stays
+     * off the label printer.
+     */
+    public function printsSeparateInvoice(): bool
+    {
+        return $this === self::Myntra;
     }
 }

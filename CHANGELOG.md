@@ -11,6 +11,25 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Fixed — Website orders: both Shiprocket PDFs, without timing out
+
+- Uploading the website's labels or invoices stopped with "Gateway
+  time-out": the pages the ERP could not read went, with the whole file,
+  to the AI reader in one request. Now nothing goes to AI:
+  - The labels file's 4×6 picture labels (orders on Amazon Shipping) are
+    read on the uploader's computer — the AWB barcode, the invoice and
+    order number — and the two-to-a-page text labels as before.
+  - The invoice PDF (one tax invoice per order, some running onto a
+    second page) is read from its text. Each invoice joins the parcel
+    with its AWB and gives a picture label its products and COD amount.
+    Either file can go first.
+- Store SKUs that are only digits ("67962894614801") were read with the
+  product name stuck to them; they are read on their own.
+- The A4 invoices are not sent to the label printer: printing gives each
+  label on its own 4×6, sorted by courier.
+- No file longer than 12 pages is sent to the AI reader in one request,
+  for any marketplace: its unread pages are flagged instead of timing out.
+
 ### Added — Amazon labels read without the AI reader
 
 - Amazon's label PDF (each courier label a picture, its tax invoice on

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Marketplace\Readers;
 
 use App\Domain\Dispatch\Support\GstStateCodes;
+use App\Domain\Marketplace\Contracts\LabelFileParser;
 use App\Domain\Marketplace\Contracts\LabelSheetParser;
 use App\Domain\Marketplace\DTOs\LabelExtraction;
 
@@ -21,9 +22,274 @@ use App\Domain\Marketplace\DTOs\LabelExtraction;
  * A label laid out another way (Shiprocket lets sellers change it) is still
  * read by what it says: "Ship To", "Order #", "SKU: …". What cannot be read
  * is left for the batch screen to fill in.
+ *
+ * Orders Shiprocket books on Amazon Shipping come as a 4×6 picture label
+ * instead, read by the uploader's browser: its AWB barcode and "INVOICE
+ * ID: Retail01438/3001" (the invoice and the order). Its product is on the
+ * store's tax invoice, which comes as a separate PDF of text: one invoice
+ * per order ("INVOICE NO.", "ORDER NO.", "AWB NO.", each "SKU : …" with its
+ * quantity), sometimes running onto a second page. An invoice completes the
+ * parcel with the same AWB.
  */
-final class ShiprocketLabelParser implements LabelSheetParser
+final class ShiprocketLabelParser implements LabelFileParser, LabelSheetParser
 {
+    public const string WAITING_FOR_INVOICE = 'Waiting for the invoice file: this label prints no product. Upload the website\'s invoice PDF for the same day and the parcel is completed.';
+
+    public function parseFile(array $texts): array
+    {
+        ksort($texts);
+        $parcels = [];
+        $invoice = null;
+
+        foreach ($texts as $page => $text) {
+            if (self::isInvoice($text)) {
+                if ($invoice !== null) {
+                    $parcels[] = $this->invoice($invoice);
+                }
+
+                $invoice = [$page => $text];
+
+                continue;
+            }
+
+            $labels = trim($text) === '' ? [] : $this->parsePage($text, $page);
+
+            // The rest of the invoice before it: more products, or only its
+            // total and signature.
+            if ($labels === [] && $invoice !== null && array_key_last($invoice) === $page - 1 && trim($text) !== '') {
+                $invoice[$page] = $text;
+
+                continue;
+            }
+
+            if ($invoice !== null) {
+                $parcels[] = $this->invoice($invoice);
+                $invoice = null;
+            }
+
+            array_push($parcels, ...$labels);
+        }
+
+        if ($invoice !== null) {
+            $parcels[] = $this->invoice($invoice);
+        }
+
+        return $parcels;
+    }
+
+    /**
+     * Whether a page starts one of the website's own tax invoices.
+     */
+    public static function isInvoice(string $text): bool
+    {
+        return preg_match('/TAX\s*INVOICE/i', $text) === 1
+            && preg_match('/INVOICE\s*NO\.?\s*:/i', $text) === 1
+            && preg_match('/AWB\s*NO\.?\s*:/i', $text) === 1;
+    }
+
+    /**
+     * One order's tax invoice, from its pages' text.
+     *
+     * @param  array<int, string>  $pages
+     */
+    private function invoice(array $pages): LabelExtraction
+    {
+        $all = implode("\n", $pages);
+        $field = fn (string $caption): ?string => preg_match('/'.$caption.'\s*:\s*([^\n]*\S)/i', $all, $m) === 1 ? trim($m[1]) : null;
+
+        $awb = $field('AWB\s*NO\.?');
+        $awb = $awb !== null && preg_match('/^[A-Z0-9]{8,30}$/i', $awb) === 1 ? strtoupper($awb) : null;
+
+        $courier = preg_match('/SHIPPED\s*BY\s*:\s*(.+?)\s*AWB\s*NO/is', $all, $m) === 1 ? (string) preg_replace('/\s+/', ' ', $m[1]) : null;
+        $method = strtolower((string) $field('METHOD'));
+        $payment = match (true) {
+            str_contains($method, 'cod') || str_contains($method, 'cash') => 'cod',
+            $method !== '' => 'prepaid',
+            default => null,
+        };
+        $total = preg_match('/NET\s*TOTAL[^\n]*?Rs\.?\s*([\d,]+(?:\.\d+)?)/i', $all, $m) === 1 ? str_replace(',', '', $m[1]) : null;
+
+        [$name, $state, $pincode] = $this->invoiceShipTo(TextLines::of($pages[array_key_first($pages)]));
+        $items = $this->invoiceItems($all);
+
+        return LabelExtraction::fromArray([
+            'pages' => array_keys($pages),
+            'awb' => $awb,
+            'order_number' => $field('ORDER\s*NO\.?'),
+            // "Amazon COD Surface 500gm" is Amazon Shipping.
+            'courier' => match (true) {
+                $courier === null => Couriers::fromAwb($awb),
+                preg_match('/amazon/i', $courier) === 1 => 'Amazon Shipping',
+                default => Couriers::find($courier) ?? Couriers::fromAwb($awb) ?? mb_substr($courier, 0, 60),
+            },
+            'payment_mode' => $payment,
+            'payable_amount' => $payment === 'prepaid' ? '0' : $total,
+            'invoice_number' => $field('INVOICE\s*NO\.?'),
+            'invoice_date' => $field('INVOICE\s*DATE'),
+            'customer_name' => $name,
+            'customer_state' => $state,
+            'customer_pincode' => $pincode,
+            'seller_gstin' => preg_match('/GSTIN\s*(?:No\.?)?\s*[:\-]?\s*(\d{2}[A-Z0-9]{13})/i', $all, $m) === 1 ? strtoupper($m[1]) : null,
+            'lines' => $items,
+            'warnings' => array_values(array_filter([
+                $awb === null ? 'No AWB was read on this invoice, so it could not be matched to its label. Type the AWB from the label.' : null,
+                $items === [] ? 'The product on this invoice could not be read. Type its SKU and quantity on the batch screen.' : null,
+            ])),
+            'invoice_only' => true,
+        ]);
+    }
+
+    /**
+     * The invoice's products: "1 Rahat Rooh … - 200ml", "Model : 200ml",
+     * "SKU : 67962894614801", then "1 Rs. 147.62 …" whose first figure is
+     * the quantity.
+     *
+     * @return list<array{seller_sku: string, description: string|null, quantity: int}>
+     */
+    private function invoiceItems(string $all): array
+    {
+        // The products are under the table's heading; an address line that
+        // starts with a house number is not one.
+        $at = preg_match('/S\.?\s*NO\.?\s*PRODUCT\s*NAME/i', $all, $m, PREG_OFFSET_CAPTURE) === 1 ? (int) $m[0][1] : null;
+
+        if ($at === null) {
+            return [];
+        }
+
+        $all = substr($all, $at);
+
+        preg_match_all(
+            '/(?:^|\n)\s*\d{1,3}\s+(?!Rs\b)(?<desc>(?:(?!\nSKU\s*:).)*?)\n(?:Model\s*:[^\n]*\n)?SKU\s*:\s*(?<sku>[^\n]*\S)\s*\n\s*(?<qty>\d{1,4})\s+Rs\b/is',
+            $all,
+            $rows,
+            PREG_SET_ORDER,
+        );
+
+        return array_map(fn (array $r) => [
+            'seller_sku' => trim($r['sku']),
+            'description' => trim((string) preg_replace('/\s+/', ' ', $r['desc'])) ?: null,
+            'quantity' => max(1, (int) $r['qty']),
+        ], $rows);
+    }
+
+    /**
+     * The buyer on the invoice: the name under "SHIPPING ADDRESS:", and the
+     * state and PIN code in the address down to "State Code".
+     *
+     * @param  list<string>  $lines
+     * @return array{0: string|null, 1: string|null, 2: string|null}
+     */
+    private function invoiceShipTo(array $lines): array
+    {
+        $at = TextLines::indexOf($lines, fn (string $l) => preg_match('/^SHIPPING\s*ADDRESS\s*:/i', $l) === 1);
+
+        if ($at === null) {
+            return [null, null, null];
+        }
+
+        $block = [];
+
+        for ($i = $at + 1; $i < min(count($lines), $at + 14); $i++) {
+            if (preg_match('/^State\s*Code\b/i', $lines[$i]) === 1) {
+                break;
+            }
+
+            $block[] = $lines[$i];
+        }
+
+        $text = implode(' ', $block);
+        $state = null;
+
+        foreach (GstStateCodes::NAMES as $stateName) {
+            if (stripos($text, $stateName) !== false) {
+                $state = $stateName;
+                break;
+            }
+        }
+
+        $pincode = null;
+
+        foreach (array_reverse($block) as $line) {
+            if (preg_match('/\b(\d{6})\b/', $line, $m) === 1) {
+                $pincode = $m[1];
+                break;
+            }
+        }
+
+        $name = isset($block[0]) ? mb_substr(trim($block[0], ' ,:'), 0, 120) : null;
+
+        return [$name === '' ? null : $name, $state, $pincode];
+    }
+
+    /**
+     * A 4×6 picture label as the browser read it (Amazon Shipping booked
+     * through Shiprocket): the AWB barcode, "INVOICE ID: Retail01438/3001",
+     * the buyer under "Ship To", COD or prepaid when the box was read. Its
+     * product comes from the invoice file.
+     */
+    private function pictureLabel(string $text, int $page): ?LabelExtraction
+    {
+        $lines = [];
+        $codes = [];
+
+        foreach (TextLines::of($text) as $line) {
+            if (preg_match('/^\[barcode ([a-z0-9_]+)\]\s*(.+)$/i', $line, $m) === 1) {
+                $codes[] = ['format' => strtolower($m[1]), 'value' => trim($m[2])];
+            } else {
+                $lines[] = $line;
+            }
+        }
+
+        $all = implode("\n", $lines);
+        $printed = preg_match('/\bAWB\s*#?\s*:?\s*([A-Z0-9]{8,30})/i', $all, $m) === 1 ? strtoupper($m[1]) : null;
+        $awb = null;
+
+        foreach ($codes as $code) {
+            if (in_array($code['format'], ['code_128', 'code_39', 'code_93', 'itf'], true) && preg_match('/^[A-Z0-9]{10,30}$/i', $code['value']) === 1) {
+                $value = strtoupper($code['value']);
+
+                if ($awb === null || $value === $printed) {
+                    $awb = $value;
+                }
+            }
+        }
+
+        $awb ??= $printed !== null && preg_match('/^\d{10,20}$/', $printed) === 1 ? $printed : null;
+
+        if ($awb === null) {
+            return null;
+        }
+
+        $invoice = null;
+        $order = null;
+
+        if (preg_match('/INVOICE\s*\S{0,2}\s*D\s*:?\s*(Retail\s*\d+)\s*\/\s*(\d{2,12})/i', $all, $m) === 1) {
+            $invoice = (string) preg_replace('/\s+/', '', $m[1]);
+            $order = $m[2];
+        }
+
+        $at = TextLines::indexOf($lines, fn (string $l) => preg_match('/^Ship\s*To\b/i', $l) === 1);
+        $name = $at !== null && preg_match("/^([\\p{L}][\\p{L} .']{1,59})/u", $lines[$at + 1] ?? '', $m) === 1 ? trim($m[1], " .'") : null;
+        $pincode = $at !== null && preg_match('/\b(\d{6})\b/', implode(' ', array_slice($lines, $at + 1, 5)), $m) === 1 ? $m[1] : null;
+
+        return LabelExtraction::fromArray([
+            'pages' => [$page],
+            'awb' => $awb,
+            'order_number' => $order,
+            'invoice_number' => $invoice,
+            'courier' => preg_match('/amazon\s*shipping|ATSPL/i', $all) === 1 ? 'Amazon Shipping' : (Couriers::find($all) ?? Couriers::fromAwb($awb)),
+            'payment_mode' => match (true) {
+                preg_match('/\bPRE\s*-?\s*PAID\b/i', $all) === 1 => 'prepaid',
+                preg_match('/\bCOD\b|cash\s*on\s*delivery/i', $all) === 1 => 'cod',
+                default => null,
+            },
+            'customer_name' => $name !== null && mb_strlen($name) >= 2 ? $name : null,
+            'customer_pincode' => $pincode,
+            'lines' => [],
+            'warnings' => [self::WAITING_FOR_INVOICE],
+        ]);
+    }
+
     public function parse(string $text, int $page): ?LabelExtraction
     {
         return $this->parsePage($text, $page)[0] ?? null;
@@ -31,6 +297,14 @@ final class ShiprocketLabelParser implements LabelSheetParser
 
     public function parsePage(string $text, int $page): array
     {
+        // A picture label the browser read: its barcodes come as lines of
+        // their own.
+        if (preg_match('/^\[barcode [a-z0-9_]+\]/mi', $text) === 1 && preg_match('/^DELIVER\s*TO\b/mi', $text) !== 1) {
+            $label = $this->pictureLabel($text, $page);
+
+            return $label === null ? [] : [$label];
+        }
+
         $lines = TextLines::of($text);
         $starts = array_keys(array_filter($lines, fn (string $l) => preg_match('/^DELIVER\s*TO\b/i', $l) === 1));
 
@@ -230,9 +504,12 @@ final class ShiprocketLabelParser implements LabelSheetParser
                 continue;
             }
 
-            if (preg_match('/^([A-Z0-9]+(?:[\-_\/.][A-Z0-9]+)+)(\s*\([^)]*\)?)?\s*(.*)$/', $line, $m) === 1) {
+            // A SKU with parts ("RR-MED-HMO-005 (500ML)"), or the store's
+            // own number for the product ("67962894614801").
+            if (preg_match('/^([A-Z0-9]+(?:[\-_\/.][A-Z0-9]+)+)(\s*\([^)]*\)?)?\s*(.*)$/', $line, $m) === 1
+                || preg_match('/^(\d{6,20})()(?:\s+(.*))?$/', $line, $m) === 1) {
                 $rows[] = ['seller_sku' => trim($m[1].$m[2]), 'description' => null, 'quantity' => null];
-                $rest = trim($m[3]);
+                $rest = trim($m[3] ?? '');
 
                 if ($rest !== '') {
                     $this->item($rows[count($rows) - 1], $rest);

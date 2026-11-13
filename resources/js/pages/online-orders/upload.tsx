@@ -270,10 +270,10 @@ export default function UploadLabels({
                             </p>
                             {marketplace?.two_files && (
                                 <p className="rounded-md bg-amber-500/15 px-3 py-1.5 text-xs font-medium text-amber-900 dark:text-amber-100">
-                                    Myntra: add both PDFs — the labels and the
-                                    invoices. This computer reads them before
-                                    uploading, about 2 seconds a page; keep the
-                                    page open until it is done.
+                                    {marketplace.name}: add both PDFs — the
+                                    labels and the invoices. This computer reads
+                                    them before uploading, about 2 seconds a
+                                    page; keep the page open until it is done.
                                 </p>
                             )}
                             {marketplace?.reads_in_browser &&

@@ -17,6 +17,7 @@ final class LabelExtraction
      * @param  list<array{seller_sku: string, description: string|null, quantity: int}>  $lines
      * @param  list<string>  $warnings
      * @param  int|null  $slot  where on its page the label sits, when a page holds several (0 = first, left to right)
+     * @param  bool  $invoiceOnly  read from a separate tax-invoice file: it completes the parcel whose label has the same AWB
      */
     public function __construct(
         public readonly array $pages,
@@ -35,6 +36,7 @@ final class LabelExtraction
         public readonly array $lines = [],
         public readonly array $warnings = [],
         public readonly ?int $slot = null,
+        public readonly bool $invoiceOnly = false,
     ) {}
 
     /**
@@ -82,6 +84,7 @@ final class LabelExtraction
             lines: $lines,
             warnings: array_values(array_filter(array_map(fn ($w) => self::clean($w), (array) ($data['warnings'] ?? [])))),
             slot: isset($data['slot']) && is_numeric($data['slot']) && (int) $data['slot'] >= 0 ? (int) $data['slot'] : null,
+            invoiceOnly: ($data['invoice_only'] ?? false) === true,
         );
     }
 
@@ -107,6 +110,7 @@ final class LabelExtraction
             'lines' => $this->lines,
             'warnings' => $this->warnings,
             'slot' => $this->slot,
+            'invoice_only' => $this->invoiceOnly,
         ];
     }
 

@@ -36,6 +36,9 @@ use Throwable;
  */
 class LabelReaderService
 {
+    /** Longer files are not sent to the AI reader in one request. */
+    public const int AI_MAX_PAGES = 12;
+
     public function __construct(private readonly AiLabelReader $ai) {}
 
     /**
@@ -64,12 +67,13 @@ class LabelReaderService
             }
 
             foreach ($parser->parseFile($pages) as $parcel) {
-                if ($parcel->pages === [] || array_intersect($parcel->pages, $covered) !== []) {
+                if ($parcel->pages === [] || $parcel->isBlank()) {
                     continue;
                 }
 
-                $parcels[$parcel->pages[0]] = [$parcel];
-                $covered = [...$covered, ...$parcel->pages];
+                // Two labels can share a page (Shiprocket prints two to one).
+                $parcels[$parcel->pages[0]][] = $parcel;
+                $covered = array_values(array_unique([...$covered, ...$parcel->pages]));
             }
         } elseif ($parser !== null) {
             foreach ($texts as $page => $text) {
@@ -112,6 +116,13 @@ class LabelReaderService
             $warnings[] = $seen === []
                 ? 'These pages are pictures and this upload did not bring their reading. Upload from the ERP\'s Upload labels page in Chrome or Edge so the computer reads them, or type the AWB and product on each flagged parcel.'
                 : count($unread).' page(s) could not be read. Type their AWB and product on each flagged parcel.';
+        } elseif ($this->ai->available() && $pageCount > self::AI_MAX_PAGES) {
+            // The AI reader takes the whole file in one request: a long file
+            // runs past the web server's time limit (a 504 at the gateway).
+            $readWith = $parcels === [] ? 'none' : $marketplace->reader->value;
+            $warnings[] = count($unread).' page(s) could not be read here, and the file is too long ('.$pageCount.' pages) to send to the AI reader. '
+                .($marketplace->reader->readsInBrowser() ? 'Upload from the ERP\'s Upload labels page in Chrome or Edge so the computer reads the label pictures, or type' : 'Type')
+                .' the AWB and product on each flagged parcel.';
         } elseif ($this->ai->available()) {
             $reading = $this->ai->read($contents, $filename, $marketplace->name, $pageCount);
             $model = $reading->model;
@@ -167,7 +178,8 @@ class LabelReaderService
         // Meesho's and Flipkart's labels always carry text; a file of
         // pictures only is a Myntra or Amazon file chosen under them.
         if ($pages === []) {
-            if (in_array($marketplace->reader, [LabelReaderKind::Meesho, LabelReaderKind::Flipkart, LabelReaderKind::Shiprocket], true)) {
+            // (The website's labels can be all pictures: Amazon Shipping's.)
+            if (in_array($marketplace->reader, [LabelReaderKind::Meesho, LabelReaderKind::Flipkart], true)) {
                 throw new OnlineOrderException("{$filename} has only pictures, unlike {$marketplace->name}'s labels. If it is a Myntra or Amazon file, upload it again with that marketplace selected.");
             }
 

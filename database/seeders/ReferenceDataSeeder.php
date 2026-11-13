@@ -135,14 +135,15 @@ class ReferenceDataSeeder extends Seeder
     /**
      * The marketplaces the company sells on, and how each one's labels are
      * read: Meesho and Flipkart print text; Myntra's pictures are read in the
-     * uploader's browser; Amazon's go to the AI reader.
+     * uploader's browser; Amazon's label pictures are read in the browser and
+     * its invoices from their text.
      */
     public static function ensureMarketplaces(): void
     {
         foreach ([
             ['MEESHO', 'Meesho', LabelReaderKind::Meesho],
             ['FLIPKART', 'Flipkart', LabelReaderKind::Flipkart],
-            ['AMAZON', 'Amazon', LabelReaderKind::Ai],
+            ['AMAZON', 'Amazon', LabelReaderKind::Amazon],
             ['MYNTRA', 'Myntra', LabelReaderKind::Myntra],
             // Orders from the company's own website, shipped through Shiprocket.
             ['WEBSITE', 'Website', LabelReaderKind::Shiprocket],

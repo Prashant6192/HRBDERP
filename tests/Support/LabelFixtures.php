@@ -108,6 +108,118 @@ final class LabelFixtures
     }
 
     /**
+     * Amazon's easy-ship labels: for each parcel a picture page (the courier
+     * label) and then its tax invoice as text.
+     *
+     * @param  list<array<string, mixed>>  $parcels  see amazonInvoiceText()
+     */
+    public static function amazon(array $parcels, string $name = 'amazon_labels.pdf'): UploadedFile
+    {
+        $pages = [];
+
+        foreach ($parcels as $i => $p) {
+            $size = 100 + $i;
+            $pages[] = "<div style=\"width:{$size}px;height:100px;background:#000\"></div>";
+            $pages[] = self::lines(self::amazonInvoiceText($p));
+        }
+
+        return self::pdf($pages, $name);
+    }
+
+    /**
+     * What the uploader's browser reads on an Amazon label: its words and
+     * its AWB barcode, as the upload sends them.
+     *
+     * @param  array<string, mixed>  $p
+     * @return array{text: string, codes: list<array{format: string, text: string}>}
+     */
+    public static function amazonLabelSeen(array $p): array
+    {
+        return [
+            'text' => implode("\n", [
+                "AWB {$p['awb']}",
+                'Ship To: 18/11',
+                "{$p['name']} -",
+                '12 Test Lane, Sample Nagar '.(($p['payment'] ?? 'prepaid') === 'cod' ? 'COD' : 'PREPAID'),
+                "SAMPLETOWN {$p['pincode']}",
+                strtoupper((string) $p['state']),
+                'Order Id: '.str_replace('-', ' — ', (string) $p['order']),
+                'Ship Date: 14/11/2026',
+                'Sold on: www.amazon.in '.($p['courier_mark'] ?? 'ATSPL'),
+            ]),
+            'codes' => [
+                ['format' => 'code_128', 'text' => (string) $p['awb']],
+                ['format' => 'data_matrix', 'text' => 'SETEST0001_001_v'],
+            ],
+        ];
+    }
+
+    /**
+     * An Amazon tax invoice's text in the order the PDF gives it. A prepaid
+     * order prints its mode of payment; a COD order prints none.
+     *
+     * @param  array<string, mixed>  $p  awb, order, invoice, name, state, pincode, payment ('prepaid'|'cod'), items: list<array{asin: string, sku: string, title: string, qty: int, unit: string}>
+     */
+    public static function amazonInvoiceText(array $p): string
+    {
+        $rows = [];
+        $total = 0.0;
+        $tax = 0.0;
+
+        foreach ($p['items'] as $n => $item) {
+            $net = round((float) $item['unit'] * $item['qty'], 2);
+            $itemTax = round($net * 0.05, 2);
+            $total += $net + $itemTax;
+            $tax += $itemTax;
+            // The SKU wraps onto the line after the ASIN, as Amazon's does.
+            $rows[] = (string) ($n + 1);
+            $rows[] = "{$item['title']} | {$item['asin']} (";
+            $rows[] = "{$item['sku']} )";
+            $rows[] = 'HSN:30039011';
+            $rows[] = sprintf('₹%.2f%d₹%.2f5%%IGST₹%.2f₹%.2f', $item['unit'], $item['qty'], $net, $itemTax, $net + $itemTax);
+        }
+
+        $state = strtoupper((string) $p['state']);
+        $payment = ($p['payment'] ?? 'prepaid') === 'cod' ? [] : [
+            'Payment Transaction ID:',
+            '0000TESTTRANSACTION0001',
+            'Invoice Value:',
+            sprintf('%.2f', $total),
+            'Mode of Payment:',
+            'GiftCard',
+        ];
+
+        return implode("\n", [
+            'Tax Invoice/Bill of Supply/Cash Memo',
+            '(Triplicate for Supplier)',
+            '*ASSPL-Amazon Seller Services Pvt. Ltd. (only where Amazon Retail India Pvt. Ltd. fulfillment center is co-located)',
+            'Page 1 of 1',
+            "Order Number: {$p['order']}\tInvoice Number : {$p['invoice']}",
+            "Order Date: 12.11.2026\tInvoice Details : DL-0000000000-0001",
+            'Invoice Date : 12.11.2026',
+            'Sl.', 'No', 'Description', 'Unit', 'Price', 'Qty', 'Net', 'Amount', 'Tax', 'Rate', 'Tax', 'Type', 'Tax', 'Amount', 'Total', 'Amount',
+            ...$rows,
+            sprintf("TOTAL:\t₹%.2f₹%.2f", $tax, $total),
+            'Amount in Words:',
+            'Whether tax is payable under reverse charge - No',
+            ...$payment,
+            'Sold By :',
+            'Test Seller',
+            'Plot 1, Sample Market, New Delhi, 110096',
+            'GST Registration No: 07AAAAA0000A1Z5',
+            'Shipping Address :',
+            $p['name'],
+            $p['name'],
+            '12 Test Lane, Sample Nagar',
+            "SAMPLETOWN, {$state}, {$p['pincode']}",
+            'IN',
+            'State/UT Code: 09',
+            "Place of supply: {$state}",
+            "Place of delivery: {$state}",
+        ]);
+    }
+
+    /**
      * A file of pictures only, as Amazon and Myntra send: pages with no text.
      */
     public static function imageOnly(int $pages, string $name = 'amazon_labels.pdf', int $variant = 0): UploadedFile

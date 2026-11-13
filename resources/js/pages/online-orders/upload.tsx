@@ -116,8 +116,9 @@ export default function UploadLabels({
         e.preventDefault();
         setReadError(null);
 
-        // Myntra's pages are pictures: this computer reads their words and
-        // barcodes first, and the reading goes up with each file.
+        // Myntra's and Amazon's label pages are pictures: this computer reads
+        // their words and barcodes first, and the reading goes up with each
+        // file.
         const seen: Record<string, string> = {};
 
         if (marketplace?.reads_in_browser) {
@@ -275,6 +276,16 @@ export default function UploadLabels({
                                     page open until it is done.
                                 </p>
                             )}
+                            {marketplace?.reads_in_browser &&
+                                !marketplace.two_files && (
+                                    <p className="rounded-md bg-amber-500/15 px-3 py-1.5 text-xs font-medium text-amber-900 dark:text-amber-100">
+                                        {marketplace.name}: the labels are
+                                        pictures. This computer reads their
+                                        barcodes before uploading, about 2
+                                        seconds a label; keep the page open
+                                        until it is done.
+                                    </p>
+                                )}
                             <input
                                 ref={input}
                                 type="file"

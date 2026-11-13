@@ -11,6 +11,22 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Added — Amazon labels read without the AI reader
+
+- Amazon's label PDF (each courier label a picture, its tax invoice on
+  the page after it) is now read the way Myntra's is: the browser on the
+  Upload labels page reads each label's AWB barcode and words, and the
+  ERP reads the invoice text exactly — order number, invoice number and
+  date, seller SKU (the text in brackets after the ASIN), quantity,
+  amount, state and PIN code. Each label and its invoice make one parcel.
+  No Anthropic key is needed.
+- Prepaid or COD comes from the invoice: a prepaid order prints its mode
+  of payment, a COD order prints none. Parcels Amazon hands to Delhivery
+  ("ATSPL_ DELHIVERY") are put down to Delhivery.
+- An Amazon file uploaded under another marketplace is refused, naming
+  Amazon. The AI reader is still used for pages nothing else could read,
+  when a key is set.
+
 ### Fixed — Warnings during deployment
 
 - Caching routes on deploy (`php artisan optimize`) stopped with "The

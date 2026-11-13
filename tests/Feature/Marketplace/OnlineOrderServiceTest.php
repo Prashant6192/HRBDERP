@@ -13,6 +13,7 @@ use App\Domain\Inventory\Models\InventoryTransaction;
 use App\Domain\Inventory\Services\InventoryLedgerService;
 use App\Domain\Inventory\Services\StockBalanceService;
 use App\Domain\Marketplace\Contracts\AiLabelReader;
+use App\Domain\Marketplace\DTOs\BrowserPages;
 use App\Domain\Marketplace\Enums\PaymentMode;
 use App\Domain\Marketplace\Enums\ShipmentStatus;
 use App\Domain\Marketplace\Enums\StockState;
@@ -445,6 +446,60 @@ class OnlineOrderServiceTest extends TestCase
     }
 
     #[Test]
+    public function amazon_labels_are_read_from_the_browsers_barcode_and_the_invoice_text_without_ai(): void
+    {
+        $reader = new FakeLabelReader([]);
+        $this->app->instance(AiLabelReader::class, $reader);
+        $orders = app(OnlineOrderService::class);
+
+        $prepaid = [
+            'awb' => '372700000001', 'order' => '402-1000001-2000001', 'invoice' => 'IN-101', 'name' => 'Asha Test',
+            'state' => 'Uttar Pradesh', 'pincode' => '226001', 'payment' => 'prepaid',
+            'items' => [['asin' => 'B0TEST0001', 'sku' => 'Hair_Oil_200ml', 'title' => 'Rahat Rooh Hair Oil 200ml', 'qty' => 1, 'unit' => '190.48']],
+        ];
+        $cod = [
+            'awb' => '13300000000002', 'order' => '403-1000002-2000002', 'invoice' => 'IN-102', 'name' => 'Ravi Sample',
+            'state' => 'Odisha', 'pincode' => '751001', 'payment' => 'cod', 'courier_mark' => 'ATSPL_ DELHIVERY',
+            'items' => [['asin' => 'B0TEST0001', 'sku' => 'Hair_Oil_200ml', 'title' => 'Rahat Rooh Hair Oil 200ml', 'qty' => 2, 'unit' => '190.48']],
+        ];
+
+        $file = LabelFixtures::amazon([$prepaid, $cod]);
+        $pages = [['page' => 1, ...LabelFixtures::amazonLabelSeen($prepaid)], ['page' => 3, ...LabelFixtures::amazonLabelSeen($cod)]];
+        $seen = [hash_file('sha256', $file->getRealPath()) => BrowserPages::fromJson((string) json_encode(['pages' => $pages]))];
+
+        $batch = $orders->upload($this->rahatRooh, $this->amazon, $this->depotFg, [$file], $this->agency, seen: $seen);
+
+        $this->assertSame([], $reader->calls, 'Amazon labels are never sent to the AI reader when the browser read them.');
+        $this->assertSame('amazon', $batch->files->first()->read_with);
+
+        $shipments = $batch->shipments()->orderBy('id')->get();
+        $this->assertSame([[1, 2], [3, 4]], $shipments->pluck('pages')->all());
+        $this->assertSame(['372700000001', '13300000000002'], $shipments->pluck('awb')->all());
+        $this->assertSame(['Amazon Shipping', 'Delhivery'], $shipments->pluck('courier')->all());
+        $this->assertSame([PaymentMode::Prepaid, PaymentMode::Cod], $shipments->pluck('payment_mode')->all());
+        $this->assertSame(['402-1000001-2000001', '403-1000002-2000002'], $shipments->pluck('order_number')->all());
+
+        $orders->mapSku($this->amazon, $this->rahatRooh, 'Hair_Oil_200ml', $this->oil, 1, $this->agency);
+        $this->assertSame(StockState::Reserved, Shipment::query()->where('awb', '13300000000002')->sole()->stock_state);
+        $this->assertSame('20', $this->free());
+    }
+
+    #[Test]
+    public function an_amazon_file_chosen_under_another_marketplace_is_refused(): void
+    {
+        $file = LabelFixtures::amazon([[
+            'awb' => '372700000001', 'order' => '402-1000001-2000001', 'invoice' => 'IN-101', 'name' => 'Asha Test',
+            'state' => 'Uttar Pradesh', 'pincode' => '226001', 'payment' => 'prepaid',
+            'items' => [['asin' => 'B0TEST0001', 'sku' => 'Hair_Oil_200ml', 'title' => 'Hair Oil', 'qty' => 1, 'unit' => '190.48']],
+        ]]);
+
+        $this->expectException(OnlineOrderException::class);
+        $this->expectExceptionMessage('looks like Amazon labels, but Meesho was chosen');
+
+        $this->orders->upload($this->rahatRooh, $this->meesho, $this->depotFg, [$file], $this->agency);
+    }
+
+    #[Test]
     public function without_the_ai_reader_a_picture_page_still_becomes_a_parcel_someone_can_fill_in(): void
     {
         $batch = $this->orders->upload($this->rahatRooh, $this->amazon, $this->depotFg, [LabelFixtures::imageOnly(1, 'myntra.pdf')], $this->agency);
@@ -452,7 +507,7 @@ class OnlineOrderServiceTest extends TestCase
         $parcel = $batch->shipments()->sole();
         $this->assertNull($parcel->awb);
         $this->assertStringContainsString('could not be read', $parcel->warnings[0]);
-        $this->assertStringContainsString('ANTHROPIC_API_KEY', $batch->files->first()->warnings[0]);
+        $this->assertStringContainsString('Chrome or Edge', $batch->files->first()->warnings[0]);
 
         $this->orders->mapSku($this->amazon, $this->rahatRooh, 'Hair_Oil_200ml', $this->oil, 1, $this->agency);
         $parcel = $this->orders->correct($parcel, [

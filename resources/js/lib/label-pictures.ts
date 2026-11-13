@@ -1,12 +1,14 @@
 /**
  * Reading label PDFs whose pages are pictures (Myntra's labels and tax
- * invoices) on the uploader's own computer, before the upload: pdf.js
+ * invoices, Amazon's labels) on the uploader's own computer, before the
+ * upload: pdf.js
  * draws each page, the barcode reader finds its codes, and tesseract
  * reads its words. Nothing leaves the computer but the text it read, sent
- * with the PDF for the ERP's Myntra parser. No AI service, no key.
+ * with the PDF for the ERP's Myntra and Amazon parsers. No AI service, no
+ * key.
  *
  * Every piece (pdf.js, tesseract and its English data) is served by the
- * ERP itself and loaded only when a Myntra file is uploaded.
+ * ERP itself and loaded only when a Myntra or Amazon file is uploaded.
  */
 import type { Worker as OcrWorker } from 'tesseract.js';
 import { barcodeDetector } from '@/lib/barcode';

@@ -21,6 +21,10 @@ type Waiting = {
     seller_sku: string;
     description: string | null;
     parcels: number;
+    /** The SKU and its title in plain words. */
+    reading: { name: string | null; size: string | null; pack: number | null };
+    /** The ERP product it most likely is, picked in advance to confirm. */
+    suggested: { item_id: string; pieces: number } | null;
 };
 
 type Component = {
@@ -283,13 +287,17 @@ function MapRow({
         seller_sku: row.seller_sku,
         components: [
             {
-                item_id: '',
-                units: guessPieces(
-                    `${row.seller_sku} ${row.description ?? ''}`,
-                ),
+                item_id: row.suggested?.item_id ?? '',
+                units:
+                    row.suggested?.pieces ??
+                    row.reading.pack ??
+                    guessPieces(`${row.seller_sku} ${row.description ?? ''}`),
             },
         ],
     });
+    const suggested = row.suggested
+        ? products.find((p) => p.value === row.suggested?.item_id)
+        : undefined;
 
     return (
         <li className="grid gap-3 px-4 py-4 md:grid-cols-[1fr_1.6fr_auto] md:items-start">
@@ -299,10 +307,54 @@ function MapRow({
                     {row.brand} · {row.marketplace} · {row.parcels} parcel(s)
                     waiting
                 </div>
-                {row.description && (
-                    <div className="text-muted-foreground mt-1 text-xs">
-                        {row.description}
+                {(row.reading.name || row.reading.size) && (
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-sm">
+                        <span className="text-muted-foreground text-xs">
+                            Reads as
+                        </span>
+                        {row.reading.name && (
+                            <span className="font-semibold">
+                                {row.reading.name}
+                            </span>
+                        )}
+                        {row.reading.size && (
+                            <span className="rounded bg-sky-500/15 px-1.5 text-xs font-semibold text-sky-800 dark:text-sky-200">
+                                {row.reading.size}
+                            </span>
+                        )}
+                        {row.reading.pack && (
+                            <span className="rounded bg-amber-500/15 px-1.5 text-xs font-semibold text-amber-800 dark:text-amber-200">
+                                Pack of {row.reading.pack}
+                            </span>
+                        )}
+                        {!row.reading.size && (
+                            <span className="text-xs text-amber-700 dark:text-amber-300">
+                                size not printed: check the parcel
+                            </span>
+                        )}
                     </div>
+                )}
+                {suggested ? (
+                    <div className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
+                        Suggested: {suggested.label}
+                        {suggested.hint ? ` (${suggested.hint})` : ''}
+                        {(row.suggested?.pieces ?? 1) > 1
+                            ? ` × ${row.suggested?.pieces}`
+                            : ''}{' '}
+                        — check it, then Map
+                    </div>
+                ) : (
+                    <div className="text-muted-foreground mt-1 text-xs">
+                        No clear match: choose the product.
+                    </div>
+                )}
+                {row.description && (
+                    <details className="text-muted-foreground mt-1 text-xs">
+                        <summary className="cursor-pointer">
+                            As printed on the label
+                        </summary>
+                        {row.description}
+                    </details>
                 )}
             </div>
             <ComponentsEditor

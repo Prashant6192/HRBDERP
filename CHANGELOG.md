@@ -11,6 +11,20 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Added — Mapping SKUs: what each one is, in plain words
+
+- Under each SKU waiting to be mapped, the screen now says what it reads
+  as — the product's name without the marketplace's sales words, its
+  size, and "Pack of 2" where the SKU says so — and suggests the ERP
+  product it most likely is, already chosen with the right pieces, to
+  check and map. Where the size is not printed, it says so rather than
+  guess between two sizes. The label's own text is still there to open.
+- A website invoice now gives a parcel's products their full title with
+  the size ("… Healthy Hair - 200ml") where the label cut it short.
+- Website SKUs read before the numeric-SKU fix, with the product's name
+  run into them, are split back into the SKU and its title, so each is
+  mapped once.
+
 ### Fixed — Website orders: both Shiprocket PDFs, without timing out
 
 - Uploading the website's labels or invoices stopped with "Gateway

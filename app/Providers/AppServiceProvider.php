@@ -78,8 +78,16 @@ class AppServiceProvider extends ServiceProvider
             ->first(fn (string $name) => config("filesystems.disks.{$name}.driver") === 's3');
 
         $disk = $cloud ?? (string) config('filesystems.default', 'local');
+        $files = config("filesystems.disks.{$disk}") ?? config('filesystems.disks.local');
 
-        config(['filesystems.disks.files' => config("filesystems.disks.{$disk}") ?? config('filesystems.disks.local')]);
+        // Label PDFs and photos are handed out by the ERP's own pages, never
+        // straight from /storage. Copied from the local disk, the files disk
+        // would claim /storage too and clash with it when routes are cached
+        // ("The [files] disk conflicts with the [local] disk").
+        $files['serve'] = false;
+        unset($files['url']);
+
+        config(['filesystems.disks.files' => $files]);
     }
 
     /**

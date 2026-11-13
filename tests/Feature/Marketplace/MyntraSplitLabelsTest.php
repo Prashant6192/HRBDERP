@@ -262,6 +262,7 @@ class MyntraSplitLabelsTest extends TestCase
 
         $this->actingAs($this->agency)->get(route('online-orders.create'))->assertInertia(fn ($page) => $page
             ->where('marketplaces', fn ($list) => collect($list)->firstWhere('name', 'Myntra')['reads_in_browser'] === true
+                && collect($list)->firstWhere('name', 'Amazon')['reads_in_browser'] === true
                 && collect($list)->firstWhere('name', 'Meesho')['reads_in_browser'] === false));
     }
 

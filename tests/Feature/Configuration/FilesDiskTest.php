@@ -29,11 +29,31 @@ class FilesDiskTest extends TestCase
     }
 
     #[Test]
-    public function without_a_bucket_it_is_the_apps_own_disk(): void
+    public function without_a_bucket_it_is_the_apps_own_disk_not_served_from_storage(): void
     {
         $this->configure();
 
-        $this->assertSame(config('filesystems.disks.local'), config('filesystems.disks.files'));
+        // The app's own disk, except that the ERP's pages hand its files
+        // out: it never claims /storage beside the local disk.
+        $expected = config('filesystems.disks.local');
+        $expected['serve'] = false;
+        unset($expected['url']);
+
+        $this->assertSame($expected, config('filesystems.disks.files'));
+    }
+
+    #[Test]
+    public function no_two_served_disks_share_an_address(): void
+    {
+        $this->configure();
+
+        // Laravel refuses to cache routes ("Each served disk must have a
+        // unique URL") when two disks served from the app claim one path.
+        $paths = collect(config('filesystems.disks'))
+            ->filter(fn ($disk) => is_array($disk) && ($disk['serve'] ?? false) && ($disk['driver'] ?? null) === 'local')
+            ->map(fn (array $disk) => isset($disk['url']) ? rtrim((string) parse_url($disk['url'], PHP_URL_PATH), '/') : '/storage');
+
+        $this->assertSame($paths->count(), $paths->unique()->count(), 'Served disks: '.$paths->toJson());
     }
 
     #[Test]

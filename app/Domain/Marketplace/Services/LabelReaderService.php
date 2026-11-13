@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Domain\Marketplace\Services;
 
 use App\Domain\Marketplace\Contracts\AiLabelReader;
+use App\Domain\Marketplace\Contracts\LabelFileParser;
 use App\Domain\Marketplace\Contracts\LabelSheetParser;
 use App\Domain\Marketplace\Contracts\LabelTextParser;
 use App\Domain\Marketplace\DTOs\LabelExtraction;
@@ -12,6 +13,7 @@ use App\Domain\Marketplace\DTOs\LabelReading;
 use App\Domain\Marketplace\Enums\LabelReaderKind;
 use App\Domain\Marketplace\Exceptions\OnlineOrderException;
 use App\Domain\Marketplace\Models\Marketplace;
+use App\Domain\Marketplace\Readers\AmazonLabelParser;
 use App\Domain\Marketplace\Readers\FlipkartLabelParser;
 use App\Domain\Marketplace\Readers\MeeshoLabelParser;
 use App\Domain\Marketplace\Readers\MyntraLabelParser;
@@ -26,10 +28,11 @@ use Throwable;
  * exactly, on this server, at no cost. Myntra's pages are pictures: the
  * uploader's browser reads their words and barcodes and sends them with
  * the file ($seen), and the Myntra parser reads those — no AI involved.
- * Amazon's pictures, and pages a text reader could not place, go to the
- * AI reader, which also groups an Amazon label with the invoice pages
- * after it. A page nobody could read still becomes a parcel, flagged, so
- * it is never silently dropped from the day's work.
+ * Amazon's labels are pictures read the same way, and each is joined with
+ * the tax invoice after it, which is text read here. Pages a reader could
+ * not place go to the AI reader when there is one. A page nobody could
+ * read still becomes a parcel, flagged, so it is never silently dropped
+ * from the day's work.
  */
 class LabelReaderService
 {
@@ -50,8 +53,25 @@ class LabelReaderService
 
         $parser = $this->parserFor($marketplace->reader);
         $parcels = [];
+        $covered = [];
 
-        if ($parser !== null) {
+        if ($parser instanceof LabelFileParser) {
+            // Amazon: a parcel is its label page and the invoice after it.
+            $pages = [];
+
+            foreach ($texts as $page => $text) {
+                $pages[$page] = trim($text) === '' && isset($seen[$page]) ? $seen[$page] : $text;
+            }
+
+            foreach ($parser->parseFile($pages) as $parcel) {
+                if ($parcel->pages === [] || array_intersect($parcel->pages, $covered) !== []) {
+                    continue;
+                }
+
+                $parcels[$parcel->pages[0]] = [$parcel];
+                $covered = [...$covered, ...$parcel->pages];
+            }
+        } elseif ($parser !== null) {
             foreach ($texts as $page => $text) {
                 if (trim($text) === '' && isset($seen[$page])) {
                     $text = $seen[$page];
@@ -68,11 +88,12 @@ class LabelReaderService
 
                 if ($found !== []) {
                     $parcels[$page] = array_values($found);
+                    $covered[] = $page;
                 }
             }
         }
 
-        $unread = array_values(array_diff(range(1, $pageCount), array_keys($parcels)));
+        $unread = array_values(array_diff(range(1, $pageCount), $covered));
 
         if ($unread === []) {
             ksort($parcels);
@@ -111,6 +132,9 @@ class LabelReaderService
 
             $ignored = array_values(array_intersect($reading->ignoredPages, $unread));
             $unread = array_values(array_diff($unread, $ignored));
+        } elseif ($marketplace->reader->readsInBrowser() && $seen === []) {
+            $readWith = $parcels === [] ? 'none' : $marketplace->reader->value;
+            $warnings[] = 'These pages are pictures and this upload did not bring their reading. Upload from the ERP\'s Upload labels page in Chrome or Edge so the computer reads them, or type the AWB and product on each flagged parcel.';
         } else {
             $readWith = $parcels === [] ? 'none' : $marketplace->reader->value;
             $warnings[] = 'The AI label reader is not set up on this server (ANTHROPIC_API_KEY), so pages without text could not be read. Type their AWB and product on each flagged parcel.';
@@ -150,6 +174,15 @@ class LabelReaderService
             return;
         }
 
+        // Amazon's invoices are text; under another marketplace the file
+        // would read as labels with no AWB.
+        if ($marketplace->reader !== LabelReaderKind::Amazon && $marketplace->reader !== LabelReaderKind::Ai
+            && count(array_filter($pages, fn (string $t) => AmazonLabelParser::isInvoice($t))) * 2 >= count($pages)) {
+            $name = Marketplace::query()->where('reader', LabelReaderKind::Amazon->value)->value('name') ?? 'Amazon';
+
+            throw new OnlineOrderException("{$filename} looks like {$name} labels, but {$marketplace->name} was chosen. Upload it again with {$name} selected.");
+        }
+
         foreach ([LabelReaderKind::Meesho, LabelReaderKind::Flipkart] as $kind) {
             if ($kind === $marketplace->reader) {
                 continue;
@@ -159,7 +192,7 @@ class LabelReaderService
             $read = 0;
 
             foreach ($pages as $page => $text) {
-                $parcel = $parser?->parse($text, $page);
+                $parcel = $parser instanceof LabelTextParser ? $parser->parse($text, $page) : null;
 
                 if ($parcel !== null && $parcel->awb !== null) {
                     $read++;
@@ -204,12 +237,13 @@ class LabelReaderService
         }
     }
 
-    private function parserFor(LabelReaderKind $kind): ?LabelTextParser
+    private function parserFor(LabelReaderKind $kind): LabelTextParser|LabelFileParser|null
     {
         return match ($kind) {
             LabelReaderKind::Meesho => new MeeshoLabelParser,
             LabelReaderKind::Flipkart => new FlipkartLabelParser,
             LabelReaderKind::Myntra => new MyntraLabelParser,
+            LabelReaderKind::Amazon => new AmazonLabelParser,
             LabelReaderKind::Shiprocket => new ShiprocketLabelParser,
             LabelReaderKind::Ai => null,
         };

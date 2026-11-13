@@ -37,6 +37,38 @@ export default defineConfig({
                     asset.names?.some((n) => n.endsWith('.traineddata.gz'))
                         ? 'assets/ocr/[name][extname]'
                         : 'assets/[name]-[hash][extname]',
+                // The libraries every page uses go in files of their own,
+                // so the app's own code stays small and a deploy that only
+                // changes it leaves the browser's copy of them in place.
+                manualChunks: (id) => {
+                    if (!id.includes('node_modules')) {
+                        return undefined;
+                    }
+
+                    if (
+                        /node_modules\/(react|react-dom|scheduler)\//.test(id)
+                    ) {
+                        return 'react';
+                    }
+
+                    if (/node_modules\/(@inertiajs|axios|qs)\//.test(id)) {
+                        return 'inertia';
+                    }
+
+                    if (
+                        /node_modules\/(@radix-ui|radix-ui|@floating-ui)\//.test(
+                            id,
+                        )
+                    ) {
+                        return 'radix';
+                    }
+
+                    if (/node_modules\/lucide-react\//.test(id)) {
+                        return 'icons';
+                    }
+
+                    return undefined;
+                },
             },
         },
     },

@@ -11,6 +11,35 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Added — Amazon labels read without the AI reader
+
+- Amazon's label PDF (each courier label a picture, its tax invoice on
+  the page after it) is now read the way Myntra's is: the browser on the
+  Upload labels page reads each label's AWB barcode and words, and the
+  ERP reads the invoice text exactly — order number, invoice number and
+  date, seller SKU (the text in brackets after the ASIN), quantity,
+  amount, state and PIN code. Each label and its invoice make one parcel.
+  No Anthropic key is needed.
+- Prepaid or COD comes from the invoice: a prepaid order prints its mode
+  of payment, a COD order prints none. Parcels Amazon hands to Delhivery
+  ("ATSPL_ DELHIVERY") are put down to Delhivery.
+- An Amazon file uploaded under another marketplace is refused, naming
+  Amazon. The AI reader is still used for pages nothing else could read,
+  when a key is set.
+
+### Fixed — Warnings during deployment
+
+- Caching routes on deploy (`php artisan optimize`) stopped with "The
+  [files] disk conflicts with the [local] disk at [/storage]". The files
+  disk (label PDFs, photos) copied the local disk's setting to be served
+  from /storage; it is never served from there (the ERP's own pages hand
+  the files out), so it no longer claims it.
+- The front-end build warned that its main file was over 500 kB. The
+  libraries every page uses (React, Inertia, the UI kit, the icons) now
+  build into files of their own: the main file is about 330 kB, and a
+  deploy that only changes the ERP's own screens leaves the browser's copy
+  of the libraries in place.
+
 ### Fixed — Shiprocket labels read as Shiprocket prints them
 
 - Shiprocket's label PDF has two labels side by side on each A4 page.

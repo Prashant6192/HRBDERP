@@ -6,7 +6,6 @@ namespace App\Http\Controllers\OnlineOrders;
 
 use App\Domain\Marketplace\DTOs\BrowserPages;
 use App\Domain\Marketplace\Enums\LabelBatchStatus;
-use App\Domain\Marketplace\Enums\LabelReaderKind;
 use App\Domain\Marketplace\Enums\ShipmentStatus;
 use App\Domain\Marketplace\Enums\StockState;
 use App\Domain\Marketplace\Exceptions\OnlineOrderException;
@@ -261,7 +260,7 @@ class OnlineOrderController extends Controller
                     // Myntra's labels and invoices come as two PDFs.
                     'two_files' => $m->code === 'MYNTRA',
                     // Picture pages this browser reads before uploading.
-                    'reads_in_browser' => $m->reader === LabelReaderKind::Myntra,
+                    'reads_in_browser' => $m->reader->readsInBrowser(),
                 ])->all(),
             'stores' => $canChooseStore ? $this->dispatchStores($user) : [],
             'can_choose_store' => $canChooseStore,

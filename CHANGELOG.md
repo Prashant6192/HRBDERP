@@ -11,6 +11,20 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Added — Stock count by product, from a register
+
+- A count can be entered as the depot's register has it: one total per
+  product, no batch numbers. The count screen shows each product's system
+  quantity, what was counted and the difference. A shortage comes off the
+  newest stock (the oldest is what waiting parcels hold); a surplus, or a
+  product the system does not have in the store, is added.
+- "Shelf counted on": a count taken earlier and entered later is compared
+  with what the store held at that moment, so parcels packed and stock
+  booked in since the count are not mistaken for differences.
+- Products that were not counted can be kept as the system has them, in
+  one step. As before, nothing changes in stock until someone other than
+  the counter approves the count.
+
 ### Added — Mapping SKUs: what each one is, in plain words
 
 - Under each SKU waiting to be mapped, the screen now says what it reads

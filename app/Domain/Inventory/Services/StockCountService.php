@@ -15,6 +15,7 @@ use App\Domain\Warehousing\Models\Warehouse;
 use App\Support\Math\Decimal;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -35,11 +36,22 @@ class StockCountService
         private readonly SequenceService $sequences,
     ) {}
 
-    public function start(Warehouse $warehouse, int $userId, ?string $notes = null): StockCount
+    /**
+     * Start a count. When the shelf was counted earlier and is only being
+     * entered now ($asAt), each line's system quantity is what the store
+     * held at that moment: today's stock less everything that moved since.
+     * The difference posted on approval is then the true one, whatever was
+     * packed or scanned in after the count.
+     */
+    public function start(Warehouse $warehouse, int $userId, ?string $notes = null, ?CarbonImmutable $asAt = null): StockCount
     {
-        return DB::transaction(function () use ($warehouse, $userId, $notes): StockCount {
+        return DB::transaction(function () use ($warehouse, $userId, $notes, $asAt): StockCount {
             if (StockCount::query()->where('warehouse_id', $warehouse->id)->whereIn('status', [StockCountStatus::Counting->value, StockCountStatus::Submitted->value])->exists()) {
                 throw new InvalidArgumentException("{$warehouse->code} already has a count in progress; finish or cancel it first.");
+            }
+
+            if ($asAt !== null && $asAt->isFuture()) {
+                throw new InvalidArgumentException('The shelf cannot have been counted in the future.');
             }
 
             $count = StockCount::query()->create([
@@ -49,24 +61,142 @@ class StockCountService
                 'notes' => $notes,
                 'started_by' => $userId,
                 'started_at' => now(),
+                'counted_as_at' => $asAt,
             ]);
 
-            $balances = StockBalance::query()
-                ->where('warehouse_id', $warehouse->id)
-                ->where('on_hand', '>', 0)
-                ->orderBy('item_id')
-                ->orderBy('lot_id')
-                ->get();
+            /** @var array<string, array{item_id: int, lot_id: int|null, quantity: BigDecimal}> $positions */
+            $positions = [];
 
-            foreach ($balances as $balance) {
+            foreach (StockBalance::query()->where('warehouse_id', $warehouse->id)->where('on_hand', '<>', 0)->get() as $balance) {
+                $positions["{$balance->item_id}|{$balance->lot_id}"] = [
+                    'item_id' => (int) $balance->item_id,
+                    'lot_id' => $balance->lot_id === null ? null : (int) $balance->lot_id,
+                    'quantity' => BigDecimal::of($balance->on_hand),
+                ];
+            }
+
+            if ($asAt !== null) {
+                $moved = DB::table('inventory_transaction_lines as l')
+                    ->join('inventory_transactions as t', 't.id', '=', 'l.inventory_transaction_id')
+                    ->where('l.warehouse_id', $warehouse->id)
+                    ->where('t.transacted_at', '>', $asAt)
+                    ->groupBy('l.item_id', 'l.lot_id')
+                    ->selectRaw('l.item_id, l.lot_id, SUM(l.quantity) AS quantity')
+                    ->get();
+
+                foreach ($moved as $m) {
+                    $key = "{$m->item_id}|{$m->lot_id}";
+                    $positions[$key] ??= ['item_id' => (int) $m->item_id, 'lot_id' => $m->lot_id === null ? null : (int) $m->lot_id, 'quantity' => BigDecimal::zero()];
+                    $positions[$key]['quantity'] = $positions[$key]['quantity']->minus(BigDecimal::of((string) $m->quantity));
+                }
+            }
+
+            uasort($positions, fn (array $a, array $b) => [$a['item_id'], $a['lot_id'] ?? PHP_INT_MAX] <=> [$b['item_id'], $b['lot_id'] ?? PHP_INT_MAX]);
+
+            foreach ($positions as $position) {
+                if ($position['quantity']->isZero()) {
+                    continue;
+                }
+
                 $count->lines()->create([
-                    'item_id' => $balance->item_id,
-                    'lot_id' => $balance->lot_id,
-                    'system_quantity' => $balance->on_hand,
+                    'item_id' => $position['item_id'],
+                    'lot_id' => $position['lot_id'],
+                    'system_quantity' => (string) $position['quantity'],
                 ]);
             }
 
             return $count->fresh(['lines']);
+        });
+    }
+
+    /**
+     * Record one total for a product, as a register has it: no batches.
+     * The total is laid over the product's batches oldest first, so a
+     * shortage comes off the newest stock — the oldest is what waiting
+     * parcels hold, and must stay to be packed; a surplus goes onto the
+     * newest batch. A product the system does not hold here at all is
+     * added as stock without a batch.
+     *
+     * @return list<StockCountLine>
+     */
+    public function recordProduct(StockCount $count, Item $item, BigDecimal|string $counted, int $userId, ?string $note = null): array
+    {
+        return DB::transaction(function () use ($count, $item, $counted, $userId, $note): array {
+            $count = StockCount::query()->lockForUpdate()->findOrFail($count->getKey());
+
+            if ($count->status !== StockCountStatus::Counting) {
+                throw new InvalidArgumentException("{$count->number} is {$count->status->label()}; nothing more can be counted on it.");
+            }
+
+            $remaining = BigDecimal::of($counted);
+
+            if ($remaining->isNegative()) {
+                throw new InvalidArgumentException('A counted quantity cannot be negative.');
+            }
+
+            $lines = $count->lines()->where('item_id', $item->id)->get()
+                // Oldest batch first; stock without a batch counts as newest.
+                ->sortBy(fn (StockCountLine $l) => $l->lot_id ?? PHP_INT_MAX)
+                ->values();
+
+            if ($lines->isEmpty()) {
+                $lines = collect([$count->lines()->create(['item_id' => $item->id, 'lot_id' => null, 'system_quantity' => '0'])]);
+            }
+
+            $found = [];
+
+            foreach ($lines as $line) {
+                $system = BigDecimal::of($line->system_quantity);
+                $here = $system->isPositive() ? BigDecimal::min($system, $remaining) : BigDecimal::zero();
+                $remaining = $remaining->minus($here);
+                $found[$line->id] = $here;
+            }
+
+            // More on the shelf than the system knew: onto the newest batch.
+            if ($remaining->isPositive()) {
+                $newest = $lines->last();
+                $found[$newest->id] = $found[$newest->id]->plus($remaining);
+            }
+
+            foreach ($lines as $line) {
+                $line->fill([
+                    'counted_quantity' => (string) $found[$line->id],
+                    'note' => $note !== null && trim($note) !== '' ? trim($note) : $line->note,
+                    'counted_by' => $userId,
+                    'counted_at' => now(),
+                ])->save();
+            }
+
+            return $lines->all();
+        });
+    }
+
+    /**
+     * Products the counter did not count stay as the system has them.
+     *
+     * @return int the lines kept
+     */
+    public function keepUncounted(StockCount $count, int $userId): int
+    {
+        return DB::transaction(function () use ($count, $userId): int {
+            $count = StockCount::query()->lockForUpdate()->findOrFail($count->getKey());
+
+            if ($count->status !== StockCountStatus::Counting) {
+                throw new InvalidArgumentException("{$count->number} is {$count->status->label()}; nothing more can be counted on it.");
+            }
+
+            $lines = $count->lines()->whereNull('counted_quantity')->get();
+
+            foreach ($lines as $line) {
+                $line->fill([
+                    'counted_quantity' => $line->system_quantity,
+                    'note' => $line->note ?? 'Not counted: kept as the system has it.',
+                    'counted_by' => $userId,
+                    'counted_at' => now(),
+                ])->save();
+            }
+
+            return $lines->count();
         });
     }
 

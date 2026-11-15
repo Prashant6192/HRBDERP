@@ -140,6 +140,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('counts', [StockCountController::class, 'store'])->name('counts.store');
     Route::get('counts/{count}', [StockCountController::class, 'show'])->name('counts.show');
     Route::post('counts/{count}/lines', [StockCountController::class, 'line'])->name('counts.line');
+    Route::post('counts/{count}/products', [StockCountController::class, 'products'])->name('counts.products');
+    Route::post('counts/{count}/keep-rest', [StockCountController::class, 'keepRest'])->name('counts.keep-rest');
     Route::post('counts/{count}/submit', [StockCountController::class, 'submit'])->name('counts.submit');
     Route::post('counts/{count}/approve', [StockCountController::class, 'approve'])->name('counts.approve');
     Route::post('counts/{count}/cancel', [StockCountController::class, 'cancel'])->name('counts.cancel');

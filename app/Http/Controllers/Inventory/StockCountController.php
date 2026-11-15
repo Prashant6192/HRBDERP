@@ -5,18 +5,24 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Inventory;
 
 use App\Domain\Inventory\Enums\StockCountStatus;
+use App\Domain\Inventory\Exceptions\InsufficientStockException;
+use App\Domain\Inventory\Exceptions\LedgerIntegrityException;
 use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Models\StockCount;
 use App\Domain\Inventory\Models\StockCountLine;
 use App\Domain\Inventory\Services\StockCountService;
+use App\Domain\MasterData\Enums\ItemType;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\Warehousing\Models\Warehouse;
 use App\Domain\Warehousing\Services\FacilityAccess;
 use App\Http\Controllers\Controller;
 use App\Support\Math\Decimal;
 use App\Support\Scanning\ScanCode;
+use Brick\Math\BigDecimal;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -74,13 +80,22 @@ class StockCountController extends Controller
         $data = $request->validate([
             'warehouse_id' => ['required', 'integer', Rule::exists('warehouses', 'id')],
             'notes' => ['nullable', 'string', 'max:1000'],
+            // When the shelf was counted, if it is being entered later.
+            'counted_as_at' => ['nullable', 'date'],
         ]);
 
         $warehouse = Warehouse::query()->findOrFail($data['warehouse_id']);
         $this->access->assertCanWorkIn($request->user(), $warehouse);
+        $zone = (string) config('erp.company.timezone', 'Asia/Kolkata');
+        // The time is given as the depot's clock shows it.
+        $asAt = empty($data['counted_as_at']) ? null : CarbonImmutable::parse($data['counted_as_at'], $zone)->utc();
+
+        if ($asAt !== null && $asAt->isFuture()) {
+            return back()->withErrors(['counted_as_at' => 'The shelf cannot have been counted in the future.']);
+        }
 
         try {
-            $count = $this->counts->start($warehouse, $request->user()->id, $data['notes'] ?? null);
+            $count = $this->counts->start($warehouse, $request->user()->id, $data['notes'] ?? null, $asAt);
         } catch (InvalidArgumentException $e) {
             return back()->withErrors(['warehouse_id' => $e->getMessage()]);
         }
@@ -107,10 +122,35 @@ class StockCountController extends Controller
                 'notes' => $count->notes,
                 'started_by' => $count->startedBy?->name,
                 'started_at' => $count->started_at?->toIso8601String(),
+                'counted_as_at' => $count->counted_as_at?->toIso8601String(),
                 'submitted_by' => $count->submittedBy?->name,
                 'approved_by' => $count->approvedBy?->name,
                 'approved_at' => $count->approved_at?->toIso8601String(),
             ],
+            'products' => $count->lines->groupBy('item_id')->map(function ($lines) {
+                $first = $lines->first();
+                $system = $lines->reduce(fn (BigDecimal $c, StockCountLine $l) => $c->plus(BigDecimal::of($l->system_quantity)), BigDecimal::zero());
+                $counted = $lines->contains(fn (StockCountLine $l) => $l->counted_quantity === null)
+                    ? null
+                    : $lines->reduce(fn (BigDecimal $c, StockCountLine $l) => $c->plus(BigDecimal::of($l->counted_quantity)), BigDecimal::zero());
+
+                return [
+                    'item_id' => $first->item_id,
+                    'code' => $first->item?->code,
+                    'name' => $first->item?->name,
+                    'unit' => $first->item?->stockUom?->code,
+                    'batches' => $lines->count(),
+                    'system' => Decimal::strip((string) $system),
+                    'counted' => $counted === null ? null : Decimal::strip((string) $counted),
+                    'variance' => $counted === null ? null : Decimal::strip((string) $counted->minus($system)),
+                ];
+            })->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)->values()->all(),
+            // Products the system does not hold here, found on the shelf.
+            'addable' => $count->status !== StockCountStatus::Counting ? [] : Item::query()
+                ->where('type', ItemType::FinishedGood->value)->where('is_active', true)
+                ->whereNotIn('id', $count->lines->pluck('item_id')->unique()->all())
+                ->orderBy('name')->get(['id', 'code', 'name'])
+                ->map(fn (Item $i) => ['value' => (string) $i->id, 'label' => $i->name, 'hint' => $i->code])->all(),
             'lines' => $count->lines->map(fn (StockCountLine $l) => [
                 'id' => $l->id,
                 'item_id' => $l->item_id,
@@ -184,6 +224,51 @@ class StockCountController extends Controller
         return back()->withToast($variance !== null && ! $variance->isZero() ? 'warning' : 'success', ($lot?->batch_number ?? $item->name).': counted '.Decimal::strip($line->counted_quantity).($variance !== null && ! $variance->isZero() ? ' — differs from the system by '.Decimal::strip($variance).'.' : ' — matches the system.'));
     }
 
+    /**
+     * Totals by product, as a register has them: no batches. Blank rows
+     * are left alone.
+     */
+    public function products(Request $request, StockCount $count): RedirectResponse
+    {
+        $this->authorize('count', $count);
+
+        $data = $request->validate([
+            'products' => ['required', 'array', 'min:1', 'max:500'],
+            'products.*.item_id' => ['required', 'integer', 'distinct', Rule::exists('items', 'id')],
+            'products.*.counted' => ['required', 'integer', 'min:0', 'max:10000000'],
+        ]);
+
+        $differ = 0;
+
+        try {
+            DB::transaction(function () use ($data, $count, $request, &$differ): void {
+                foreach ($data['products'] as $row) {
+                    $lines = $this->counts->recordProduct($count, Item::query()->findOrFail($row['item_id']), (string) $row['counted'], $request->user()->id);
+                    $differ += collect($lines)->contains(fn (StockCountLine $l) => ! ($l->variance()?->isZero() ?? true)) ? 1 : 0;
+                }
+            });
+        } catch (InvalidArgumentException $e) {
+            return back()->withToast('error', $e->getMessage());
+        }
+
+        $saved = count($data['products']);
+
+        return back()->withToast($differ > 0 ? 'warning' : 'success', "{$saved} product(s) counted".($differ > 0 ? "; {$differ} differ from the system." : '; all match the system.'));
+    }
+
+    public function keepRest(Request $request, StockCount $count): RedirectResponse
+    {
+        $this->authorize('count', $count);
+
+        try {
+            $kept = $this->counts->keepUncounted($count, $request->user()->id);
+        } catch (InvalidArgumentException $e) {
+            return back()->withToast('error', $e->getMessage());
+        }
+
+        return back()->withToast('success', "{$kept} line(s) not counted are kept as the system has them.");
+    }
+
     public function submit(Request $request, StockCount $count): RedirectResponse
     {
         $this->authorize('count', $count);
@@ -205,6 +290,10 @@ class StockCountController extends Controller
             $this->counts->approve($count, $request->user()->id);
         } catch (InvalidArgumentException $e) {
             return back()->withToast('error', $e->getMessage());
+        } catch (LedgerIntegrityException|InsufficientStockException $e) {
+            // A shortage larger than what is free to take off the shelf
+            // (held for parcels, or already gone): nothing is posted.
+            return back()->withToast('error', 'The count could not be posted, and nothing was changed: '.$e->getMessage());
         }
 
         return back()->withToast('success', "{$count->number} approved; every difference is posted as an adjustment.");

@@ -3,6 +3,10 @@ import { CheckCircle2, ClipboardList, Send, XCircle } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Scanner } from '@/components/floor/scanner';
+import {
+    CountByProduct,
+    type CountProduct,
+} from '@/components/inventory/count-by-product';
 import InputError from '@/components/input-error';
 import { StatTile } from '@/components/intelligence/facility-filter';
 import { PageHeader } from '@/components/page-header';
@@ -58,6 +62,7 @@ type Count = {
     notes: string | null;
     started_by: string | null;
     started_at: string | null;
+    counted_as_at: string | null;
     submitted_by: string | null;
     approved_by: string | null;
     approved_at: string | null;
@@ -73,11 +78,15 @@ const STATUS = {
 export default function CountShow({
     count,
     lines,
+    products,
+    addable,
     accuracy,
     can,
 }: {
     count: Count;
     lines: Line[];
+    products: CountProduct[];
+    addable: { value: string; label: string; hint?: string }[];
     accuracy: {
         lines: number;
         counted: number;
@@ -223,6 +232,28 @@ export default function CountShow({
                             )}
                         </>
                     }
+                />
+
+                {count.counted_as_at && (
+                    <p className="rounded-xl border border-sky-600/30 bg-sky-500/5 px-4 py-2 text-sm">
+                        Shelf counted on{' '}
+                        <span className="font-medium">
+                            {new Date(count.counted_as_at).toLocaleString(
+                                'en-IN',
+                                { dateStyle: 'medium', timeStyle: 'short' },
+                            )}
+                        </span>
+                        . “System” is what the store held at that moment:
+                        parcels packed and stock booked in since then are
+                        already taken into account.
+                    </p>
+                )}
+
+                <CountByProduct
+                    countId={count.id}
+                    products={products}
+                    addable={addable}
+                    editable={can.count}
                 />
 
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

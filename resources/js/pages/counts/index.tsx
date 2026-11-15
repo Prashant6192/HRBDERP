@@ -62,6 +62,7 @@ export default function CountsIndex({
     const form = useForm({
         warehouse_id: preselect ? String(preselect) : '',
         notes: '',
+        counted_as_at: '',
     });
 
     const submit = (e: FormEvent) => {
@@ -92,7 +93,7 @@ export default function CountsIndex({
                 {open && can.create && (
                     <form
                         onSubmit={submit}
-                        className="bg-card grid gap-4 rounded-2xl border p-5 sm:grid-cols-[1fr_2fr_auto] sm:items-end"
+                        className="bg-card grid gap-4 rounded-2xl border p-5 sm:grid-cols-[1fr_1fr_1.5fr_auto] sm:items-end"
                     >
                         <div>
                             <Label>Store</Label>
@@ -117,6 +118,28 @@ export default function CountsIndex({
                                 </SelectContent>
                             </Select>
                             <InputError message={form.errors.warehouse_id} />
+                        </div>
+                        <div>
+                            <Label htmlFor="counted_as_at">
+                                Shelf counted on
+                            </Label>
+                            <Input
+                                id="counted_as_at"
+                                type="datetime-local"
+                                className="mt-1"
+                                value={form.data.counted_as_at}
+                                onChange={(e) =>
+                                    form.setData(
+                                        'counted_as_at',
+                                        e.target.value,
+                                    )
+                                }
+                            />
+                            <p className="text-muted-foreground mt-1 text-xs">
+                                Leave blank if counting now. For a register
+                                count, give the day and time it was taken.
+                            </p>
+                            <InputError message={form.errors.counted_as_at} />
                         </div>
                         <div>
                             <Label htmlFor="notes">Notes</Label>

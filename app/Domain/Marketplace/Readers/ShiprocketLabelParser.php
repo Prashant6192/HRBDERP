@@ -159,17 +159,27 @@ final class ShiprocketLabelParser implements LabelFileParser, LabelSheetParser
         $all = substr($all, $at);
 
         preg_match_all(
-            '/(?:^|\n)\s*\d{1,3}\s+(?!Rs\b)(?<desc>(?:(?!\nSKU\s*:).)*?)\n(?:Model\s*:[^\n]*\n)?SKU\s*:\s*(?<sku>[^\n]*\S)\s*\n\s*(?<qty>\d{1,4})\s+Rs\b/is',
+            '/(?:^|\n)\s*\d{1,3}\s+(?!Rs\b)(?<desc>(?:(?!\nSKU\s*:).)*?)\n(?:Model\s*:\s*(?<model>[^\n]*?)\s*\n)?SKU\s*:\s*(?<sku>[^\n]*\S)\s*\n\s*(?<qty>\d{1,4})\s+Rs\b/is',
             $all,
             $rows,
             PREG_SET_ORDER,
         );
 
-        return array_map(fn (array $r) => [
-            'seller_sku' => trim($r['sku']),
-            'description' => trim((string) preg_replace('/\s+/', ' ', $r['desc'])) ?: null,
-            'quantity' => max(1, (int) $r['qty']),
-        ], $rows);
+        return array_map(function (array $r): array {
+            $description = trim((string) preg_replace('/\s+/', ' ', $r['desc']));
+            $model = trim($r['model'] ?? '');
+
+            // "Model : 200ml" says the size when the title does not.
+            if ($model !== '' && stripos($description, str_replace(' ', '', $model)) === false && stripos($description, $model) === false) {
+                $description .= " ({$model})";
+            }
+
+            return [
+                'seller_sku' => trim($r['sku']),
+                'description' => $description !== '' ? $description : null,
+                'quantity' => max(1, (int) $r['qty']),
+            ];
+        }, $rows);
     }
 
     /**

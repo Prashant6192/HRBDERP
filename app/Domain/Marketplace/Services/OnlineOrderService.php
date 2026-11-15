@@ -1188,6 +1188,24 @@ class OnlineOrderService
 
         $productless = ! $shipment->lines()->exists() && $invoice->lines !== [];
 
+        // A label cuts the product's title short ("… Healthy Hai…"); the
+        // invoice prints it whole, with its size, to tell products apart.
+        if (! $productless) {
+            $titles = [];
+
+            foreach ($invoice->lines as $line) {
+                $titles[MarketplaceListing::keyFor($line['seller_sku'])] = $line['description'];
+            }
+
+            foreach ($shipment->lines()->get() as $line) {
+                $title = $titles[MarketplaceListing::keyFor($line->seller_sku)] ?? null;
+
+                if ($title !== null && mb_strlen($title) > mb_strlen((string) $line->description)) {
+                    $line->forceFill(['description' => Str::limit($title, 250, '')])->save();
+                }
+            }
+        }
+
         $fill['warnings'] = array_values(array_filter(
             $shipment->warnings ?? [],
             fn (string $w) => ! str_starts_with($w, self::WAITING_FOR_INVOICE)

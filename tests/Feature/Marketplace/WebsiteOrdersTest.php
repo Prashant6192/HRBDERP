@@ -16,6 +16,8 @@ use App\Domain\Marketplace\Models\Shipment;
 use App\Domain\Marketplace\Readers\ShiprocketLabelParser;
 use App\Domain\Marketplace\Services\LabelReaderService;
 use App\Domain\Marketplace\Services\OnlineOrderService;
+use App\Domain\MasterData\Models\Product;
+use App\Domain\Measurement\Models\Uom;
 use App\Domain\Warehousing\Enums\WarehouseType;
 use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Models\Warehouse;
@@ -290,5 +292,31 @@ class WebsiteOrdersTest extends TestCase
         $this->assertSame([], $reader->calls);
         $this->assertSame(LabelReaderService::AI_MAX_PAGES + 1, Shipment::query()->count());
         $this->assertStringContainsString('too long', LabelFile::query()->sole()->warnings[0]);
+    }
+
+    #[Test]
+    public function the_mapping_screen_reads_each_sku_in_plain_words_and_suggests_its_product(): void
+    {
+        $pcs = Uom::where('code', 'PCS')->sole()->id;
+        Product::factory()->create(['name' => 'Rahat Rooh Lauki Oil 300ml', 'stock_uom_id' => $pcs]);
+        $lauki200 = Product::factory()->create(['name' => 'Rahat Rooh Lauki Oil 200ml', 'stock_uom_id' => $pcs]);
+
+        // The label cuts the title short and prints no size; the invoice
+        // prints it whole.
+        $this->uploadWebsite([
+            LabelFixtures::websiteLabels(0, [$this->parcel('14300000000001', '3101', ['courier' => 'Xpressbees Surface 2kg',
+                'items' => [['sku' => '67960000000001', 'item' => 'Rahat Rooh Lauki Oil Herbal Hair Oil for Strong, Thick & Healthy Hai...', 'qty' => 1, 'price' => '155.00']]])]),
+            LabelFixtures::websiteInvoices([$this->invoice('14300000000001', '3101', [
+                'items' => [['sku' => '67960000000001', 'item' => 'Rahat Rooh Lauki Oil Herbal Hair Oil for Strong, Thick & Healthy Hair - 200ml', 'qty' => 1, 'price' => '155.00']],
+            ])]),
+        ]);
+
+        $this->actingAs($this->office)->get(route('listings.index'))->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('waiting.0.seller_sku', '67960000000001')
+                ->where('waiting.0.reading.name', 'Lauki Oil Herbal Hair Oil')
+                ->where('waiting.0.reading.size', '200 ml')
+                ->where('waiting.0.suggested.item_id', (string) $lauki200->id)
+                ->where('waiting.0.suggested.pieces', 1));
     }
 }

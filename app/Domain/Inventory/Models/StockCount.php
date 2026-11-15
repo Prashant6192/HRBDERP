@@ -25,6 +25,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $notes
  * @property int|null $started_by
  * @property CarbonImmutable $started_at
+ * @property CarbonImmutable|null $counted_as_at
  * @property int|null $submitted_by
  * @property CarbonImmutable|null $submitted_at
  * @property int|null $approved_by
@@ -35,7 +36,7 @@ class StockCount extends Model
     use RecordsAuditTrail;
 
     protected $fillable = [
-        'number', 'warehouse_id', 'status', 'notes', 'started_by', 'started_at',
+        'number', 'warehouse_id', 'status', 'notes', 'started_by', 'started_at', 'counted_as_at',
         'submitted_by', 'submitted_at', 'approved_by', 'approved_at', 'cancelled_at',
     ];
 
@@ -44,6 +45,7 @@ class StockCount extends Model
         return [
             'status' => StockCountStatus::class,
             'started_at' => 'immutable_datetime',
+            'counted_as_at' => 'immutable_datetime',
             'submitted_at' => 'immutable_datetime',
             'approved_at' => 'immutable_datetime',
             'cancelled_at' => 'immutable_datetime',

@@ -11,6 +11,34 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Added — Stock count by product, from a register
+
+- A count can be entered as the depot's register has it: one total per
+  product, no batch numbers. The count screen shows each product's system
+  quantity, what was counted and the difference. A shortage comes off the
+  newest stock (the oldest is what waiting parcels hold); a surplus, or a
+  product the system does not have in the store, is added.
+- "Shelf counted on": a count taken earlier and entered later is compared
+  with what the store held at that moment, so parcels packed and stock
+  booked in since the count are not mistaken for differences.
+- Products that were not counted can be kept as the system has them, in
+  one step. As before, nothing changes in stock until someone other than
+  the counter approves the count.
+
+### Added — Mapping SKUs: what each one is, in plain words
+
+- Under each SKU waiting to be mapped, the screen now says what it reads
+  as — the product's name without the marketplace's sales words, its
+  size, and "Pack of 2" where the SKU says so — and suggests the ERP
+  product it most likely is, already chosen with the right pieces, to
+  check and map. Where the size is not printed, it says so rather than
+  guess between two sizes. The label's own text is still there to open.
+- A website invoice now gives a parcel's products their full title with
+  the size ("… Healthy Hair - 200ml") where the label cut it short.
+- Website SKUs read before the numeric-SKU fix, with the product's name
+  run into them, are split back into the SKU and its title, so each is
+  mapped once.
+
 ### Fixed — Website orders: both Shiprocket PDFs, without timing out
 
 - Uploading the website's labels or invoices stopped with "Gateway

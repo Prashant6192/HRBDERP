@@ -11,6 +11,7 @@ use App\Domain\Marketplace\Models\Marketplace;
 use App\Domain\Marketplace\Models\MarketplaceListing;
 use App\Domain\Marketplace\Models\ShipmentLine;
 use App\Domain\Marketplace\Services\OnlineOrderService;
+use App\Domain\Marketplace\Support\SkuReading;
 use App\Domain\MasterData\Enums\ItemType;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\MasterData\Models\Product;
@@ -47,13 +48,43 @@ class ListingController extends Controller
             ->groupBy('shipments.marketplace_id', 'marketplaces.name', 'shipments.brand_id', 'brands.name', 'shipment_lines.seller_sku')
             ->selectRaw('shipments.marketplace_id, marketplaces.name AS marketplace, shipments.brand_id, brands.name AS brand, shipment_lines.seller_sku, COUNT(DISTINCT shipments.id) AS parcels, MAX(shipment_lines.description) AS description')
             ->orderByDesc('parcels')
-            ->get()
-            ->map(fn ($r) => [
+            ->get();
+
+        // Every title the labels and invoices gave each waiting SKU: the
+        // one that names a size reads best.
+        $titles = ShipmentLine::query()
+            ->join('shipments', 'shipments.id', '=', 'shipment_lines.shipment_id')
+            ->whereIn('shipments.status', ShipmentStatus::awaitingPacking())
+            ->whereNull('shipment_lines.listing_id')
+            ->whereNotNull('shipment_lines.description')
+            ->distinct()
+            ->get(['shipments.marketplace_id', 'shipments.brand_id', 'shipment_lines.seller_sku', 'shipment_lines.description'])
+            ->groupBy(fn ($r) => "{$r->marketplace_id}|{$r->brand_id}|{$r->seller_sku}");
+
+        $products = Item::query()->where('type', ItemType::FinishedGood->value)->where('is_active', true)->orderBy('name')
+            ->get(['id', 'code', 'name', 'pack_of_item_id', 'pack_quantity']);
+        $candidates = $products->map(fn (Item $i) => [
+            'id' => (int) $i->id, 'name' => (string) $i->name,
+            'pack_of' => $i->pack_of_item_id === null ? null : (int) $i->pack_of_item_id,
+            'pack_quantity' => $i->pack_quantity === null ? null : (int) $i->pack_quantity,
+        ])->all();
+
+        $waiting = $waiting->map(function ($r) use ($titles, $candidates): array {
+            $readings = ($titles->get("{$r->marketplace_id}|{$r->brand_id}|{$r->seller_sku}") ?? collect([(object) ['description' => $r->description]]))
+                ->map(fn ($t) => SkuReading::of((string) $r->seller_sku, $t->description, $r->brand))
+                ->sortByDesc(fn (SkuReading $x) => [(int) ($x->size !== null), mb_strlen((string) $x->name)])
+                ->values();
+            $reading = $readings->first() ?? SkuReading::of((string) $r->seller_sku, null, $r->brand);
+            $suggested = $reading->suggest($candidates);
+
+            return [
                 'marketplace_id' => (int) $r->marketplace_id, 'marketplace' => $r->marketplace,
                 'brand_id' => (int) $r->brand_id, 'brand' => $r->brand,
                 'seller_sku' => $r->seller_sku, 'description' => $r->description, 'parcels' => (int) $r->parcels,
-            ])
-            ->all();
+                'reading' => ['name' => $reading->name, 'size' => $reading->size, 'pack' => $reading->pack],
+                'suggested' => $suggested === null ? null : ['item_id' => (string) $suggested['id'], 'pieces' => $suggested['pieces']],
+            ];
+        })->all();
 
         $listings = MarketplaceListing::query()
             ->with(['marketplace:id,name', 'brand:id,name', 'item:id,code,name', 'components.item:id,code,name'])
@@ -74,8 +105,7 @@ class ListingController extends Controller
             'waiting' => $waiting,
             'listings' => $listings,
             'pack_moves' => $this->packMoves(),
-            'products' => Item::query()->where('type', ItemType::FinishedGood->value)->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name'])
-                ->map(fn (Item $i) => ['value' => (string) $i->id, 'label' => $i->name, 'hint' => $i->code])->all(),
+            'products' => $products->map(fn (Item $i) => ['value' => (string) $i->id, 'label' => $i->name, 'hint' => $i->code])->all(),
             'marketplaces' => Marketplace::query()->orderBy('name')->get(['id', 'name'])->map(fn ($m) => ['value' => (string) $m->id, 'label' => $m->name])->all(),
             'brands' => Brand::query()->orderBy('name')->get(['id', 'name'])->map(fn ($b) => ['value' => (string) $b->id, 'label' => $b->name])->all(),
         ]);

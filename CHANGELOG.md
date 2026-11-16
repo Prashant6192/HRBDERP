@@ -11,6 +11,27 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Added — Stock leaves when labels are uploaded; pick list; scan back in
+
+- **Stock at upload.** At a depot that does not scan each parcel when
+  packing (Paper Market), a parcel's stock leaves the shelf as soon as its
+  label is uploaded. Labels are printed and sent as before; a packing scan,
+  if done, takes nothing more. A parcel the store cannot cover stays
+  "Short in store" and is taken the moment stock arrives. Removing a wrong
+  file, cancelling a parcel or correcting its products puts the stock back.
+- **Pick list** (Online orders → Pick list): for the day's labels, each
+  product, the pieces to take off the racks, how many parcels, what a
+  piece is selling for, and what the store is short of. It prints.
+- **Selling price and shipping.** Each label's selling price per piece is
+  kept on the order, and the shipping charged is kept apart from it
+  (website labels and invoices, Amazon invoices; other marketplaces from
+  the parcel's total).
+- **Scan back in** (Online orders → Scan back in): at the week's end,
+  choose **Return** or **Cancelled order**, then scan each parcel. Its
+  goods go back into stock, all as good, and the order is flagged returned
+  or cancelled. A parcel scanned twice is refused the second time. A
+  damaged return is still received on the Returns screen.
+
 ### Added — Stock count by product, from a register
 
 - A count can be entered as the depot's register has it: one total per

@@ -262,6 +262,9 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('online-orders/returns', [ReturnController::class, 'index'])->name('online-orders.returns.index');
     Route::get('online-orders/returns/receive', [ReturnController::class, 'create'])->name('online-orders.returns.create');
     Route::get('online-orders/returns/lookup', [ReturnController::class, 'lookup'])->name('online-orders.returns.lookup');
+    Route::get('online-orders/scan-back', [ReturnController::class, 'scanBackScreen'])->name('online-orders.scan-back');
+    Route::post('online-orders/scan-back', [ReturnController::class, 'scanBack'])->name('online-orders.scan-back.store');
+    Route::get('online-orders/pick-list', [OnlineOrderController::class, 'pickList'])->name('online-orders.pick-list');
     Route::post('online-orders/returns', [ReturnController::class, 'store'])->name('online-orders.returns.store');
     Route::post('online-orders/returns/{shipment}/cancel', [ReturnController::class, 'cancel'])->name('online-orders.returns.cancel');
     Route::patch('online-orders/returns/{return}/claim', [ReturnController::class, 'claim'])->name('online-orders.returns.claim');

@@ -35,6 +35,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -718,6 +719,78 @@ class OnlineOrderController extends Controller
     /**
      * @return Builder<LabelBatch>
      */
+    /**
+     * The morning's pick list: every product the day's labels need, how
+     * many pieces to take off the racks, what they are selling for, and
+     * what the store is short of.
+     */
+    public function pickList(Request $request): Response
+    {
+        $this->authorize('marketplace.view');
+        $user = $request->user();
+        $day = $this->day($request->string('date')->toString());
+
+        $batchIds = $this->visibleBatches($user)->whereDate('for_date', $day->toDateString())->pluck('id');
+
+        $rows = DB::table('shipment_picks as p')
+            ->join('shipments as s', 's.id', '=', 'p.shipment_id')
+            ->join('shipment_lines as l', 'l.id', '=', 'p.shipment_line_id')
+            ->join('items as i', 'i.id', '=', 'p.item_id')
+            ->join('warehouses as w', 'w.id', '=', 's.warehouse_id')
+            ->whereIn('s.label_batch_id', $batchIds)
+            ->whereNotIn('s.status', [ShipmentStatus::Cancelled->value, ShipmentStatus::Returned->value])
+            ->groupBy('s.warehouse_id', 'w.name', 'p.item_id', 'i.name', 'i.code')
+            ->selectRaw('s.warehouse_id, w.name AS store, p.item_id, i.name, i.code')
+            ->selectRaw('SUM(p.units) AS pieces')
+            ->selectRaw('COUNT(DISTINCT s.id) AS parcels')
+            ->selectRaw('SUM(CASE WHEN s.stock_state = ? THEN p.units ELSE 0 END) AS short', [StockState::Short->value])
+            // What one piece sells for: the line's price over the pieces it holds.
+            ->selectRaw('MIN(CASE WHEN l.unit_price IS NOT NULL AND l.units > 0 AND l.item_id = p.item_id THEN l.unit_price * l.quantity / l.units END) AS price_low')
+            ->selectRaw('MAX(CASE WHEN l.unit_price IS NOT NULL AND l.units > 0 AND l.item_id = p.item_id THEN l.unit_price * l.quantity / l.units END) AS price_high')
+            ->orderBy('w.name')->orderBy('i.name')
+            ->get();
+
+        $onShelf = DB::table('stock_balances')
+            ->whereIn('warehouse_id', $rows->pluck('warehouse_id')->unique()->all())
+            ->whereIn('item_id', $rows->pluck('item_id')->unique()->all())
+            ->groupBy('warehouse_id', 'item_id')
+            ->selectRaw('warehouse_id, item_id, SUM(on_hand) AS on_hand')
+            ->get()
+            ->keyBy(fn ($b) => "{$b->warehouse_id}|{$b->item_id}");
+
+        $money = fn ($v) => $v === null ? null : number_format((float) $v, 2, '.', '');
+
+        $unmapped = ShipmentLine::query()
+            ->join('shipments', 'shipments.id', '=', 'shipment_lines.shipment_id')
+            ->whereIn('shipments.label_batch_id', $batchIds)
+            ->whereIn('shipments.status', ShipmentStatus::awaitingPacking())
+            ->whereNull('shipment_lines.listing_id')
+            ->distinct()->count('shipments.id');
+
+        return Inertia::render('online-orders/pick-list', [
+            'date' => $day->toDateString(),
+            'today' => Cutoff::today()->toDateString(),
+            'stores' => $rows->groupBy('warehouse_id')->map(fn ($items) => [
+                'store' => $items->first()->store,
+                'pieces' => (int) round($items->sum(fn ($r) => (float) $r->pieces)),
+                'short' => (int) round($items->sum(fn ($r) => (float) $r->short)),
+                'products' => $items->map(fn ($r) => [
+                    'item_id' => (int) $r->item_id,
+                    'name' => $r->name,
+                    'code' => $r->code,
+                    'pieces' => (int) round((float) $r->pieces),
+                    'parcels' => (int) $r->parcels,
+                    'short' => (int) round((float) $r->short),
+                    'on_shelf' => (int) round((float) ($onShelf->get("{$r->warehouse_id}|{$r->item_id}")->on_hand ?? 0)),
+                    'price_low' => $money($r->price_low),
+                    'price_high' => $money($r->price_high),
+                ])->values()->all(),
+            ])->values()->all(),
+            'unmapped_parcels' => $unmapped,
+            'can' => $this->abilities($user),
+        ]);
+    }
+
     private function visibleBatches(User $user): Builder
     {
         $query = $this->brands->scopeByBrand($user, LabelBatch::query());

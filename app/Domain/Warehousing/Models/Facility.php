@@ -50,7 +50,7 @@ class Facility extends Model
         'code', 'name', 'legal_name', 'manufacturing_licence', 'facility_type_id', 'manager_id',
         'address_line_1', 'address_line_2', 'city', 'state', 'pincode', 'country',
         'phone', 'email', 'gstin',
-        'can_store', 'can_receive', 'can_qc', 'can_manufacture', 'can_pack', 'can_dispatch', 'can_return',
+        'can_store', 'can_receive', 'can_qc', 'can_manufacture', 'can_pack', 'can_dispatch', 'can_return', 'takes_stock_on_upload',
         'daily_capacity_kg', 'opening_stock_enabled', 'is_active', 'notes', 'created_by', 'updated_by',
     ];
 
@@ -64,6 +64,7 @@ class Facility extends Model
             'can_pack' => 'boolean',
             'can_dispatch' => 'boolean',
             'can_return' => 'boolean',
+            'takes_stock_on_upload' => 'boolean',
             'opening_stock_enabled' => 'boolean',
             'is_active' => 'boolean',
         ];

@@ -322,6 +322,15 @@ class OnlineOrderService
 
         DB::transaction(function () use ($file): void {
             foreach ($file->shipments as $shipment) {
+                // Stock taken at upload goes back on the shelf.
+                if ($shipment->stock_state === StockState::Consumed) {
+                    $posting = $shipment->transactions()->where('type', InventoryTransactionType::MarketplaceSale->value)->latest('id')->first();
+
+                    if ($posting !== null) {
+                        $this->ledger->reverse($posting, "Label file {$file->original_name} removed: {$shipment->reference()} was never sent");
+                    }
+                }
+
                 $this->reservations->releaseAllFor($shipment);
                 $shipment->lines()->delete();
                 $shipment->delete();
@@ -469,6 +478,18 @@ class OnlineOrderService
             ])->save();
 
             if (isset($data['lines'])) {
+                // Its stock was taken at upload for the old products: put
+                // that back before the new ones are taken.
+                if ($shipment->stock_state === StockState::Consumed) {
+                    $posting = $shipment->transactions()->where('type', InventoryTransactionType::MarketplaceSale->value)->latest('id')->first();
+
+                    if ($posting !== null) {
+                        $this->ledger->reverse($posting, "Products on {$shipment->reference()} corrected");
+                    }
+
+                    $shipment->forceFill(['stock_state' => StockState::Unmapped])->save();
+                }
+
                 $this->reservations->releaseAllFor($shipment);
                 $shipment->lines()->delete();
 
@@ -497,11 +518,12 @@ class OnlineOrderService
      */
     public function hold(Shipment $shipment): StockState
     {
-        if (! $shipment->status->awaitsPacking()) {
+        // Packed, or its stock already taken when the label was uploaded.
+        if (! $shipment->status->awaitsPacking() || $shipment->stock_state === StockState::Consumed) {
             return $shipment->stock_state;
         }
 
-        $shipment->loadMissing(['lines', 'picks.item.stockUom', 'brand', 'warehouse']);
+        $shipment->loadMissing(['lines', 'picks.item.stockUom', 'brand', 'warehouse.facility']);
 
         if (! $shipment->isMapped()) {
             $this->setStockState($shipment, StockState::Unmapped);
@@ -513,9 +535,7 @@ class OnlineOrderService
         $needed = $shipment->picks->reduce(fn (BigDecimal $c, ShipmentPick $p) => $c->plus(BigDecimal::of($p->units)), BigDecimal::zero());
 
         if ($held->isEqualTo($needed) && $held->isPositive()) {
-            $this->setStockState($shipment, StockState::Reserved);
-
-            return StockState::Reserved;
+            return $this->heldOrTaken($shipment);
         }
 
         $this->reservations->releaseAllFor($shipment);
@@ -539,9 +559,29 @@ class OnlineOrderService
             return StockState::Short;
         }
 
-        $this->setStockState($shipment, StockState::Reserved);
+        return $this->heldOrTaken($shipment);
+    }
 
-        return StockState::Reserved;
+    /**
+     * The parcel's goods are held. Where the depot takes stock as soon as
+     * labels are uploaded, they leave the shelf now, without waiting for a
+     * packing scan; the parcel stays to be printed and sent as before.
+     */
+    private function heldOrTaken(Shipment $shipment): StockState
+    {
+        if (! ($shipment->warehouse?->facility?->takes_stock_on_upload ?? false)) {
+            $this->setStockState($shipment, StockState::Reserved);
+
+            return StockState::Reserved;
+        }
+
+        DB::transaction(function () use ($shipment): void {
+            $shipment->loadMissing(['marketplace', 'batch:id,uploaded_by']);
+            $this->consume($shipment, $shipment->batch?->uploaded_by, reason: 'Stock taken when the label was uploaded');
+            $this->setStockState($shipment, StockState::Consumed);
+        });
+
+        return StockState::Consumed;
     }
 
     /**
@@ -974,15 +1014,22 @@ class OnlineOrderService
                 throw new OnlineOrderException('The ERP does not know which product this label is for yet. Ask the office to map "'.($shipment->lines->first()?->seller_sku ?? 'the SKU').'" first.');
             }
 
-            if ($this->hold($shipment) !== StockState::Reserved) {
-                throw new OnlineOrderException(sprintf(
-                    'Not enough %s in %s to pack this parcel. Bring stock in first.',
-                    $this->shortItems($shipment) ?: 'stock',
-                    $shipment->warehouse->name,
-                ));
-            }
+            // Stock taken when the label was uploaded has already left.
+            if ($shipment->stock_state !== StockState::Consumed) {
+                $state = $this->hold($shipment);
 
-            $transaction = $this->consume($shipment, $user, $at);
+                if ($state !== StockState::Reserved && $state !== StockState::Consumed) {
+                    throw new OnlineOrderException(sprintf(
+                        'Not enough %s in %s to pack this parcel. Bring stock in first.',
+                        $this->shortItems($shipment) ?: 'stock',
+                        $shipment->warehouse->name,
+                    ));
+                }
+
+                if ($state === StockState::Reserved) {
+                    $this->consume($shipment, $user->id, $at);
+                }
+            }
 
             $shipment->fill([
                 'status' => ShipmentStatus::Packed,
@@ -992,8 +1039,6 @@ class OnlineOrderService
                 'pack_method' => $method,
                 'pack_note' => $note,
             ])->save();
-
-            unset($transaction);
 
             return $shipment->refresh()->load(['lines.item:id,code,name', 'picks.item:id,code,name', 'picks.line:id,seller_sku', 'marketplace:id,name', 'brand:id,name', 'packer:id,name']);
         });
@@ -1193,8 +1238,11 @@ class OnlineOrderService
         if (! $productless) {
             $titles = [];
 
-            foreach ($invoice->lines as $line) {
+            $amounts = [];
+
+            foreach ($invoice->lines as $i => $line) {
                 $titles[MarketplaceListing::keyFor($line['seller_sku'])] = $line['description'];
+                $amounts[MarketplaceListing::keyFor($line['seller_sku'])] = $invoice->lineAmounts[$i] ?? null;
             }
 
             foreach ($shipment->lines()->get() as $line) {
@@ -1202,6 +1250,10 @@ class OnlineOrderService
 
                 if ($title !== null && mb_strlen($title) > mb_strlen((string) $line->description)) {
                     $line->forceFill(['description' => Str::limit($title, 250, '')])->save();
+                }
+
+                if ($line->unit_price === null && ($amount = $amounts[MarketplaceListing::keyFor($line->seller_sku)] ?? null) !== null && (float) $amount > 0) {
+                    $line->forceFill(['unit_price' => number_format((float) $amount / max(1, (int) $line->quantity), 2, '.', '')])->save();
                 }
             }
         }
@@ -1214,8 +1266,12 @@ class OnlineOrderService
 
         $shipment->fill($fill)->save();
 
+        if ($shipment->shipping_charge === null && $invoice->shippingCharge !== null) {
+            $shipment->forceFill(['shipping_charge' => $invoice->shippingCharge])->save();
+        }
+
         if ($productless) {
-            $this->createLines($shipment, $invoice->lines);
+            $this->createLines($shipment, $invoice);
             $this->mapLines($shipment);
         }
     }
@@ -1241,7 +1297,7 @@ class OnlineOrderService
         ])->save();
 
         if (! $shipment->lines()->exists() && $label->lines !== []) {
-            $this->createLines($shipment, $label->lines);
+            $this->createLines($shipment, $label);
             $this->mapLines($shipment);
         }
     }
@@ -1469,7 +1525,7 @@ class OnlineOrderService
                 throw new OnlineOrderException("{$shipment->reference()} is with the courier. It comes back as a return, not a cancellation.");
             }
 
-            if ($shipment->status === ShipmentStatus::Packed || $shipment->status === ShipmentStatus::HandedOver) {
+            if ($shipment->status === ShipmentStatus::Packed || $shipment->status === ShipmentStatus::HandedOver || $shipment->stock_state === StockState::Consumed) {
                 $posting = $shipment->transactions()->where('type', InventoryTransactionType::MarketplaceSale->value)->latest('id')->first();
 
                 if ($posting !== null) {
@@ -1545,6 +1601,7 @@ class OnlineOrderService
             'courier' => $fit($parcel->courier, 64, 'courier'),
             'payment_mode' => $parcel->paymentMode,
             'payable_amount' => $amount,
+            'shipping_charge' => $parcel->shippingCharge,
             'invoice_number' => $fit($parcel->invoiceNumber, 64, 'invoice number'),
             'invoice_date' => $parcel->invoiceDate,
             'customer_name' => $fit($parcel->customerName, 255, 'customer name', cut: true),
@@ -1557,23 +1614,40 @@ class OnlineOrderService
             'warnings' => $warnings === [] ? null : array_values(array_unique($warnings)),
         ]);
 
-        $this->createLines($shipment, $parcel->lines);
+        $this->createLines($shipment, $parcel);
         $this->mapLines($shipment);
 
         return $shipment;
     }
 
     /**
-     * @param  list<array{seller_sku: string, description: string|null, quantity: int}>  $lines
+     * Each line with what one piece sold for. A label that prints only the
+     * parcel's total and holds one product sold for that total, less any
+     * shipping charged.
      */
-    private function createLines(Shipment $shipment, array $lines): void
+    private function createLines(Shipment $shipment, LabelExtraction $parcel): void
     {
+        $lines = $parcel->lines;
+        $total = $parcel->payableAmount;
+        $shipping = $parcel->shippingCharge;
+
         foreach ($lines as $i => $line) {
+            $amount = $parcel->lineAmounts[$i] ?? null;
+
+            if ($amount === null && count($lines) === 1 && $total !== null && (float) $total > 0) {
+                $amount = (string) max(0, (float) $total - (float) ($shipping ?? 0));
+            }
+
+            $price = $amount !== null && (float) $amount > 0 && (float) $amount < 1e9
+                ? number_format((float) $amount / max(1, (int) $line['quantity']), 2, '.', '')
+                : null;
+
             $shipment->lines()->create([
                 'line_no' => $i + 1,
                 'seller_sku' => Str::limit($line['seller_sku'], 250, ''),
                 'description' => $line['description'] !== null ? Str::limit($line['description'], 250, '') : null,
                 'quantity' => $line['quantity'],
+                'unit_price' => $price,
             ]);
         }
     }
@@ -1666,7 +1740,7 @@ class OnlineOrderService
     /**
      * Lower what is held and post it out, one line per batch, in one posting.
      */
-    private function consume(Shipment $shipment, User $user, ?CarbonInterface $at = null): InventoryTransaction
+    private function consume(Shipment $shipment, ?int $userId, ?CarbonInterface $at = null, string $reason = 'Packed'): InventoryTransaction
     {
         $held = StockReservation::query()
             ->lockForUpdate()
@@ -1709,13 +1783,14 @@ class OnlineOrderService
             lines: $lines,
             reference: $shipment,
             reason: sprintf(
-                'Packed for %s order %s, AWB %s',
+                '%s for %s order %s, AWB %s',
+                $reason,
                 $shipment->marketplace->name,
                 $shipment->order_number ?? '—',
                 $shipment->awb ?? '—',
             ),
             transactedAt: $at,
-            createdBy: $user->id,
+            createdBy: $userId,
         ));
     }
 

@@ -89,6 +89,11 @@ class ReturnService
             return "{$shipment->reference()} was already received back as {$shipment->shipmentReturn->number}.";
         }
 
+        // Its stock left when the label was uploaded, scanned or not.
+        if ($shipment->status->awaitsPacking() && $shipment->stock_state === StockState::Consumed) {
+            return null;
+        }
+
         return match ($shipment->status) {
             ShipmentStatus::Uploaded, ShipmentStatus::Printed => "{$shipment->reference()} was never packed, so nothing left the depot. Cancel it instead.",
             ShipmentStatus::Cancelled => "{$shipment->reference()} was cancelled before it left.",

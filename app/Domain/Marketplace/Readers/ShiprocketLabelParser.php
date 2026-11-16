@@ -136,6 +136,7 @@ final class ShiprocketLabelParser implements LabelFileParser, LabelSheetParser
                 $items === [] ? 'The product on this invoice could not be read. Type its SKU and quantity on the batch screen.' : null,
             ])),
             'invoice_only' => true,
+            'shipping_charge' => preg_match('/Shipping\s*Charges?[^\n]*?([\d,]+\.\d{2})\s*(?:\n|$)/i', $all, $m) === 1 ? str_replace(',', '', $m[1]) : null,
         ]);
     }
 
@@ -159,7 +160,7 @@ final class ShiprocketLabelParser implements LabelFileParser, LabelSheetParser
         $all = substr($all, $at);
 
         preg_match_all(
-            '/(?:^|\n)\s*\d{1,3}\s+(?!Rs\b)(?<desc>(?:(?!\nSKU\s*:).)*?)\n(?:Model\s*:\s*(?<model>[^\n]*?)\s*\n)?SKU\s*:\s*(?<sku>[^\n]*\S)\s*\n\s*(?<qty>\d{1,4})\s+Rs\b/is',
+            '/(?:^|\n)\s*\d{1,3}\s+(?!Rs\b)(?<desc>(?:(?!\nSKU\s*:).)*?)\n(?:Model\s*:\s*(?<model>[^\n]*?)\s*\n)?SKU\s*:\s*(?<sku>[^\n]*\S)\s*\n\s*(?<qty>\d{1,4})\s+Rs\b(?<figures>[^\n]*)/is',
             $all,
             $rows,
             PREG_SET_ORDER,
@@ -178,6 +179,8 @@ final class ShiprocketLabelParser implements LabelFileParser, LabelSheetParser
                 'seller_sku' => trim($r['sku']),
                 'description' => $description !== '' ? $description : null,
                 'quantity' => max(1, (int) $r['qty']),
+                // The last figure of the row: its total, GST included.
+                'amount' => preg_match('/([\d,]+\.\d{2})\s*$/', $r['figures'], $f) === 1 ? str_replace(',', '', $f[1]) : null,
             ];
         }, $rows);
     }
@@ -403,6 +406,7 @@ final class ShiprocketLabelParser implements LabelFileParser, LabelSheetParser
             'seller_gstin' => $gstin,
             'lines' => $rows,
             'warnings' => $warnings,
+            'shipping_charge' => preg_match('/SHIPPING\s*CHARGES?\s*(?:Rs\.?|INR|₹)\s*([\d,]+(?:\.\d+)?)/i', $all, $m) === 1 ? str_replace(',', '', $m[1]) : null,
         ]);
     }
 
@@ -555,6 +559,7 @@ final class ShiprocketLabelParser implements LabelFileParser, LabelSheetParser
             'seller_sku' => $r['seller_sku'],
             'description' => $r['description'],
             'quantity' => max(1, (int) ($r['quantity'] ?? 1)),
+            'amount' => $r['amount'] ?? null,
         ], $rows), $warnings];
     }
 
@@ -566,9 +571,10 @@ final class ShiprocketLabelParser implements LabelFileParser, LabelSheetParser
      */
     private function item(array &$row, string $text): void
     {
-        if (preg_match('/^(.*?)(?<!\d)(\d{1,3})\s*Rs\.?\s*[\d,]+(?:\.\d+)?\s*$/i', $text, $m) === 1) {
+        if (preg_match('/^(.*?)(?<!\d)(\d{1,3})\s*Rs\.?\s*([\d,]+(?:\.\d+)?)\s*$/i', $text, $m) === 1) {
             $row['description'] = rtrim($m[1], ' -.…') ?: null;
             $row['quantity'] = (int) $m[2];
+            $row['amount'] = str_replace(',', '', $m[3]);
 
             return;
         }

@@ -63,7 +63,7 @@ class Shipment extends Model
 
     protected $fillable = [
         'label_batch_id', 'label_file_id', 'marketplace_id', 'brand_id', 'warehouse_id', 'pages', 'page_slot',
-        'awb', 'alt_code', 'order_number', 'courier', 'payment_mode', 'payable_amount',
+        'awb', 'alt_code', 'order_number', 'courier', 'payment_mode', 'payable_amount', 'shipping_charge',
         'invoice_number', 'invoice_date', 'customer_name', 'customer_state', 'customer_pincode', 'invoice_file_id', 'invoice_pages', 'seller_gstin',
         'status', 'stock_state',
         'printed_at', 'printed_by', 'print_count', 'packed_at', 'packed_by', 'pack_method', 'pack_note',

@@ -190,7 +190,7 @@ final class AmazonLabelParser implements LabelFileParser
             'customer_name' => $name ?? $this->labelName($lines),
             'customer_state' => $this->state($invoice),
             'customer_pincode' => $pincode,
-            'lines' => array_map(fn (array $i) => ['seller_sku' => $i['sku'], 'description' => $i['description'], 'quantity' => $i['quantity']], $items),
+            'lines' => array_map(fn (array $i) => ['seller_sku' => $i['sku'], 'description' => $i['description'], 'quantity' => $i['quantity'], 'amount' => $i['amount']], $items),
             'warnings' => $warnings,
         ]);
     }
@@ -209,7 +209,7 @@ final class AmazonLabelParser implements LabelFileParser
      * then the figures run together — "₹252.381₹252.385%IGST…" is a unit
      * price of 252.38, a quantity of 1 and a net amount of 252.38.
      *
-     * @return list<array{sku: string, description: string, quantity: int, guessed: bool}>
+     * @return list<array{sku: string, description: string, quantity: int, guessed: bool, amount: string|null}>
      */
     private function items(string $invoice): array
     {
@@ -241,7 +241,11 @@ final class AmazonLabelParser implements LabelFileParser
 
             $description = trim((string) preg_replace('/\s+/', ' ', $row['desc']), " |\n");
 
+            // The last figure of the row: its total, tax included.
+            $amount = preg_match_all('/₹\s*([\d,]+\.\d{2})/u', $row['figures'], $all) > 0 ? str_replace(',', '', (string) end($all[1])) : null;
+
             $items[] = [
+                'amount' => $amount,
                 'sku' => trim((string) preg_replace('/\s+/', ' ', $row['sku'])),
                 'description' => $description,
                 'quantity' => $quantity ?? 1,

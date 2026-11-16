@@ -26,7 +26,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class ShipmentLine extends Model
 {
-    protected $fillable = ['shipment_id', 'line_no', 'seller_sku', 'description', 'quantity', 'listing_id', 'item_id', 'units'];
+    protected $fillable = ['shipment_id', 'line_no', 'seller_sku', 'description', 'quantity', 'unit_price', 'listing_id', 'item_id', 'units'];
 
     protected function casts(): array
     {

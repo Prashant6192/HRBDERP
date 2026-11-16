@@ -6,6 +6,7 @@ namespace App\Http\Controllers\OnlineOrders;
 
 use App\Domain\Marketplace\Enums\ClaimStatus;
 use App\Domain\Marketplace\Enums\ReturnKind;
+use App\Domain\Marketplace\Enums\StockState;
 use App\Domain\Marketplace\Exceptions\OnlineOrderException;
 use App\Domain\Marketplace\Models\Marketplace;
 use App\Domain\Marketplace\Models\Shipment;
@@ -172,8 +173,8 @@ class ReturnController extends Controller
             'cancel' => [
                 'allowed' => $cannotCancel === null && $this->mayCancel($user),
                 'why_not' => $cannotCancel,
-                'puts_back' => ! $shipment->status->awaitsPacking(),
-                'note' => $shipment->status->awaitsPacking()
+                'puts_back' => $this->stockLeft($shipment),
+                'note' => ! $this->stockLeft($shipment)
                     ? 'Nothing left the shelf for this order. Cancelling it lets go of the stock held for it.'
                     : "Everything packed in it goes back into {$shipment->warehouse?->name}. Put the goods back on the shelf.",
             ],
@@ -200,7 +201,7 @@ class ReturnController extends Controller
 
         abort_unless($this->access->canWorkIn($user, $shipment->warehouse), 403, "You do not work in {$shipment->warehouse?->name}.");
 
-        $wasPacked = ! $shipment->status->awaitsPacking();
+        $wasPacked = $this->stockLeft($shipment);
         $reason = trim((string) ($data['reason'] ?? '')) ?: 'Order cancelled; scanned back on the returns screen';
 
         try {
@@ -215,6 +216,89 @@ class ReturnController extends Controller
 
         return redirect()->route(($data['from'] ?? null) === 'floor' ? 'floor.return' : 'online-orders.returns.create')
             ->withToast('success', $done);
+    }
+
+    /**
+     * Whether the parcel's goods have left the shelf: packed, or taken
+     * when its label was uploaded.
+     */
+    private function stockLeft(Shipment $shipment): bool
+    {
+        return ! $shipment->status->awaitsPacking() || $shipment->stock_state === StockState::Consumed;
+    }
+
+    /**
+     * The week's end: a pile of parcels scanned back in one after another.
+     * The pile is either orders that were cancelled and never sent, or
+     * parcels that went out and came back; every scan puts the parcel's
+     * goods back on the shelf, all of them as good stock, and flags the
+     * order. A damaged return is received on the full returns screen.
+     */
+    public function scanBackScreen(Request $request): Response
+    {
+        $this->authorize('marketplace.return');
+
+        return Inertia::render('online-orders/scan-back');
+    }
+
+    public function scanBack(Request $request): JsonResponse
+    {
+        $this->authorize('marketplace.return');
+        $user = $request->user();
+
+        $data = $request->validate([
+            'code' => ['required', 'string', 'max:255'],
+            'mode' => ['required', Rule::in(['return', 'cancelled'])],
+        ]);
+
+        $code = trim($data['code']);
+        $shipment = $this->orders->findByCode($code);
+
+        if ($shipment === null || ($this->brands->isRestricted($user) && ! $this->brands->canUse($user, $shipment->brand_id))) {
+            return response()->json(['message' => "No parcel has the code {$code}. Check the AWB or order number on the packet."], 404);
+        }
+
+        $shipment->loadMissing(['warehouse', 'marketplace:id,name']);
+
+        if (! $this->access->canWorkIn($user, $shipment->warehouse)) {
+            return response()->json(['message' => "You do not work in {$shipment->warehouse?->name}."], 403);
+        }
+
+        $goods = collect($this->returns->sent($shipment))
+            ->map(fn (array $s) => ['item' => $s['item']->name, 'units' => Decimal::strip((string) $s['units'])])
+            ->values()->all();
+
+        try {
+            if ($data['mode'] === 'cancelled') {
+                // Scanned twice, it is said so rather than taken as done.
+                if (($why = $this->orders->cannotCancelInHand($shipment)) !== null) {
+                    return response()->json(['message' => $why], 422);
+                }
+
+                $this->orders->cancel($shipment, 'Order cancelled; parcel scanned back in', $user, backInHand: true);
+                $flag = 'Cancelled';
+            } else {
+                $counts = [];
+
+                foreach ($this->returns->sent($shipment) as $itemId => $sent) {
+                    $counts[$itemId] = ['good' => (string) $sent['units'], 'damaged' => 0];
+                }
+
+                $return = $this->returns->receive($shipment, ReturnKind::Customer, $counts, $user, null, 'Scanned back in at the week\'s end');
+                $flag = "Returned ({$return->number})";
+            }
+        } catch (OnlineOrderException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'reference' => $shipment->reference(),
+            'order_number' => $shipment->order_number,
+            'marketplace' => $shipment->marketplace?->name,
+            'flag' => $flag,
+            'goods' => $goods,
+            'store' => $shipment->warehouse?->name,
+        ]);
     }
 
     private function mayCancel(User $user): bool

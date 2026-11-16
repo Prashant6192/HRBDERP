@@ -65,7 +65,9 @@ import { index as materialRequestsIndex } from '@/routes/material-requests';
 import {
     create as onlineOrdersUpload,
     index as onlineOrdersIndex,
+    pickList as onlineOrdersPickList,
     report as onlineOrdersReport,
+    scanBack as onlineOrdersScanBack,
 } from '@/routes/online-orders';
 import { index as returnsIndex } from '@/routes/online-orders/returns';
 import { index as packagingMaterialsIndex } from '@/routes/packaging-materials';
@@ -400,6 +402,20 @@ export function placeGroups(place: Place, places: Place[]): ErpNavGroup[] {
                             permission: 'marketplace.view',
                             count: 'online',
                             keywords: 'meesho amazon flipkart labels pack',
+                        },
+                        {
+                            title: 'Pick list',
+                            href: onlineOrdersPickList().url,
+                            icon: ClipboardList,
+                            permission: 'marketplace.view',
+                            keywords: 'racks take out morning warehouse',
+                        },
+                        {
+                            title: 'Scan back in',
+                            href: onlineOrdersScanBack().url,
+                            icon: PackageX,
+                            permission: 'marketplace.return',
+                            keywords: 'restock cancelled return weekend',
                         },
                         {
                             title: 'Online orders report',

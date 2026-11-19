@@ -176,7 +176,7 @@ final class ShiprocketLabelParser implements LabelFileParser, LabelSheetParser
             'pages' => [$page],
             'awb' => $awb,
             'order_number' => $order,
-            'courier' => 'Shadowfax 360',
+            'courier' => 'Shadowfax Website',
             'payment_mode' => $payment,
             'customer_name' => $name,
             'customer_state' => $state,

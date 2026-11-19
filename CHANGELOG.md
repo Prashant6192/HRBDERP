@@ -19,7 +19,7 @@ sign-in card and at the foot of the sidebar.
   prepaid, the buyer, and each product's SKU ID and quantity. The labels
   print no amount, so the selling price and COD amount are left to the
   price sheet.
-- The courier shows as **Shadowfax 360**, its own pile when printing,
+- The courier shows as **Shadowfax Website**, its own pile when printing,
   apart from Shadowfax parcels booked through Shiprocket.
 - The same order on two labels with different AWBs (booked on both
   Shiprocket and Shadowfax 360) is flagged on both parcels, for someone

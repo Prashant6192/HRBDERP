@@ -343,7 +343,7 @@ class WebsiteOrdersTest extends TestCase
         ]);
 
         $first = Shipment::query()->where('awb', 'SF40000000001')->sole();
-        $this->assertSame(['Shadowfax 360', '3201', PaymentMode::Cod, 'Madhya Pradesh', '458441'], [$first->courier, $first->order_number, $first->payment_mode, $first->customer_state, $first->customer_pincode]);
+        $this->assertSame(['Shadowfax Website', '3201', PaymentMode::Cod, 'Madhya Pradesh', '458441'], [$first->courier, $first->order_number, $first->payment_mode, $first->customer_state, $first->customer_pincode]);
         $this->assertSame(['10940000000001'], $first->lines->pluck('seller_sku')->all());
 
         $second = Shipment::query()->where('awb', 'SF40000000002')->sole();
@@ -355,9 +355,9 @@ class WebsiteOrdersTest extends TestCase
         $this->assertStringContainsString('Order 3201 is also on AWB SF40000000001', (string) collect(Shipment::query()->where('awb', 'SF4300000009SPF')->sole()->warnings)->last());
         $this->assertNull(collect($second->warnings)->first(fn (string $w) => str_contains($w, 'is also on')));
 
-        // Printing: Shadowfax 360 has its own pile, each label on a 4×6 page.
+        // Printing: Shadowfax Website has its own pile, each label on a 4×6 page.
         $plan = app(OnlineOrderService::class)->print($first->batch, 'all', $this->office);
-        $this->assertSame(['Shadowfax', 'Shadowfax 360', 'Shadowfax 360'], array_column($plan['parts'], 'courier'));
+        $this->assertSame(['Shadowfax', 'Shadowfax Website', 'Shadowfax Website'], array_column($plan['parts'], 'courier'));
         $this->assertSame([false, true, true], array_column($plan['parts'], 'fit'));
         $this->assertSame([0, null, null], array_column($plan['parts'], 'slot'));
     }

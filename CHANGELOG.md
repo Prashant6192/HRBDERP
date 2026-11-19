@@ -11,6 +11,23 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Added — Blinkit Labels
+
+- A new **Blinkit Labels** screen, in the menu just below Online Orders.
+  Each product sold on Blinkit is kept once (brand name, product name,
+  UPC, PID, MRP, UOM, units in a box) and can be added or edited there.
+  The three products on the label sheet (Sukoon, Medicated and Ratna
+  Cool) are there from the start.
+- **SKU labels**: 50 × 25 mm, two side by side on each 100 × 25 mm row of
+  the roll: brand, MRP, product name, the UPC as a Code 128 barcode,
+  manufacturing and expiry month, and pack size.
+- **Box labels**: 4 × 6 inch: brand, product name, PID, UPC, MRP, UOM,
+  dates, units in the box and the barcode.
+- The dates and how many labels to print are given each time; the screen
+  shows the labels at actual size, and printing opens a PDF at the exact
+  label size. The barcode is drawn by the ERP itself, so no image is
+  needed.
+
 ### Added — Shadowfax 360 labels for website orders
 
 - Website orders booked on Shadowfax's own 360 panel can be uploaded under

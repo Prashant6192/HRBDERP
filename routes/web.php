@@ -50,6 +50,7 @@ use App\Http\Controllers\MasterData\ProductPackagingController;
 use App\Http\Controllers\MasterData\RawMaterialController;
 use App\Http\Controllers\Navigation\NavigationController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\OnlineOrders\BlinkitLabelController;
 use App\Http\Controllers\OnlineOrders\BrandController;
 use App\Http\Controllers\OnlineOrders\CatchUpController;
 use App\Http\Controllers\OnlineOrders\ListingController;
@@ -263,6 +264,11 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('online-orders/returns/receive', [ReturnController::class, 'create'])->name('online-orders.returns.create');
     Route::get('online-orders/returns/lookup', [ReturnController::class, 'lookup'])->name('online-orders.returns.lookup');
     Route::get('online-orders/scan-back', [ReturnController::class, 'scanBackScreen'])->name('online-orders.scan-back');
+    // Blinkit: SKU and box labels for the products sold there.
+    Route::get('blinkit-labels', [BlinkitLabelController::class, 'index'])->name('blinkit-labels.index');
+    Route::post('blinkit-labels', [BlinkitLabelController::class, 'store'])->name('blinkit-labels.store');
+    Route::patch('blinkit-labels/{blinkitProduct}', [BlinkitLabelController::class, 'update'])->name('blinkit-labels.update');
+    Route::get('blinkit-labels/{blinkitProduct}/print', [BlinkitLabelController::class, 'print'])->name('blinkit-labels.print');
     Route::post('online-orders/scan-back', [ReturnController::class, 'scanBack'])->name('online-orders.scan-back.store');
     Route::get('online-orders/pick-list', [OnlineOrderController::class, 'pickList'])->name('online-orders.pick-list');
     Route::post('online-orders/returns', [ReturnController::class, 'store'])->name('online-orders.returns.store');

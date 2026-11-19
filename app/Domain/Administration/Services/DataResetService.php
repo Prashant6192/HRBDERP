@@ -152,6 +152,7 @@ class DataResetService
         ['formula_ingredients', 'formulas'],
         ['formula_versions', 'formulas'],
         ['formulas', 'formulas'],
+        ['blinkit_products', 'materials'],
         ['marketplace_listing_components', 'materials'],
         ['marketplace_listings', 'materials'],
         ['store_item_levels', 'materials'],

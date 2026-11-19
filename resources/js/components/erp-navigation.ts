@@ -69,6 +69,7 @@ import {
     report as onlineOrdersReport,
     scanBack as onlineOrdersScanBack,
 } from '@/routes/online-orders';
+import { index as blinkitLabelsIndex } from '@/routes/blinkit-labels';
 import { index as returnsIndex } from '@/routes/online-orders/returns';
 import { index as packagingMaterialsIndex } from '@/routes/packaging-materials';
 import {
@@ -444,6 +445,18 @@ export function placeGroups(place: Place, places: Place[]): ErpNavGroup[] {
                             href: brandsIndex().url,
                             icon: Tag,
                             permission: 'marketplace.manage',
+                        },
+                    ],
+                },
+                {
+                    label: 'Blinkit',
+                    items: [
+                        {
+                            title: 'Blinkit Labels',
+                            href: blinkitLabelsIndex().url,
+                            icon: Tag,
+                            permission: 'marketplace.view',
+                            keywords: 'blinkit sku box label barcode upc mrp',
                         },
                     ],
                 },

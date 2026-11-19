@@ -205,6 +205,8 @@ class OnlineOrderController extends Controller
             'dispatchable' => $this->brands->isRestricted($user) ? (object) [] : (object) Shipment::query()
                 ->whereIn('label_batch_id', $batchIds)
                 ->where('status', ShipmentStatus::Packed->value)
+                // In the order they were read, so the list does not shuffle.
+                ->orderBy('id')
                 ->get(['id', 'courier'])
                 ->groupBy(fn (Shipment $s) => $s->courier ?? '')
                 ->map(fn ($g) => $g->pluck('id')->values()->all())

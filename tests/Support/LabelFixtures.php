@@ -162,6 +162,64 @@ final class LabelFixtures
     }
 
     /**
+     * Shadowfax 360's own labels for website orders, one to a page.
+     *
+     * @param  list<array{awb: string, order: string, payment: 'cod'|'prepaid', name: string, address: string, state: string, pincode: string, items: list<array{sku: string, item: string, qty: int}>}>  $parcels
+     */
+    public static function shadowfax360(array $parcels, string $name = 'label_shadowfax.pdf'): UploadedFile
+    {
+        return self::pdf(array_map(fn (array $p) => self::lines(self::shadowfax360Text($p)), $parcels), $name);
+    }
+
+    /**
+     * One Shadowfax 360 label's text in the order the PDF gives it: a long
+     * SKU's size wraps onto its own line, the product name onto two.
+     *
+     * @param  array<string, mixed>  $p
+     */
+    public static function shadowfax360Text(array $p): string
+    {
+        $rows = [];
+
+        foreach ($p['items'] as $item) {
+            if (preg_match('/^(\S+)\s+(\(.*\))$/', $item['sku'], $m) === 1) {
+                $rows[] = $m[1];
+                $rows[] = $m[2];
+            } else {
+                $rows[] = $item['sku'];
+            }
+
+            $words = explode(' ', $item['item'].' (1)');
+            $half = intdiv(count($words), 2);
+            $rows[] = implode(' ', array_slice($words, 0, $half));
+            $rows[] = implode(' ', array_slice($words, $half));
+            $rows[] = (string) $item['qty'];
+        }
+
+        return implode("\n", [
+            strtoupper($p['payment']),
+            'Test Seller',
+            "#Box: 1 {$p['awb']} NMH/EFG",
+            'SF360',
+            'W24',
+            'Seller:',
+            'test_seller',
+            '(Seller GSTIN: 07AAAAA0000A1Z5)',
+            'Plot 1, Sample Market',
+            "Customer: {$p['name']}",
+            $p['address'],
+            "{$p['state']} - {$p['pincode']}",
+            "SKU ID\tSKU Name\tQty.",
+            ...$rows,
+            "COID: #{$p['order']}",
+            'Return Address: Plot 1, Sample Market,',
+            'Delhi-110096',
+            'Declaration: Contents of this package are being purchased for',
+            'personal purpose and not for resale',
+        ]);
+    }
+
+    /**
      * One Shiprocket label's text as the PDF gives it. A SKU with a pack
      * size runs past its column and ends on a later line, as Shiprocket's
      * does ("RR-MED-500 (500ML-2P" … "acK)").

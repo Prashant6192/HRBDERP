@@ -20,6 +20,7 @@ use App\Domain\Inventory\Services\SequenceService;
 use App\Domain\Inventory\Services\StockBalanceService;
 use App\Domain\Marketplace\DTOs\LabelExtraction;
 use App\Domain\Marketplace\Enums\LabelBatchStatus;
+use App\Domain\Marketplace\Enums\LabelReaderKind;
 use App\Domain\Marketplace\Enums\PaymentMode;
 use App\Domain\Marketplace\Enums\ShipmentStatus;
 use App\Domain\Marketplace\Enums\StockState;
@@ -257,6 +258,7 @@ class OnlineOrderService
                     }
 
                     $shipment = $this->createShipment($batch, $file, $parcel);
+                    $this->flagSameOrder($shipment);
 
                     if ($parcel->invoiceOnly) {
                         $shipment->forceFill([
@@ -942,6 +944,10 @@ class OnlineOrderService
         // page: the browser cuts those to the label for a 4×6 printer.
         $readers = Marketplace::query()->whereKey($shipments->pluck('marketplace_id')->unique())->get(['id', 'reader'])->keyBy('id');
         $crop = fn (Shipment $s): bool => $readers->get($s->marketplace_id)?->reader?->labelAboveInvoice() ?? false;
+        // A website label on its own page prints on a 4×6 page whatever size
+        // the courier made it (Shadowfax 360, Amazon Shipping).
+        $fit = fn (Shipment $s): bool => $s->page_slot === null
+            && ($readers->get($s->marketplace_id)?->reader === LabelReaderKind::Shiprocket);
         $withInvoice = fn (Shipment $s): bool => $s->invoice_file_id !== null && (bool) $s->invoice_pages
             && $s->invoice_file_id !== $s->label_file_id
             && ($readers->get($s->marketplace_id)?->reader?->printsSeparateInvoice() ?? false);
@@ -950,7 +956,7 @@ class OnlineOrderService
         // is label-sized (Myntra). The website's A4 invoices stay off the
         // label printer.
         $parts = $shipments->flatMap(fn (Shipment $s) => array_values(array_filter([
-            ['shipment_id' => $s->id, 'file_id' => $s->label_file_id, 'pages' => array_values($s->pages), 'courier' => $s->courier, 'crop' => $crop($s), 'slot' => $s->page_slot],
+            ['shipment_id' => $s->id, 'file_id' => $s->label_file_id, 'pages' => array_values($s->pages), 'courier' => $s->courier, 'crop' => $crop($s), 'slot' => $s->page_slot, 'fit' => $fit($s)],
             $withInvoice($s)
                 ? ['shipment_id' => $s->id, 'file_id' => $s->invoice_file_id, 'pages' => array_values($s->invoice_pages), 'courier' => $s->courier, 'crop' => false, 'slot' => null]
                 : null,
@@ -1191,6 +1197,46 @@ class OnlineOrderService
     private const string WAITING_FOR_INVOICE = 'Waiting for the invoice file';
 
     private const string WAITING_FOR_LABEL = 'Waiting for the label file: this parcel was read from its invoice. Upload the labels PDF for the same day and its label is added.';
+
+    /**
+     * Website orders can be booked on Shiprocket or on Shadowfax 360. The
+     * same order on two labels with different AWBs was probably booked
+     * twice: both parcels say so, for someone to cancel the wrong one.
+     * Nothing is refused, since an order can also go out in two boxes.
+     */
+    private function flagSameOrder(Shipment $shipment): void
+    {
+        if ($shipment->order_number === null || $shipment->awb === null) {
+            return;
+        }
+
+        $shipment->loadMissing('marketplace:id,reader');
+
+        if ($shipment->marketplace?->reader !== LabelReaderKind::Shiprocket) {
+            return;
+        }
+
+        $others = Shipment::query()
+            ->where('marketplace_id', $shipment->marketplace_id)
+            ->where('order_number', $shipment->order_number)
+            ->whereKeyNot($shipment->id)
+            ->whereNotNull('awb')
+            ->where('awb', '<>', $shipment->awb)
+            ->where('status', '<>', ShipmentStatus::Cancelled->value)
+            ->get();
+
+        foreach ([$shipment, ...$others->all()] as $parcel) {
+            $rest = collect([$shipment, ...$others->all()])->reject(fn (Shipment $s) => $s->id === $parcel->id);
+
+            if ($rest->isEmpty()) {
+                continue;
+            }
+
+            $warning = "Order {$shipment->order_number} is also on ".$rest->map(fn (Shipment $s) => "AWB {$s->awb}".($s->courier ? " ({$s->courier})" : ''))->implode(', ').'. If it was booked twice, cancel the wrong parcel.';
+            $warnings = array_values(array_filter($parcel->warnings ?? [], fn (string $w) => ! str_starts_with($w, "Order {$shipment->order_number} is also on ")));
+            $parcel->forceFill(['warnings' => [...$warnings, $warning]])->save();
+        }
+    }
 
     private function openShipmentWithAwb(int $marketplaceId, string $awb): ?Shipment
     {

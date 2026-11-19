@@ -260,6 +260,9 @@ class OnlineOrderController extends Controller
                     'id' => $m->id, 'name' => $m->name, 'reads' => $m->reader->label(),
                     // Myntra's and the website's labels and invoices come as two PDFs.
                     'two_files' => in_array($m->code, ['MYNTRA', 'WEBSITE'], true),
+                    'files_hint' => $m->code === 'WEBSITE'
+                        ? 'Website: add the Shiprocket labels and invoices, and any Shadowfax 360 labels. Each file is recognised by itself.'
+                        : null,
                     // Picture pages this browser reads before uploading.
                     'reads_in_browser' => $m->reader->readsInBrowser(),
                 ])->all(),

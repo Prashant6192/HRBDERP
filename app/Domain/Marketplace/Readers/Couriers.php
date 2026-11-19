@@ -18,6 +18,9 @@ final class Couriers
      */
     private const array NAMES = [
         'Delhivery' => ['delhivery'],
+        // Booked on Shadowfax's own 360 panel, picked up apart from
+        // Shadowfax parcels booked through Shiprocket.
+        'Shadowfax 360' => ['shadowfax 360', 'shadowfax360', 'sf360'],
         'Shadowfax' => ['shadowfax'],
         'Xpress Bees' => ['xpress bees', 'xpressbees'],
         'Valmo' => ['valmo'],

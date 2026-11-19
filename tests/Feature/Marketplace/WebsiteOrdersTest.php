@@ -319,4 +319,46 @@ class WebsiteOrdersTest extends TestCase
                 ->where('waiting.0.suggested.item_id', (string) $lauki200->id)
                 ->where('waiting.0.suggested.pieces', 1));
     }
+
+    #[Test]
+    public function shadowfax_360_labels_are_read_flagged_when_booked_twice_and_printed_on_4x6(): void
+    {
+        $label = fn (string $awb, string $order, array $overrides = []) => [
+            'awb' => $awb, 'order' => $order, 'payment' => 'cod', 'name' => 'Asha Test', 'address' => '14 Sample Road, Test Colony,',
+            'state' => 'Madhya Pradesh', 'pincode' => '458441',
+            'items' => [['sku' => '10940000000001', 'item' => 'Rahat Rooh Lauki Oil Herbal Hair Oil - 200ml', 'qty' => 1]],
+            ...$overrides,
+        ];
+
+        $this->uploadWebsite([
+            LabelFixtures::shadowfax360([
+                $label('SF40000000001', '3201'),
+                $label('SF40000000002', '3202', ['payment' => 'prepaid', 'items' => [
+                    ['sku' => 'RR-MED-HMO-005 (300ML)', 'item' => 'Rahat Rooh Medicated Oil for Headache & Migraine Relief - 300ml', 'qty' => 1],
+                    ['sku' => '10940000000001', 'item' => 'Rahat Rooh Lauki Oil Herbal Hair Oil - 200ml', 'qty' => 2],
+                ]]),
+            ]),
+            // The same order also booked on Shiprocket.
+            LabelFixtures::shiprocket([$this->parcel('SF4300000009SPF', '3201')]),
+        ]);
+
+        $first = Shipment::query()->where('awb', 'SF40000000001')->sole();
+        $this->assertSame(['Shadowfax 360', '3201', PaymentMode::Cod, 'Madhya Pradesh', '458441'], [$first->courier, $first->order_number, $first->payment_mode, $first->customer_state, $first->customer_pincode]);
+        $this->assertSame(['10940000000001'], $first->lines->pluck('seller_sku')->all());
+
+        $second = Shipment::query()->where('awb', 'SF40000000002')->sole();
+        $this->assertSame(PaymentMode::Prepaid, $second->payment_mode);
+        $this->assertSame([['RR-MED-HMO-005 (300ML)', 1], ['10940000000001', 2]], $second->lines->map(fn ($l) => [$l->seller_sku, (int) $l->quantity])->all());
+
+        // Booked twice: both parcels say so; neither is refused.
+        $this->assertStringContainsString('Order 3201 is also on AWB SF4300000009SPF', (string) collect($first->fresh()->warnings)->last());
+        $this->assertStringContainsString('Order 3201 is also on AWB SF40000000001', (string) collect(Shipment::query()->where('awb', 'SF4300000009SPF')->sole()->warnings)->last());
+        $this->assertNull(collect($second->warnings)->first(fn (string $w) => str_contains($w, 'is also on')));
+
+        // Printing: Shadowfax 360 has its own pile, each label on a 4×6 page.
+        $plan = app(OnlineOrderService::class)->print($first->batch, 'all', $this->office);
+        $this->assertSame(['Shadowfax', 'Shadowfax 360', 'Shadowfax 360'], array_column($plan['parts'], 'courier'));
+        $this->assertSame([false, true, true], array_column($plan['parts'], 'fit'));
+        $this->assertSame([0, null, null], array_column($plan['parts'], 'slot'));
+    }
 }

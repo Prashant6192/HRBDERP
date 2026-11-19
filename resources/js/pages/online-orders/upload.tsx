@@ -26,6 +26,7 @@ type MarketplaceOption = {
     name: string;
     reads: string;
     two_files?: boolean;
+    files_hint?: string | null;
     reads_in_browser?: boolean;
 };
 
@@ -270,10 +271,11 @@ export default function UploadLabels({
                             </p>
                             {marketplace?.two_files && (
                                 <p className="rounded-md bg-amber-500/15 px-3 py-1.5 text-xs font-medium text-amber-900 dark:text-amber-100">
-                                    {marketplace.name}: add both PDFs — the
-                                    labels and the invoices. This computer reads
-                                    them before uploading, about 2 seconds a
-                                    page; keep the page open until it is done.
+                                    {marketplace.files_hint ??
+                                        `${marketplace.name}: add both PDFs — the labels and the invoices.`}{' '}
+                                    This computer reads them before uploading,
+                                    about 2 seconds a page; keep the page open
+                                    until it is done.
                                 </p>
                             )}
                             {marketplace?.reads_in_browser &&

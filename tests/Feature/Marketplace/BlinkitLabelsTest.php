@@ -30,6 +30,18 @@ class BlinkitLabelsTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
         $this->office = User::factory()->create();
         $this->office->assignRole(RoleName::SuperAdmin->value);
+
+        // The products from the label sheet (the migration adds them on a
+        // live database; the test database is shared, so they are made here).
+        BlinkitProduct::query()->delete();
+
+        foreach ([
+            ['21650766', '768007', 'Rahat rooh Sukoon Pain Relieving Oil 300ml pack of 1', '562', 10],
+            ['21650720', '768191', 'Rahat rooh Ayurvedic Hair Oil for Headache & Relaxation Oil 300ml pack of 1', '710', 10],
+            ['21650697', '1390557', 'Rahat rooh Ayurved Ratna Cool Hair Oil(Bottle)-300ml', '280', null],
+        ] as [$upc, $pid, $name, $mrp, $units]) {
+            BlinkitProduct::create(['brand_name' => 'Rahat Rooh', 'product_name' => $name, 'upc' => $upc, 'pid' => $pid, 'mrp' => $mrp, 'uom' => '300 ml', 'units_in_box' => $units]);
+        }
     }
 
     /**
@@ -45,7 +57,7 @@ class BlinkitLabelsTest extends TestCase
     }
 
     #[Test]
-    public function the_products_on_the_label_sheet_are_there_from_the_start(): void
+    public function the_screen_lists_each_product_with_its_barcode(): void
     {
         $this->assertSame(['21650697', '21650720', '21650766'], BlinkitProduct::query()->orderBy('upc')->pluck('upc')->all());
 

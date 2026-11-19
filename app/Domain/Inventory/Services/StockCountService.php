@@ -288,34 +288,33 @@ class StockCountService
                 throw new InvalidArgumentException('Whoever counted or submitted cannot approve the count. Maker and checker must differ.');
             }
 
-            // A difference is posted per product, against the store as it is
-            // now. The count's batches are what the store held when it was
-            // counted; since then parcels may have taken stock out of them,
-            // or hold it, so a batch-by-batch posting could ask a batch for
-            // more than it still has.
+            // Each difference is posted against the store as it is now. The
+            // count's batches are what the store held when it was counted;
+            // since then parcels may have taken stock out of them, or hold
+            // it, so a shortage is taken from its own batch first and from
+            // the product's other batches for what that batch no longer has.
             foreach ($count->lines->groupBy('item_id') as $lines) {
                 $item = $lines->first()->item;
-                $system = $lines->reduce(fn (BigDecimal $c, StockCountLine $l) => $c->plus(BigDecimal::of($l->system_quantity)), BigDecimal::zero());
-                $found = $lines->reduce(fn (BigDecimal $c, StockCountLine $l) => $c->plus(BigDecimal::of($l->counted_quantity ?? $l->system_quantity)), BigDecimal::zero());
-                $variance = $found->minus($system);
+                $variance = fn (StockCountLine $l) => BigDecimal::of($l->counted_quantity ?? $l->system_quantity)->minus(BigDecimal::of($l->system_quantity));
 
-                if ($variance->isZero()) {
+                foreach ($lines->filter(fn (StockCountLine $l) => $variance($l)->isPositive())->groupBy('lot_id') as $found) {
+                    $quantity = $found->reduce(fn (BigDecimal $c, StockCountLine $l) => $c->plus($variance($l)), BigDecimal::zero());
+                    $lot = $found->first()->lot;
+                    $transaction = $this->ledger->receive($item, $count->warehouse, $quantity, $lot, InventoryTransactionType::StockAdjustmentIn, $count, $this->reason($count, $found), $lot?->unit_cost, $userId);
+                    $found->each(fn (StockCountLine $l) => $l->fill(['inventory_transaction_id' => $transaction->id])->save());
+                }
+
+                $short = $lines->filter(fn (StockCountLine $l) => $variance($l)->isNegative());
+
+                if ($short->isEmpty()) {
                     continue;
                 }
 
-                $note = $lines->pluck('note')->filter()->unique()->implode('; ');
-                $reason = "Stock count {$count->number}: system ".Decimal::strip((string) $system).', found '.Decimal::strip((string) $found).($note !== '' ? " — {$note}" : '');
+                $quantity = $short->reduce(fn (BigDecimal $c, StockCountLine $l) => $c->plus($variance($l)->abs()), BigDecimal::zero());
+                $transaction = $this->takeMissing($count, $item, $quantity, $short->pluck('lot_id')->filter()->map(fn ($id) => (int) $id)->unique()->values()->all(), $this->reason($count, $short), $userId);
 
-                $transaction = $variance->isPositive()
-                    ? $this->addFound($count, $item, $variance, $lines, $reason, $userId)
-                    : $this->takeMissing($count, $item, $variance->abs(), $reason, $userId);
-
-                if ($transaction === null) {
-                    continue;
-                }
-
-                foreach ($lines as $line) {
-                    $line->fill(['inventory_transaction_id' => $transaction->id])->save();
+                if ($transaction !== null) {
+                    $short->each(fn (StockCountLine $l) => $l->fill(['inventory_transaction_id' => $transaction->id])->save());
                 }
             }
 
@@ -326,27 +325,32 @@ class StockCountService
     }
 
     /**
-     * More on the shelf than the system had: onto the newest batch the
-     * count saw, or without a batch.
+     * "Stock count SC-…: system 100, found 90 — note" for the lines posted together.
      *
      * @param  Collection<int, StockCountLine>  $lines
      */
-    private function addFound(StockCount $count, Item $item, BigDecimal $quantity, $lines, string $reason, int $userId): InventoryTransaction
+    private function reason(StockCount $count, $lines): string
     {
-        $lot = $lines->pluck('lot')->filter()->sortByDesc('id')->first();
+        $system = $lines->reduce(fn (BigDecimal $c, StockCountLine $l) => $c->plus(BigDecimal::of($l->system_quantity)), BigDecimal::zero());
+        $found = $lines->reduce(fn (BigDecimal $c, StockCountLine $l) => $c->plus(BigDecimal::of($l->counted_quantity ?? $l->system_quantity)), BigDecimal::zero());
+        $note = $lines->pluck('note')->filter()->unique()->implode('; ');
 
-        return $this->ledger->receive($item, $count->warehouse, $quantity, $lot, InventoryTransactionType::StockAdjustmentIn, $count, $reason, $lot?->unit_cost, $userId);
+        return "Stock count {$count->number}: system ".Decimal::strip((string) $system).', found '.Decimal::strip((string) $found).($note !== '' ? " — {$note}" : '');
     }
 
     /**
      * Less on the shelf than the system had: taken from the store as it is
-     * now, newest batch first, from stock nothing holds. If that is not
+     * now, from the counted batches first and then the newest, from stock
+     * nothing holds. If that is not
      * enough, stock held for parcels not yet sent is let go of first: the
      * shelf does not have it, so those parcels are short until stock comes
      * in. What the store no longer holds at all cannot be taken, and the
      * posting says so.
      */
-    private function takeMissing(StockCount $count, Item $item, BigDecimal $quantity, string $reason, int $userId): ?InventoryTransaction
+    /**
+     * @param  list<int>  $lotsFirst
+     */
+    private function takeMissing(StockCount $count, Item $item, BigDecimal $quantity, array $lotsFirst, string $reason, int $userId): ?InventoryTransaction
     {
         $warehouse = $count->warehouse;
         $balances = fn () => StockBalance::query()
@@ -355,7 +359,10 @@ class StockCountService
             ->where('on_hand', '>', 0)
             ->lockForUpdate()
             ->get()
-            ->sortByDesc(fn (StockBalance $b) => $b->lot_id ?? PHP_INT_MAX)
+            ->sortBy([
+                fn (StockBalance $a, StockBalance $b) => (int) ! in_array((int) $a->lot_id, $lotsFirst, true) <=> (int) ! in_array((int) $b->lot_id, $lotsFirst, true),
+                fn (StockBalance $a, StockBalance $b) => ($b->lot_id ?? PHP_INT_MAX) <=> ($a->lot_id ?? PHP_INT_MAX),
+            ])
             ->values();
 
         $free = $balances()->reduce(fn (BigDecimal $c, StockBalance $b) => $c->plus($b->onHand()->minus($b->reserved())), BigDecimal::zero());

@@ -7,6 +7,7 @@ namespace Tests\Feature\Inventory;
 use App\Domain\Access\Enums\RoleName;
 use App\Domain\Inventory\Enums\InventoryTransactionType;
 use App\Domain\Inventory\Enums\LotQcStatus;
+use App\Domain\Inventory\Enums\StockCountStatus;
 use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Models\StockCount;
 use App\Domain\Inventory\Services\InventoryLedgerService;
@@ -176,5 +177,29 @@ class CountByProductTest extends TestCase
 
         $this->assertSame('approved', $count->fresh()->status->value);
         $this->assertSame(['145', '40'], [$this->onHand($this->oil), $this->onHand($this->shampoo)]);
+    }
+
+    #[Test]
+    public function a_shortage_is_taken_from_whatever_batch_still_holds_it_today(): void
+    {
+        $ledger = app(InventoryLedgerService::class);
+        $counts = app(StockCountService::class);
+
+        // Counted at 6 pm on the 14th: 120 on the shelf of the 150 the system had.
+        $countedAt = CarbonImmutable::parse('2026-11-14 18:00', 'Asia/Kolkata');
+
+        // Since then parcels took 40 out of the newer batch, the one the
+        // count's shortage was laid on, leaving it only 10.
+        $this->travelTo(CarbonImmutable::parse('2026-11-15 11:00', 'Asia/Kolkata'));
+        $ledger->issue($this->oil, $this->store, '40', $this->newer, InventoryTransactionType::StockAdjustmentOut);
+
+        $count = $counts->start($this->store, $this->counter->id, 'Register of the 14th', $countedAt);
+        $counts->recordProduct($count, $this->oil, '120', $this->counter->id);
+        $counts->submit($count, $this->counter->id);
+        $counts->approve($count->refresh(), $this->checker->id);
+
+        // The 30 missing come off today's stock: 10 from the newer batch, 20 from the older.
+        $this->assertSame('80', $this->onHand($this->oil));
+        $this->assertSame(StockCountStatus::Approved, $count->fresh()->status);
     }
 }

@@ -11,6 +11,18 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Fixed — Approving a stock count entered after the shelf was counted
+
+- Approving a count could stop with "Cannot issue … only … available"
+  (seen on Medicated Oil 300 ml). The count's differences were posted
+  batch by batch on the batches the store held when it was counted, but
+  since then parcels had taken stock out of those batches or held it.
+  Differences are now posted per product against the store as it is:
+  a shortage comes off the newest stock nothing holds; if the shelf is
+  short of stock held for parcels not yet sent, those parcels let it go
+  and wait for stock again. A count already submitted approves with the
+  fix; it does not need to be entered again.
+
 ### Added — Blinkit Labels
 
 - A new **Blinkit Labels** screen, in the menu just below Online Orders.

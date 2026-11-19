@@ -4,18 +4,25 @@ declare(strict_types=1);
 
 namespace App\Domain\Inventory\Services;
 
+use App\Domain\Inventory\DTOs\LedgerLine;
+use App\Domain\Inventory\DTOs\LedgerPosting;
 use App\Domain\Inventory\Enums\InventoryTransactionType;
 use App\Domain\Inventory\Enums\StockCountStatus;
 use App\Domain\Inventory\Models\InventoryLot;
+use App\Domain\Inventory\Models\InventoryTransaction;
 use App\Domain\Inventory\Models\StockBalance;
 use App\Domain\Inventory\Models\StockCount;
 use App\Domain\Inventory\Models\StockCountLine;
+use App\Domain\Inventory\Models\StockReservation;
+use App\Domain\Marketplace\Enums\StockState;
+use App\Domain\Marketplace\Models\Shipment;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\Warehousing\Models\Warehouse;
 use App\Support\Math\Decimal;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
@@ -34,6 +41,7 @@ class StockCountService
     public function __construct(
         private readonly InventoryLedgerService $ledger,
         private readonly SequenceService $sequences,
+        private readonly InventoryReservationService $reservations,
     ) {}
 
     /**
@@ -280,26 +288,151 @@ class StockCountService
                 throw new InvalidArgumentException('Whoever counted or submitted cannot approve the count. Maker and checker must differ.');
             }
 
-            foreach ($count->lines as $line) {
-                $variance = $line->variance();
+            // Each difference is posted against the store as it is now. The
+            // count's batches are what the store held when it was counted;
+            // since then parcels may have taken stock out of them, or hold
+            // it, so a shortage is taken from its own batch first and from
+            // the product's other batches for what that batch no longer has.
+            foreach ($count->lines->groupBy('item_id') as $lines) {
+                $item = $lines->first()->item;
+                $variance = fn (StockCountLine $l) => BigDecimal::of($l->counted_quantity ?? $l->system_quantity)->minus(BigDecimal::of($l->system_quantity));
 
-                if ($variance === null || $variance->isZero()) {
+                foreach ($lines->filter(fn (StockCountLine $l) => $variance($l)->isPositive())->groupBy('lot_id') as $found) {
+                    $quantity = $found->reduce(fn (BigDecimal $c, StockCountLine $l) => $c->plus($variance($l)), BigDecimal::zero());
+                    $lot = $found->first()->lot;
+                    $transaction = $this->ledger->receive($item, $count->warehouse, $quantity, $lot, InventoryTransactionType::StockAdjustmentIn, $count, $this->reason($count, $found), $lot?->unit_cost, $userId);
+                    $found->each(fn (StockCountLine $l) => $l->fill(['inventory_transaction_id' => $transaction->id])->save());
+                }
+
+                $short = $lines->filter(fn (StockCountLine $l) => $variance($l)->isNegative());
+
+                if ($short->isEmpty()) {
                     continue;
                 }
 
-                $reason = "Stock count {$count->number}: system ".Decimal::strip($line->system_quantity).', found '.Decimal::strip($line->counted_quantity).($line->note ? " — {$line->note}" : '');
+                $quantity = $short->reduce(fn (BigDecimal $c, StockCountLine $l) => $c->plus($variance($l)->abs()), BigDecimal::zero());
+                $transaction = $this->takeMissing($count, $item, $quantity, $short->pluck('lot_id')->filter()->map(fn ($id) => (int) $id)->unique()->values()->all(), $this->reason($count, $short), $userId);
 
-                $transaction = $variance->isPositive()
-                    ? $this->ledger->receive($line->item, $count->warehouse, $variance, $line->lot, InventoryTransactionType::StockAdjustmentIn, $count, $reason, $line->lot?->unit_cost, $userId)
-                    : $this->ledger->issue($line->item, $count->warehouse, $variance->abs(), $line->lot, InventoryTransactionType::StockAdjustmentOut, $count, $reason, $userId);
-
-                $line->fill(['inventory_transaction_id' => $transaction->id])->save();
+                if ($transaction !== null) {
+                    $short->each(fn (StockCountLine $l) => $l->fill(['inventory_transaction_id' => $transaction->id])->save());
+                }
             }
 
             $count->fill(['status' => StockCountStatus::Approved, 'approved_by' => $userId, 'approved_at' => now()])->save();
 
             return $count->refresh();
         });
+    }
+
+    /**
+     * "Stock count SC-…: system 100, found 90 — note" for the lines posted together.
+     *
+     * @param  Collection<int, StockCountLine>  $lines
+     */
+    private function reason(StockCount $count, $lines): string
+    {
+        $system = $lines->reduce(fn (BigDecimal $c, StockCountLine $l) => $c->plus(BigDecimal::of($l->system_quantity)), BigDecimal::zero());
+        $found = $lines->reduce(fn (BigDecimal $c, StockCountLine $l) => $c->plus(BigDecimal::of($l->counted_quantity ?? $l->system_quantity)), BigDecimal::zero());
+        $note = $lines->pluck('note')->filter()->unique()->implode('; ');
+
+        return "Stock count {$count->number}: system ".Decimal::strip((string) $system).', found '.Decimal::strip((string) $found).($note !== '' ? " — {$note}" : '');
+    }
+
+    /**
+     * Less on the shelf than the system had: taken from the store as it is
+     * now, from the counted batches first and then the newest, from stock
+     * nothing holds. If that is not
+     * enough, stock held for parcels not yet sent is let go of first: the
+     * shelf does not have it, so those parcels are short until stock comes
+     * in. What the store no longer holds at all cannot be taken, and the
+     * posting says so.
+     */
+    /**
+     * @param  list<int>  $lotsFirst
+     */
+    private function takeMissing(StockCount $count, Item $item, BigDecimal $quantity, array $lotsFirst, string $reason, int $userId): ?InventoryTransaction
+    {
+        $warehouse = $count->warehouse;
+        $balances = fn () => StockBalance::query()
+            ->where('warehouse_id', $warehouse->id)
+            ->where('item_id', $item->id)
+            ->where('on_hand', '>', 0)
+            ->lockForUpdate()
+            ->get()
+            ->sortBy([
+                fn (StockBalance $a, StockBalance $b) => (int) ! in_array((int) $a->lot_id, $lotsFirst, true) <=> (int) ! in_array((int) $b->lot_id, $lotsFirst, true),
+                fn (StockBalance $a, StockBalance $b) => ($b->lot_id ?? PHP_INT_MAX) <=> ($a->lot_id ?? PHP_INT_MAX),
+            ])
+            ->values();
+
+        $free = $balances()->reduce(fn (BigDecimal $c, StockBalance $b) => $c->plus($b->onHand()->minus($b->reserved())), BigDecimal::zero());
+
+        if ($free->isLessThan($quantity)) {
+            $this->letGoOfParcels($item, $warehouse, $quantity->minus($free));
+        }
+
+        $need = $quantity;
+        $lines = [];
+
+        foreach ($balances() as $balance) {
+            $take = BigDecimal::min($need, $balance->onHand()->minus($balance->reserved()));
+
+            if (! $take->isPositive()) {
+                continue;
+            }
+
+            $lines[] = new LedgerLine($item->id, $warehouse->id, $take->negated(), $balance->lot_id);
+            $need = $need->minus($take);
+
+            if ($need->isZero()) {
+                break;
+            }
+        }
+
+        if ($need->isPositive()) {
+            $reason .= ' — '.Decimal::strip((string) $need).' could not be taken: the store no longer holds it';
+        }
+
+        if ($lines === []) {
+            return null;
+        }
+
+        return $this->ledger->post(new LedgerPosting(
+            type: InventoryTransactionType::StockAdjustmentOut,
+            warehouseId: $warehouse->id,
+            lines: $lines,
+            reference: $count,
+            reason: $reason,
+            createdBy: $userId,
+        ));
+    }
+
+    /**
+     * Let go of stock held for parcels not yet sent, newest parcel first,
+     * until $quantity is free; those parcels wait for stock again.
+     */
+    private function letGoOfParcels(Item $item, Warehouse $warehouse, BigDecimal $quantity): void
+    {
+        $held = StockReservation::query()
+            ->active()
+            ->where('item_id', $item->id)
+            ->where('warehouse_id', $warehouse->id)
+            ->where('reservable_type', (new Shipment)->getMorphClass())
+            ->orderByDesc('id')
+            ->get();
+
+        foreach ($held as $reservation) {
+            if (! $quantity->isPositive()) {
+                break;
+            }
+
+            $quantity = $quantity->minus($reservation->outstanding());
+            $this->reservations->release($reservation);
+
+            Shipment::query()->whereKey($reservation->reservable_id)
+                ->where('stock_state', StockState::Reserved->value)
+                ->update(['stock_state' => StockState::Short->value]);
+        }
     }
 
     public function cancel(StockCount $count): StockCount

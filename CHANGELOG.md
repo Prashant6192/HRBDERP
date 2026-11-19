@@ -11,6 +11,14 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Fixed — Cleanse Hydrating Facewash can be scanned in
+
+- Cleanse Ayurveda (sold as "Cleanse") is the company's own brand. Its
+  Hydrating Facewash is now on file as an active product of the company's
+  own, with no outside client, so the depot can book it in on Scan in
+  stock. A record that was switched off, deleted or filed under a client
+  is put right rather than duplicated.
+
 ### Fixed — Approving a stock count entered after the shelf was counted
 
 - Approving a count could stop with "Cannot issue … only … available"

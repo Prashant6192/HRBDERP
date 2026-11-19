@@ -130,6 +130,7 @@ final class SkuReading
             return null;
         }
 
+        $value = (float) $m[1];
         $unit = match (strtolower($m[2])) {
             'ltr', 'litre', 'liter', 'l' => 'l',
             'gm', 'g' => 'g',
@@ -137,7 +138,12 @@ final class SkuReading
             default => 'ml',
         };
 
-        return ((float) $m[1] == (int) $m[1] ? (string) (int) $m[1] : $m[1]).' '.$unit;
+        // "1000ml" is the same bottle as "1 Litre".
+        if ($unit === 'ml' && $value >= 1000 && fmod($value, 1000) == 0) {
+            [$value, $unit] = [$value / 1000, 'l'];
+        }
+
+        return ($value == (int) $value ? (string) (int) $value : (string) $value).' '.$unit;
     }
 
     /**

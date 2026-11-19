@@ -115,6 +115,8 @@ export type PrintPlan = {
         courier: string | null;
         /** Meesho and Flipkart: cut to the label for a 4×6 printer. */
         crop?: boolean;
+        /** Print the page on a 4×6 label, scaled to fit, whatever its size. */
+        fit?: boolean;
         /** Shiprocket: which of the page's labels is this parcel's (0 = left). */
         slot?: number | null;
     }[];
@@ -308,6 +310,23 @@ export async function printPlan(
                         }
 
                         measured.set(key, box);
+                    }
+                }
+
+                // A whole-page label of another size is scaled onto 4×6.
+                if (!box && part.fit && !options.fullPage) {
+                    const media = source.doc.getPage(index).getMediaBox();
+                    const fits =
+                        Math.abs(media.width - crop.LABEL_WIDTH) < 2 &&
+                        Math.abs(media.height - crop.LABEL_HEIGHT) < 2;
+
+                    if (!fits) {
+                        box = {
+                            left: media.x,
+                            bottom: media.y,
+                            right: media.x + media.width,
+                            top: media.y + media.height,
+                        };
                     }
                 }
 

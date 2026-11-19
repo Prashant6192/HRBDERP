@@ -11,6 +11,24 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Added — Shadowfax 360 labels for website orders
+
+- Website orders booked on Shadowfax's own 360 panel can be uploaded under
+  Website with the Shiprocket files; the ERP recognises the layout by
+  itself. Each label gives the AWB, the order (its "COID"), COD or
+  prepaid, the buyer, and each product's SKU ID and quantity. The labels
+  print no amount, so the selling price and COD amount are left to the
+  price sheet.
+- The courier shows as **Shadowfax Website**, its own pile when printing,
+  apart from Shadowfax parcels booked through Shiprocket.
+- The same order on two labels with different AWBs (booked on both
+  Shiprocket and Shadowfax 360) is flagged on both parcels, for someone
+  to cancel the wrong one. Nothing is refused.
+- Website labels on a page of their own print on a 4×6 inch page: a label
+  already 4×6 prints as it is, any other size is scaled to fit.
+- Sizes in millilitres of a litre or more ("1000ml") match a product
+  named in litres ("1 Litre") when a mapping is suggested.
+
 ### Added — Stock leaves when labels are uploaded; pick list; scan back in
 
 - **Stock at upload.** At a depot that does not scan each parcel when

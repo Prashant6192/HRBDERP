@@ -78,6 +78,116 @@ final class ShiprocketLabelParser implements LabelFileParser, LabelSheetParser
     }
 
     /**
+     * Whether a page is a Shadowfax 360 label: "SF360" in large print, the
+     * order as "COID: #3153", and an "SKU ID | SKU Name | Qty." table.
+     */
+    public static function isShadowfax360(string $text): bool
+    {
+        return preg_match('/\bSF\s*360\b|shadowfax\s*360/i', $text) === 1
+            && preg_match('/\bCOID\s*:/i', $text) === 1;
+    }
+
+    /**
+     * A Shadowfax 360 label. It prints the AWB, COD or prepaid, the buyer,
+     * the order ("COID: #3153") and each product's SKU ID, name and
+     * quantity, but no amount: the selling price and the cash to collect
+     * come from elsewhere.
+     */
+    private function shadowfax360(string $text, int $page): ?LabelExtraction
+    {
+        $lines = TextLines::of($text);
+        $all = implode("\n", $lines);
+
+        if (preg_match('/\b(SF\d{8,20}[A-Z]{0,4})\b/', $all, $m) !== 1) {
+            return null;
+        }
+
+        $awb = $m[1];
+        $order = preg_match('/COID\s*:\s*#?\s*([A-Za-z0-9\-_\/]+)/i', $all, $m) === 1 ? $m[1] : null;
+
+        $payment = match (true) {
+            preg_match('/\bPRE\s*-?\s*PAID\b/i', $all) === 1 => 'prepaid',
+            preg_match('/\bCOD\b|cash\s*on\s*delivery/i', $all) === 1 => 'cod',
+            default => null,
+        };
+
+        // The buyer: "Customer: Nazmin", then the address down to the table.
+        $at = TextLines::indexOf($lines, fn (string $l) => preg_match('/^Customer\s*:/i', $l) === 1);
+        $table = TextLines::indexOf($lines, fn (string $l) => preg_match('/^SKU\s*ID\b/i', $l) === 1);
+        $name = null;
+        $state = null;
+        $pincode = null;
+
+        if ($at !== null) {
+            $name = trim((string) preg_replace('/^Customer\s*:\s*/i', '', $lines[$at])) ?: null;
+            $address = implode(' ', array_slice($lines, $at + 1, max(0, ($table ?? $at + 4) - $at - 1)));
+
+            foreach (GstStateCodes::NAMES as $stateName) {
+                if (stripos($address, $stateName) !== false) {
+                    $state = $stateName;
+                    break;
+                }
+            }
+
+            $pincode = preg_match_all('/\b(\d{6})\b/', $address, $p) > 0 ? end($p[1]) : null;
+        }
+
+        $rows = [];
+        $end = TextLines::indexOf($lines, fn (string $l) => preg_match('/^COID\s*:/i', $l) === 1) ?? count($lines);
+
+        for ($i = ($table ?? $end) + 1; $i < $end; $i++) {
+            $line = $lines[$i];
+            $last = array_key_last($rows);
+
+            // A quantity on its own line closes the row.
+            if ($last !== null && $rows[$last]['quantity'] === null && preg_match('/^\d{1,3}$/', $line) === 1) {
+                $rows[$last]['quantity'] = (int) $line;
+
+                continue;
+            }
+
+            // The size of a long SKU wrapped onto the next line: "(300ML)".
+            if ($last !== null && $rows[$last]['description'] === null && preg_match('/^\([^)]*\)$/', $line) === 1) {
+                $rows[$last]['seller_sku'] .= ' '.$line;
+
+                continue;
+            }
+
+            if (($last === null || $rows[$last]['quantity'] !== null)
+                && preg_match('/^(\d{6,20}|[A-Z0-9]+(?:[\-_\/.][A-Z0-9]+)+(?:\s*\([^)]*\))?)(?:\s+(.*))?$/', $line, $m) === 1) {
+                $rows[] = ['seller_sku' => $m[1], 'description' => isset($m[2]) && trim($m[2]) !== '' ? trim($m[2]) : null, 'quantity' => null];
+
+                continue;
+            }
+
+            if ($last !== null) {
+                $rows[$last]['description'] = trim(($rows[$last]['description'] ?? '').' '.$line);
+            }
+        }
+
+        $items = array_map(fn (array $r) => [
+            'seller_sku' => $r['seller_sku'],
+            // "… - 200ml (1)": the bracketed count is the label's own.
+            'description' => $r['description'] === null ? null : (trim((string) preg_replace('/\s*\(\d+\)\s*$/', '', $r['description'])) ?: null),
+            'quantity' => max(1, (int) ($r['quantity'] ?? 1)),
+        ], $rows);
+
+        return LabelExtraction::fromArray([
+            'pages' => [$page],
+            'awb' => $awb,
+            'order_number' => $order,
+            'courier' => 'Shadowfax Website',
+            'payment_mode' => $payment,
+            'customer_name' => $name,
+            'customer_state' => $state,
+            'customer_pincode' => $pincode,
+            'seller_gstin' => preg_match('/GSTIN\s*:?\s*(\d{2}[A-Z0-9]{13})/i', $all, $m) === 1 ? strtoupper($m[1]) : null,
+            'lines' => $items,
+            'warnings' => $items === [] ? ['The product on this label could not be read. Type its SKU and quantity on the batch screen.'] : [],
+        ]);
+    }
+
+    /**
      * Whether a page starts one of the website's own tax invoices.
      */
     public static function isInvoice(string $text): bool
@@ -310,6 +420,13 @@ final class ShiprocketLabelParser implements LabelFileParser, LabelSheetParser
 
     public function parsePage(string $text, int $page): array
     {
+        // Shadowfax 360's own 4×6 label, booked outside Shiprocket.
+        if (self::isShadowfax360($text)) {
+            $label = $this->shadowfax360($text, $page);
+
+            return $label === null ? [] : [$label];
+        }
+
         // A picture label the browser read: its barcodes come as lines of
         // their own.
         if (preg_match('/^\[barcode [a-z0-9_]+\]/mi', $text) === 1 && preg_match('/^DELIVER\s*TO\b/mi', $text) !== 1) {

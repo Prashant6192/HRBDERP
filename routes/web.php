@@ -132,6 +132,8 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('floor/photo', [FloorController::class, 'photo'])->name('floor.photo');
     Route::get('floor/pack', [ParcelController::class, 'pack'])->name('floor.pack');
     Route::post('floor/pack', [ParcelController::class, 'scan'])->name('floor.pack.scan');
+    Route::post('floor/pack/open', [ParcelController::class, 'open'])->name('floor.pack.open');
+    Route::get('floor/pack/product', [ParcelController::class, 'product'])->name('floor.pack.product');
     Route::post('floor/pack/{shipment}/cancel', [ParcelController::class, 'cancelInHand'])->name('floor.pack.cancel');
     Route::get('floor/handover', [ParcelController::class, 'handover'])->name('floor.handover');
     Route::post('floor/handover', [ParcelController::class, 'storeHandover'])->name('floor.handover.store');

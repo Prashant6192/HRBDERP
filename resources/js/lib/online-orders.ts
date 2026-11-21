@@ -75,6 +75,20 @@ export type Parcel = {
     lines: ParcelLine[];
     picks: ParcelPick[];
     pictures?: { item_id: number; url: string }[];
+    /** Piece by piece, what goes in the parcel and the barcodes that prove it. */
+    check?: PackCheckRow[];
+};
+
+export type PackCheckRow = {
+    item_id: number;
+    name: string;
+    size: string | null;
+    full_name: string;
+    pieces: number;
+    /** Barcode or product code (upper case) => the pieces one scan of it stands for. */
+    codes: Record<string, number>;
+    has_barcode: boolean;
+    photo: string | null;
 };
 
 export type Batch = {

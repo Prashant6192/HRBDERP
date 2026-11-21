@@ -1,0 +1,37 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Tests\Unit\Support;
+
+use App\Domain\Marketplace\Support\PackCheck;
+use App\Domain\Marketplace\Support\ProductPhotos;
+use PHPUnit\Framework\Attributes\Test;
+use PHPUnit\Framework\TestCase;
+
+class PackCheckNamesTest extends TestCase
+{
+    #[Test]
+    public function a_products_size_is_said_apart_from_its_name(): void
+    {
+        $this->assertSame(['Rahat Rooh Medicated Oil', '300 ml'], PackCheck::nameAndSize('Rahat Rooh Medicated Oil 300ml'));
+        $this->assertSame(['Satreetha Shampoo', '1 l'], PackCheck::nameAndSize('Satreetha Shampoo (1 Ltr)'));
+        $this->assertSame(['Lal Tel', '100 ml'], PackCheck::nameAndSize('Lal Tel - 100 ML'));
+        $this->assertSame(['Cleanse Hydrating Facewash', null], PackCheck::nameAndSize('Cleanse Hydrating Facewash'));
+    }
+
+    #[Test]
+    public function the_catalogue_photo_is_found_by_the_products_name(): void
+    {
+        $this->assertSame('/images/products/medicated.png', ProductPhotos::forName('Rahat Rooh Medicated Oil 500ml'));
+        $this->assertSame('/images/products/ratna-green.png', ProductPhotos::forName('Ratna Green Hair Oil 200 ml'));
+        $this->assertSame('/images/products/lal-tel.png', ProductPhotos::forName('Ayurvedic LAL TEL 100ml'));
+        $this->assertSame('/images/products/neem-face-wash.jpg', ProductPhotos::forName('Neem Face Wash 100 ml'));
+        $this->assertNull(ProductPhotos::forName('Ratna Cool Hair Oil 300ml'));
+        $this->assertNull(ProductPhotos::forName('Cleanse Hydrating Facewash'));
+
+        foreach (['medicated.png', 'sukoon.png', 'ratna-green.png', 'satreetha.png', 'lauki.png', 'lal-tel.png', 'neem-face-wash.jpg'] as $file) {
+            $this->assertFileExists(dirname(__DIR__, 3)."/public/images/products/{$file}");
+        }
+    }
+}

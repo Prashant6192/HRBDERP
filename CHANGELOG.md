@@ -11,6 +11,37 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Added — Packing check: scan the label, then scan each product
+
+- Scan parcels now proves what goes in the packet. The label is scanned
+  first and nothing is packed yet: the screen shows the platform and the
+  order number, then each product in very large letters with its size,
+  its photo and how many pieces. The packer scans the barcode on each
+  product; a ring fills piece by piece, and when every piece is in the
+  parcel is packed by itself.
+- A wrong product turns the screen red with a buzz and names what was
+  scanned; the parcel cannot be packed until the right one is scanned.
+  One piece too many is refused the same way.
+- A Pack of 2 is shown as its single product twice; a combo lists each of
+  its products, the next one to scan outlined.
+- A product with no barcode on file is checked by eye and passed with
+  Enter. Whoever runs the dispatch can pass a product whose barcode will
+  not scan. Either way the parcel records "Checked by eye".
+- The screen shows the ERP product the label's SKU is mapped to, never the
+  label's own wording. A label whose SKU is not mapped is stopped at the
+  label scan, to be mapped by the office.
+- Product photos come from the product's approved artwork picture or,
+  failing that, the brand's catalogue photo (Medicated, Sukoon, Ratna
+  Green, Satreetha, Lauki, Lal Tel, Neem Face Wash).
+
+### Changed — Faster barcode reading
+
+- The camera reads barcodes as fast as it can decode a frame (it read five
+  frames a second), in full HD with the lens kept in focus, and the same
+  code can be read again after 1.2 seconds on the packing screen.
+- A handheld scanner is read on the packing screen wherever the cursor is;
+  nobody has to click the box first.
+
 ### Fixed — Cleanse Hydrating Facewash can be scanned in
 
 - Cleanse Ayurveda (sold as "Cleanse") is the company's own brand. Its

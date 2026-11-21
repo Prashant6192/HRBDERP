@@ -8,19 +8,24 @@ type State = 'off' | 'starting' | 'on' | 'error';
 
 /**
  * The phone's (or laptop's) camera, reading barcodes and QR codes. Calls
- * `onCode` once per code; the same code again only after a pause, so a
- * label held still is not read twenty times.
+ * `onCode` once per code; the same code again only after a pause
+ * (`repeatMs`), so a label held still is not read twenty times. Frames are
+ * read as fast as the reader returns, in full HD with the lens kept in
+ * focus, so a code is caught the moment it is in view.
  */
 export function BarcodeCamera({
     onCode,
     busy = false,
     autoStart = true,
+    repeatMs = 2500,
     onClose,
     className,
 }: {
     onCode: (code: string) => void;
     busy?: boolean;
     autoStart?: boolean;
+    /** How soon the same code may be read again. */
+    repeatMs?: number;
     onClose?: () => void;
     className?: string;
 }) {
@@ -31,11 +36,13 @@ export function BarcodeCamera({
     const last = useRef<{ code: string; at: number }>({ code: '', at: 0 });
     const handler = useRef(onCode);
     const busyRef = useRef(busy);
+    const repeat = useRef(repeatMs);
 
     useEffect(() => {
         handler.current = onCode;
         busyRef.current = busy;
-    }, [onCode, busy]);
+        repeat.current = repeatMs;
+    }, [onCode, busy, repeatMs]);
 
     const stop = () => {
         stream.current?.getTracks().forEach((t) => t.stop());
@@ -51,12 +58,24 @@ export function BarcodeCamera({
             const media = await navigator.mediaDevices.getUserMedia({
                 video: {
                     facingMode: { ideal: 'environment' },
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 },
+                    frameRate: { ideal: 30 },
                 },
                 audio: false,
             });
             stream.current = media;
+
+            // Keep the lens focusing by itself where the camera can: a
+            // barcode held close is sharp at once.
+            media
+                .getVideoTracks()[0]
+                ?.applyConstraints({
+                    advanced: [
+                        { focusMode: 'continuous' } as MediaTrackConstraintSet,
+                    ],
+                })
+                .catch(() => undefined);
 
             if (video.current) {
                 video.current.srcObject = media;
@@ -129,7 +148,7 @@ export function BarcodeCamera({
                                 (c) =>
                                     c !== '' &&
                                     (c !== last.current.code ||
-                                        now - last.current.at > 2500),
+                                        now - last.current.at > repeat.current),
                             );
 
                         if (hit && !cancelled) {
@@ -144,7 +163,8 @@ export function BarcodeCamera({
                     }
                 }
 
-                timer = window.setTimeout(() => void tick(), 200);
+                // Straight on to the next frame: the reader itself sets the pace.
+                timer = window.setTimeout(() => void tick(), 40);
             };
 
             void tick();

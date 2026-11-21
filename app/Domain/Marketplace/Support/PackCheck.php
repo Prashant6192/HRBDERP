@@ -62,7 +62,7 @@ final class PackCheck
                 'name' => $name,
                 'size' => $size,
                 'full_name' => $row['item']->name,
-                'pieces' => max(1, $row['pieces']->toScale(0, RoundingMode::UP)->toInt()),
+                'pieces' => max(1, $row['pieces']->toScale(0, RoundingMode::Ceiling)->toInt()),
                 'codes' => $row['codes'],
                 // Only a barcode printed on the product proves it; the ERP's own code is a fallback.
                 'has_barcode' => trim((string) $row['item']->barcode) !== '',

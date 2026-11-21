@@ -23,14 +23,18 @@ final class PackCheck
      */
     public static function for(Shipment $shipment): array
     {
-        $shipment->loadMissing(['picks.item.packOf']);
+        $shipment->loadMissing('picks');
+
+        // Read afresh: the screen's own picks carry only a product's name
+        // and code, not its barcode or the single a pack is made of.
+        $items = Item::query()->with('packOf')->findMany($shipment->picks->pluck('item_id')->unique()->all())->keyBy('id');
 
         /** @var array<int, array{item: Item, pieces: BigDecimal, codes: array<string, int>}> $rows */
         $rows = [];
 
         foreach ($shipment->picks as $pick) {
             /** @var ShipmentPick $pick */
-            $item = $pick->item;
+            $item = $items->get($pick->item_id);
 
             if ($item === null) {
                 continue;

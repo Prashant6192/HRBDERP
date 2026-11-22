@@ -35,9 +35,12 @@ class PackCheckNamesTest extends TestCase
         $this->assertSame('/images/products/cleanse-hydra-smooth-shampoo.webp', ProductPhotos::forName('Cleanse Ayurveda Hydra Smooth Shampoo'));
         $this->assertSame('/images/products/cleanse-face-moisturiser.webp', ProductPhotos::forName('Cleanse Ayurveda Face Moisturiser'));
         $this->assertSame('/images/products/cleanse-dandruff-shampoo.webp', ProductPhotos::forName('Cleanse Dandruff Care Shampoo 250 ml'));
+        $this->assertSame('/images/products/cleanse-hydrating-facewash.webp', ProductPhotos::forName('Cleanse Ayurveda Hydrating Facewash 100 ml'));
+        $this->assertSame('/images/products/cleanse-acne-care-facewash.webp', ProductPhotos::forName('Cleanse Oil Control Facewash 100 ml'));
+        $this->assertNull(ProductPhotos::forName('Cleanse Ayurveda Oil Control Shampoo'));
         $this->assertNull(ProductPhotos::forName('Cleanse Hydrating Facewash'));
 
-        foreach (['medicated.png', 'sukoon.png', 'ratna-green.png', 'satreetha.png', 'lauki.png', 'lal-tel.png', 'neem-face-wash.jpg', 'cleanse-kasvi-hair-oil.webp', 'cleanse-hydra-smooth-shampoo.webp', 'cleanse-dandruff-shampoo.webp', 'cleanse-face-moisturiser.webp'] as $file) {
+        foreach (['medicated.png', 'sukoon.png', 'ratna-green.png', 'satreetha.png', 'lauki.png', 'lal-tel.png', 'neem-face-wash.jpg', 'cleanse-kasvi-hair-oil.webp', 'cleanse-hydra-smooth-shampoo.webp', 'cleanse-dandruff-shampoo.webp', 'cleanse-face-moisturiser.webp', 'cleanse-hydrating-facewash.webp', 'cleanse-acne-care-facewash.webp'] as $file) {
             $this->assertFileExists(dirname(__DIR__, 3)."/public/images/products/{$file}");
         }
     }

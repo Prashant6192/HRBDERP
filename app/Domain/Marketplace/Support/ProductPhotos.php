@@ -27,6 +27,12 @@ final class ProductPhotos
         'sukoon' => 'sukoon.png',
         'lauki' => 'lauki.png',
         // Cleanse.
+        'hydrating facewash' => 'cleanse-hydrating-facewash.webp',
+        'hydrating face wash' => 'cleanse-hydrating-facewash.webp',
+        'acne' => 'cleanse-acne-care-facewash.webp',
+        // Sold as the Acne Care Facewash, for oily skin.
+        'oil control facewash' => 'cleanse-acne-care-facewash.webp',
+        'oil control face wash' => 'cleanse-acne-care-facewash.webp',
         'kasvi' => 'cleanse-kasvi-hair-oil.webp',
         'hydra smooth' => 'cleanse-hydra-smooth-shampoo.webp',
         'dandruff' => 'cleanse-dandruff-shampoo.webp',

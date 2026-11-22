@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import { Plus } from 'lucide-react';
+import type { ReactNode } from 'react';
 import {
     DataTable,
     type DataTableColumn,
@@ -22,6 +23,8 @@ export type ItemModuleConfig = {
     storageKey: string;
     /** Columns beyond the shared ones, e.g. brand and MRP for products. */
     extraColumns?: DataTableColumn<Item>[];
+    /** Filters beyond category and status. */
+    extraFilters?: DataTableFilter[];
 };
 
 export function ItemTable({
@@ -31,6 +34,7 @@ export function ItemTable({
     categories,
     can,
     bill,
+    notice,
 }: {
     config: ItemModuleConfig;
     items: Paginated<Item>;
@@ -39,6 +43,8 @@ export function ItemTable({
     can: { create: boolean; export: boolean; import: boolean };
     /** Materials arrive with a bill; it can be uploaded from here. */
     bill?: { upload: boolean; reader: boolean; photos: boolean };
+    /** Something the list must say above the table. */
+    notice?: ReactNode;
 }) {
     const columns: DataTableColumn<Item>[] = [
         {
@@ -130,6 +136,7 @@ export function ItemTable({
                 { value: 'inactive', label: 'Inactive' },
             ],
         },
+        ...(config.extraFilters ?? []),
     ];
 
     return (
@@ -156,6 +163,8 @@ export function ItemTable({
                     </div>
                 }
             />
+
+            {notice}
 
             <DataTable
                 columns={columns}

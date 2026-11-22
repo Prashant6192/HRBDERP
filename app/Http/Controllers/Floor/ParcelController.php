@@ -12,11 +12,13 @@ use App\Domain\Marketplace\Exceptions\OnlineOrderException;
 use App\Domain\Marketplace\Models\HandoverSheet;
 use App\Domain\Marketplace\Models\LabelBatch;
 use App\Domain\Marketplace\Models\Shipment;
+use App\Domain\Marketplace\Models\ShipmentPick;
 use App\Domain\Marketplace\Services\HandoverSheetPdf;
 use App\Domain\Marketplace\Services\OnlineOrderAccess;
 use App\Domain\Marketplace\Services\OnlineOrderService;
 use App\Domain\Marketplace\Support\Cutoff;
 use App\Domain\Marketplace\Support\PackCheck;
+use App\Domain\MasterData\Models\Item;
 use App\Domain\Warehousing\Enums\WarehouseType;
 use App\Domain\Warehousing\Models\Warehouse;
 use App\Http\Controllers\Controller;
@@ -81,7 +83,20 @@ class ParcelController extends Controller
             ->limit(15)
             ->get();
 
+        // Products waiting to be packed that the scan cannot prove: a pack
+        // is proved by its single's barcode.
+        $waiting = Item::query()
+            ->with('packOf:id,name,barcode')
+            ->whereIn('id', ShipmentPick::query()->select('item_id')->whereIn('shipment_id', $ofDay()->select('id')->whereIn('status', ShipmentStatus::awaitingPacking())))
+            ->get(['id', 'name', 'barcode', 'pack_of_item_id'])
+            ->map(fn (Item $item) => $item->packOf ?? $item)
+            ->filter(fn (Item $single) => trim((string) $single->barcode) === '')
+            ->unique('id')
+            ->sortBy('name')
+            ->values();
+
         return Inertia::render('floor/pack', [
+            'no_barcode' => $waiting->map(fn (Item $single) => ['id' => $single->id, 'name' => $single->name])->all(),
             'date' => $day->toDateString(),
             'is_today' => $day->equalTo($today),
             'counts' => [

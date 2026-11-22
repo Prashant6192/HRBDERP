@@ -78,6 +78,8 @@ export type Item = {
     mrp: string | null;
     net_content: string | null;
     barcode: string | null;
+    /** For a pack (Pack of 2): the single product it is made of. */
+    pack_of_item_id?: number | null;
     is_batch_tracked: boolean;
     requires_qc: boolean;
     shelf_life_days: number | null;

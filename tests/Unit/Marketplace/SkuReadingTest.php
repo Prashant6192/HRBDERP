@@ -72,4 +72,18 @@ class SkuReadingTest extends TestCase
 
         $this->assertSame(['Ayurveda Ratna Extra Cool Oil', '200 ml'], [$r->name, $r->size]);
     }
+
+    #[Test]
+    public function a_p2_ending_says_a_pack_of_two_and_a_size_reads_in_millilitres(): void
+    {
+        $this->assertSame(2, SkuReading::of('Lal-Tel-100ml-P2', null)->pack);
+        $this->assertSame(2, SkuReading::of('RR-Ratna-300ml-P2', null)->pack);
+        $this->assertNull(SkuReading::of('RR-Lal-Tel-100ml', null)->pack);
+        $this->assertNull(SkuReading::of('1347006533_4', null)->pack);
+
+        $this->assertSame(400.0, SkuReading::millilitres('RRASS400ML'));
+        $this->assertSame(2000.0, SkuReading::millilitres('RRSR2000ML'));
+        $this->assertSame(1000.0, SkuReading::millilitres('Satreetha Shampoo 1 Ltr'));
+        $this->assertNull(SkuReading::millilitres('1347006533_4'));
+    }
 }

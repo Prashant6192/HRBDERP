@@ -384,7 +384,7 @@ class OnlineOrderService
      *
      * @param  list<array{item: Item, units: int}>  $components
      */
-    public function mapSkuTo(Marketplace $marketplace, Brand $brand, string $sellerSku, array $components, User $user): MarketplaceListing
+    public function mapSkuTo(Marketplace $marketplace, Brand $brand, string $sellerSku, array $components, User $user, bool $packConfirmed = false): MarketplaceListing
     {
         if ($components === []) {
             throw new OnlineOrderException('Choose the product this SKU is.');
@@ -414,10 +414,10 @@ class OnlineOrderService
         $key = MarketplaceListing::keyFor($sellerSku);
         $first = $components[0];
 
-        $listing = DB::transaction(function () use ($marketplace, $brand, $sellerSku, $key, $first, $components, $user): MarketplaceListing {
+        $listing = DB::transaction(function () use ($marketplace, $brand, $sellerSku, $key, $first, $components, $user, $packConfirmed): MarketplaceListing {
             $listing = MarketplaceListing::query()->updateOrCreate(
                 ['marketplace_id' => $marketplace->id, 'brand_id' => $brand->id, 'sku_key' => $key],
-                ['seller_sku' => $sellerSku, 'item_id' => $first['item']->id, 'units_per_order' => $first['units'], 'is_active' => true, 'created_by' => $user->id],
+                ['seller_sku' => $sellerSku, 'item_id' => $first['item']->id, 'units_per_order' => $first['units'], 'is_active' => true, 'pack_confirmed' => $packConfirmed, 'created_by' => $user->id],
             );
 
             $listing->components()->delete();

@@ -122,6 +122,26 @@ final class SkuReading
     }
 
     /**
+     * The size a text names in millilitres (or grams), or null: "1 Ltr" is
+     * 1000, "400ML" is 400.
+     */
+    public static function millilitres(string $text): ?float
+    {
+        $size = self::size($text);
+
+        if ($size === null) {
+            return null;
+        }
+
+        [$value, $unit] = explode(' ', $size);
+
+        return (float) $value * match ($unit) {
+            'l', 'kg' => 1000,
+            default => 1,
+        };
+    }
+
+    /**
      * "300ML", "200 ml", "1 Ltr", "100gm" → "300 ml", "200 ml", "1 l", "100 g".
      */
     private static function size(string $text): ?string
@@ -157,6 +177,8 @@ final class SkuReading
             '/\bpo\s*(\d{1,2})\b/i',
             '/(?:^|[\s(_-])x\s*(\d{1,2})\b/i',
             '/combo\s*of\s*(\d{1,2})\b/i',
+            // "Lal-Tel-100ml-P2", "RR-Ratna-300ml-P2".
+            '/(?:^|[\s_(-])p\s*(\d{1,2})\s*$/i',
         ] as $pattern) {
             if (preg_match($pattern, $text, $m) === 1 && (int) $m[1] >= 2 && (int) $m[1] <= 12) {
                 return (int) $m[1];

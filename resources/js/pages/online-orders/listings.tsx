@@ -11,7 +11,7 @@ import {
     type SearchableOption,
 } from '@/components/ui/searchable-select';
 import { cn } from '@/lib/utils';
-import { destroy, store, update } from '@/routes/listings';
+import { confirm, destroy, store, update } from '@/routes/listings';
 
 type Waiting = {
     marketplace_id: number;
@@ -372,7 +372,11 @@ function WizardCard({
         if (editing) {
             router.patch(
                 update(editing.id).url,
-                { is_active: true, components },
+                {
+                    is_active: true,
+                    components,
+                    pack_confirmed: kind !== 'single',
+                },
                 options,
             );
 
@@ -386,6 +390,7 @@ function WizardCard({
                 brand_id: row.brand_id,
                 seller_sku: row.seller_sku,
                 components,
+                pack_confirmed: kind !== 'single',
             },
             options,
         );
@@ -828,19 +833,39 @@ function SuspectMappings({ listings }: { listings: Listing[] }) {
                                 of {l.components[0].item} for each unit ordered
                             </div>
                         </div>
-                        <Button
-                            size="sm"
-                            disabled={busy !== null}
-                            onClick={() => setToOne(l)}
-                        >
-                            {busy === l.id ? 'Setting…' : 'Set to 1 piece'}
-                        </Button>
+                        <div className="flex flex-wrap gap-2">
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={busy !== null}
+                                onClick={() => {
+                                    setBusy(l.id);
+                                    router.post(
+                                        confirm(l.id).url,
+                                        {},
+                                        {
+                                            preserveScroll: true,
+                                            onFinish: () => setBusy(null),
+                                        },
+                                    );
+                                }}
+                            >
+                                It is a pack of {l.components[0].units}
+                            </Button>
+                            <Button
+                                size="sm"
+                                disabled={busy !== null}
+                                onClick={() => setToOne(l)}
+                            >
+                                {busy === l.id ? 'Saving…' : 'Set to 1 piece'}
+                            </Button>
+                        </div>
                     </li>
                 ))}
             </ul>
             <p className="text-muted-foreground border-t border-red-500/20 px-4 py-2 text-xs">
-                If one of these really is a pack of that many, leave it: it
-                stays listed here only as a reminder.
+                If the SKU really is a pack of that many, press &ldquo;It is a
+                pack&rdquo;: it leaves this list and stays as it is.
             </p>
         </section>
     );

@@ -135,11 +135,7 @@ class ListingController extends Controller
                 // More than one piece of a single product, on an SKU that
                 // does not say it is a pack of that many: most likely the
                 // quantity of one order was typed in as the pieces.
-                'suspect' => $l->is_active
-                    && $l->components->count() === 1
-                    && (int) $l->components->first()->units_per_order > 1
-                    && $l->components->first()->item?->pack_of_item_id === null
-                    && SkuReading::of((string) $l->seller_sku, $printed->get($l->id), $l->brand?->name)->pack !== (int) $l->components->first()->units_per_order,
+                'suspect' => $this->suspect($l, $printed->get($l->id)),
                 'orders' => $mappedOrders->get($l->id, []),
                 'description' => $printed->get($l->id),
                 'id' => $l->id, 'marketplace' => $l->marketplace?->name, 'marketplace_id' => $l->marketplace_id,
@@ -169,6 +165,78 @@ class ListingController extends Controller
             'marketplaces' => Marketplace::query()->orderBy('name')->get(['id', 'name'])->map(fn ($m) => ['value' => (string) $m->id, 'label' => $m->name])->all(),
             'brands' => Brand::query()->orderBy('name')->get(['id', 'name'])->map(fn ($b) => ['value' => (string) $b->id, 'label' => $b->name])->all(),
         ]);
+    }
+
+    /**
+     * More than one piece of a single product for one unit of an SKU that
+     * does not show itself a pack: most likely an order's quantity typed
+     * in as pieces. An SKU says it is a pack by its name ("Pack of 2",
+     * "-P2"), by its size ("400ML" of a 200 ml product is two), or by
+     * someone having said so.
+     */
+    private function suspect(MarketplaceListing $l, ?string $printed): bool
+    {
+        $only = $l->components->count() === 1 ? $l->components->first() : null;
+        $units = (int) ($only?->units_per_order ?? 1);
+
+        if (! $l->is_active || $l->pack_confirmed || $only === null || $units <= 1 || $only->item?->pack_of_item_id !== null) {
+            return false;
+        }
+
+        if (SkuReading::of((string) $l->seller_sku, $printed, $l->brand?->name)->pack === $units) {
+            return false;
+        }
+
+        $skuSize = SkuReading::millilitres((string) $l->seller_sku);
+        $oneSize = SkuReading::millilitres((string) $only->item?->name);
+
+        return ! ($skuSize !== null && $oneSize !== null && abs($skuSize - $units * $oneSize) < 0.5);
+    }
+
+    /**
+     * Not the company's product (a label uploaded by mistake): the parcels
+     * still waiting with this SKU are cancelled, so it leaves "Waiting to be
+     * mapped" and the day's counts. Packed parcels are not touched.
+     */
+    public function dismiss(Request $request): RedirectResponse
+    {
+        $this->authorize('marketplace.manage');
+
+        $data = $request->validate([
+            'marketplace_id' => ['required', 'integer', Rule::exists('marketplaces', 'id')],
+            'brand_id' => ['required', 'integer', Rule::exists('brands', 'id')],
+            'seller_sku' => ['required', 'string', 'max:255'],
+        ]);
+
+        $key = MarketplaceListing::keyFor($data['seller_sku']);
+        $parcels = Shipment::query()
+            ->where('marketplace_id', $data['marketplace_id'])
+            ->where('brand_id', $data['brand_id'])
+            ->whereIn('status', ShipmentStatus::awaitingPacking())
+            ->with('lines')
+            ->get()
+            ->filter(fn (Shipment $s) => $s->lines->contains(fn (ShipmentLine $l) => MarketplaceListing::keyFor($l->seller_sku) === $key));
+
+        try {
+            foreach ($parcels as $parcel) {
+                $this->orders->cancel($parcel, "Not our product: SKU {$data['seller_sku']} uploaded by mistake", $request->user());
+            }
+        } catch (OnlineOrderException $e) {
+            return back()->withToast('error', $e->getMessage());
+        }
+
+        return back()->withToast('success', "\"{$data['seller_sku']}\" removed: {$parcels->count()} parcel(s) cancelled as not our product.");
+    }
+
+    /**
+     * Someone has looked: one unit of this SKU really is that many pieces.
+     */
+    public function confirm(Request $request, MarketplaceListing $listing): RedirectResponse
+    {
+        $this->authorize('marketplace.manage');
+        $listing->forceFill(['pack_confirmed' => true])->save();
+
+        return back()->withToast('success', "\"{$listing->seller_sku}\" kept as it is. It will not be flagged again.");
     }
 
     /**
@@ -245,6 +313,7 @@ class ListingController extends Controller
                 $data['seller_sku'],
                 $this->components($data),
                 $request->user(),
+                (bool) ($data['pack_confirmed'] ?? false),
             );
         } catch (OnlineOrderException $e) {
             return back()->withToast('error', $e->getMessage());
@@ -293,6 +362,7 @@ class ListingController extends Controller
                 $listing->seller_sku,
                 $this->components($data),
                 $request->user(),
+                (bool) ($data['pack_confirmed'] ?? false),
             );
         } catch (OnlineOrderException $e) {
             return back()->withToast('error', $e->getMessage());
@@ -365,6 +435,8 @@ class ListingController extends Controller
             'components.*.units' => ['required', 'integer', 'min:1', 'max:100'],
             'item_id' => ['nullable', 'integer', Rule::exists('items', 'id')],
             'units_per_order' => ['nullable', 'integer', 'min:1', 'max:100'],
+            // Chosen as a pack (Pack of 2, a bundle) on purpose, so not flagged.
+            'pack_confirmed' => ['nullable', 'boolean'],
         ];
     }
 

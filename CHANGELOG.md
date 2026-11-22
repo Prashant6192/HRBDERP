@@ -11,6 +11,18 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Fixed — Real packs listed as "mappings to check"
+
+- The red "mappings to check" box listed real packs of two, even after
+  they were set right. An SKU now counts as a pack, and is not listed,
+  when its name says so ("Pack of 2", "-P2"), when its size is that many
+  of the product (400 ML of a 200 ml shampoo is two), when it was mapped
+  as Pack of 2 or a bundle on the mapping screen, or when someone pressed
+  the new "It is a pack of 2" button beside "Set to 1 piece".
+- A waiting SKU that is not the company's product (a label uploaded by
+  mistake) can be removed with "Not our product": its waiting parcels are
+  cancelled with that reason and it leaves "Waiting to be mapped".
+
 ### Changed — Changing a mapped SKU works like mapping a new one
 
 - The mapped list shows each SKU with its product's photo and what one

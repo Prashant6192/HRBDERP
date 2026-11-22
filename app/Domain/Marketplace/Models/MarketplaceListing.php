@@ -30,7 +30,7 @@ class MarketplaceListing extends Model
     use RecordsAuditTrail;
 
     protected $fillable = [
-        'marketplace_id', 'brand_id', 'seller_sku', 'sku_key', 'item_id', 'units_per_order', 'is_active', 'created_by',
+        'marketplace_id', 'brand_id', 'seller_sku', 'sku_key', 'item_id', 'units_per_order', 'is_active', 'pack_confirmed', 'created_by',
     ];
 
     protected function casts(): array
@@ -38,6 +38,7 @@ class MarketplaceListing extends Model
         return [
             'units_per_order' => 'integer',
             'is_active' => 'boolean',
+            'pack_confirmed' => 'boolean',
         ];
     }
 

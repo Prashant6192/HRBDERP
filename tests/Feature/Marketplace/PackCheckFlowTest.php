@@ -340,4 +340,52 @@ class PackCheckFlowTest extends TestCase
                     && $order['file_url'] === route('online-orders.files.show', $parcel->label_file_id);
             })->etc());
     }
+
+    #[Test]
+    public function a_real_pack_is_not_flagged_once_it_shows_or_is_said_to_be_one(): void
+    {
+        $orders = app(OnlineOrderService::class);
+        $brand = Brand::query()->where('code', 'RR')->sole();
+        $meesho = Marketplace::query()->where('code', 'MEESHO')->sole();
+        $flagged = fn () => collect($this->actingAs($this->boss)->get(route('listings.index'))->viewData('page')['props']['listings'])
+            ->where('suspect', true)->pluck('seller_sku')->sort()->values()->all();
+
+        // Two of a single product on SKUs that do not say so.
+        $orders->mapSku($meesho, $brand, '1347006533_4', $this->oil, 2, $this->boss);
+        // Two, said by the SKU's name ("-P2") or by its size (600 ml of a 300 ml oil).
+        $orders->mapSku($meesho, $brand, 'RR-Medicated-300ml-P2', $this->oil, 2, $this->boss);
+        $orders->mapSku($meesho, $brand, 'RRMED600ML', $this->oil, 2, $this->boss);
+        $this->assertSame(['1347006533_4'], $flagged());
+
+        // Someone looks and says it is a pack of two: it is not asked again.
+        $listing = MarketplaceListing::query()->where('seller_sku', '1347006533_4')->sole();
+        $this->actingAs($this->boss)->post(route('listings.confirm', $listing))->assertRedirect();
+        $this->assertSame([], $flagged());
+
+        // Chosen as a Pack of 2 on the mapping screen: not flagged either.
+        $this->actingAs($this->boss)->post(route('listings.store'), [
+            'marketplace_id' => $meesho->id, 'brand_id' => $brand->id, 'seller_sku' => '555105305_5',
+            'components' => [['item_id' => $this->oil->id, 'units' => 2]], 'pack_confirmed' => true,
+        ])->assertRedirect();
+        $this->assertSame([], $flagged());
+    }
+
+    #[Test]
+    public function an_sku_that_is_not_ours_is_removed_with_its_waiting_parcels(): void
+    {
+        $meesho = Marketplace::query()->where('code', 'MEESHO')->sole();
+        $brand = Brand::query()->where('code', 'RR')->sole();
+
+        $this->actingAs($this->boss)->post(route('listings.dismiss'), [
+            'marketplace_id' => $meesho->id, 'brand_id' => $brand->id, 'seller_sku' => 'Mystery oil',
+        ])->assertRedirect();
+
+        $parcel = $this->parcel('DL0000000000005');
+        $this->assertSame(ShipmentStatus::Cancelled, $parcel->status);
+        $this->assertStringContainsString('Not our product', (string) $parcel->cancel_reason);
+        $this->assertTrue($this->parcel('VL0000000000001')->status->awaitsPacking(), 'Other parcels are not touched.');
+
+        $this->actingAs($this->boss)->get(route('listings.index'))
+            ->assertInertia(fn (Assert $page) => $page->where('waiting', []));
+    }
 }

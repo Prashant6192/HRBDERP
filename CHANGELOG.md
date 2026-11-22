@@ -11,6 +11,17 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Added — Products with no barcode are flagged
+
+- Products shows a Barcode column: the barcode, or a red "No barcode"
+  mark. A notice above the list counts the active products with no
+  barcode and shows them in one click; the list can also be filtered by
+  "No barcode". A pack (Pack of 2) is proved by its single's barcode, so
+  only single products are counted.
+- Scan parcels names the products in the day's parcels that have no
+  barcode on file, before packing starts: those are checked by eye, not
+  by scan.
+
 ### Added — Packing check: scan the label, then scan each product
 
 - Scan parcels now proves what goes in the packet. The label is scanned

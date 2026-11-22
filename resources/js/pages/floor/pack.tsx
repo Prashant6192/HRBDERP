@@ -106,6 +106,7 @@ export default function ScanParcels({
     cutoff,
     can_cancel,
     can_pass_by_eye,
+    no_barcode,
 }: {
     date: string;
     is_today: boolean;
@@ -114,6 +115,8 @@ export default function ScanParcels({
     cutoff: string;
     can_cancel: boolean;
     can_pass_by_eye: boolean;
+    /** Products in the day's parcels that have no barcode on file. */
+    no_barcode: { id: number; name: string }[];
 }) {
     const [busy, setBusy] = useState(false);
     const [outcome, setOutcome] = useState<Outcome | null>(null);
@@ -564,6 +567,26 @@ export default function ScanParcels({
                         </p>
                     </div>
                 </div>
+
+                {no_barcode.length > 0 && !open && (
+                    <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-3 text-sm">
+                        <p className="font-semibold text-red-700 dark:text-red-300">
+                            {no_barcode.length}{' '}
+                            {no_barcode.length === 1
+                                ? 'product to pack has'
+                                : 'products to pack have'}{' '}
+                            no barcode on file
+                        </p>
+                        <p className="mt-0.5">
+                            {no_barcode.map((p) => p.name).join(' · ')}
+                        </p>
+                        <p className="text-muted-foreground mt-1 text-xs">
+                            These are checked by eye, not by scan. Ask the
+                            office to add the barcode on the product&rsquo;s
+                            page.
+                        </p>
+                    </div>
+                )}
 
                 <Scanner
                     onCode={onCode}

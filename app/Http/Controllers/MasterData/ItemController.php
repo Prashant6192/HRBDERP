@@ -74,7 +74,7 @@ abstract class ItemController extends Controller
     {
         $this->authorize('viewAny', $this->modelClass());
 
-        $table = TableQuery::fromRequest($request, allowedFilters: ['category', 'status']);
+        $table = TableQuery::fromRequest($request, allowedFilters: ['category', 'status', 'barcode']);
 
         $query = $this->modelClass()::query()
             ->with('category:id,name', 'stockUom:id,code,display_scale')
@@ -88,7 +88,15 @@ abstract class ItemController extends Controller
             $query->where('is_active', $status === 'active');
         }
 
+        // A pack is proved by its single's barcode, so only singles count.
+        if ($table->filter('barcode') === 'missing') {
+            $query->whereNull('pack_of_item_id')->where(fn ($q) => $q->whereNull('barcode')->orWhere('barcode', ''));
+        } elseif ($table->filter('barcode') === 'on_file') {
+            $query->whereNotNull('barcode')->where('barcode', '!=', '');
+        }
+
         return Inertia::render("{$this->pageDirectory()}/index", [
+            ...$this->extraIndexProps(),
             'items' => $table->paginate(
                 $table->applySorting($query, static::SORTABLE, fallback: 'code')
             ),
@@ -109,6 +117,16 @@ abstract class ItemController extends Controller
                 'photos' => ($reader = app(InvoiceReader::class)) instanceof BillReader ? $reader->readsPhotos() : $reader->available(),
             ],
         ]);
+    }
+
+    /**
+     * What a module's list shows beyond the shared table.
+     *
+     * @return array<string, mixed>
+     */
+    protected function extraIndexProps(): array
+    {
+        return [];
     }
 
     /**

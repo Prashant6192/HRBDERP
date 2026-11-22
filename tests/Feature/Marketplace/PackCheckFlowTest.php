@@ -28,6 +28,7 @@ use Database\Seeders\RolePermissionSeeder;
 use Database\Seeders\UomSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\FakeLabelReader;
 use Tests\Support\LabelFixtures;
@@ -182,5 +183,33 @@ class PackCheckFlowTest extends TestCase
             ->assertJson(['item_id' => $this->oil->id, 'name' => 'Rahat Rooh Medicated Oil 300ml']);
 
         $this->actingAs($this->shanu)->getJson(route('floor.pack.product', ['code' => '0000000000000']))->assertNotFound();
+    }
+
+    #[Test]
+    public function a_product_with_no_barcode_is_flagged_on_the_packing_screen_and_the_product_list(): void
+    {
+        // With its barcode on file nothing is flagged.
+        $this->actingAs($this->shanu)->get(route('floor.pack'))
+            ->assertInertia(fn (Assert $page) => $page->where('no_barcode', []));
+
+        Product::query()->update(['barcode' => 'X']);
+        $this->oil->forceFill(['barcode' => null])->save();
+
+        // Named once, though it waits in single parcels and in a Pack of 2.
+        $this->actingAs($this->shanu)->get(route('floor.pack'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('no_barcode', [['id' => $this->oil->id, 'name' => 'Rahat Rooh Medicated Oil 300ml']]));
+
+        $this->actingAs($this->boss)->get(route('products.index'))
+            ->assertInertia(fn (Assert $page) => $page->where('no_barcode', 1));
+
+        // The pack has no barcode of its own either, but its single proves it.
+        $this->pack->forceFill(['barcode' => null])->save();
+
+        $this->actingAs($this->boss)->get(route('products.index', ['barcode' => 'missing']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('no_barcode', 1)
+                ->has('items.data', 1)
+                ->where('items.data.0.id', $this->oil->id));
     }
 }

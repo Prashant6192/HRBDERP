@@ -40,6 +40,23 @@ class ProductController extends ItemController
     }
 
     /**
+     * How many products the packing check cannot prove: active singles with
+     * no barcode on file.
+     *
+     * @return array<string, mixed>
+     */
+    protected function extraIndexProps(): array
+    {
+        return [
+            'no_barcode' => Product::query()
+                ->where('is_active', true)
+                ->whereNull('pack_of_item_id')
+                ->where(fn ($q) => $q->whereNull('barcode')->orWhere('barcode', ''))
+                ->count(),
+        ];
+    }
+
+    /**
      * The packaging list, and the materials it may be built from.
      *
      * @return array<string, mixed>

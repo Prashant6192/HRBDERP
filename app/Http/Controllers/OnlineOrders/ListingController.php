@@ -75,13 +75,7 @@ class ListingController extends Controller
             ->get()
             ->flatMap(fn (Shipment $s) => $s->lines->map(fn (ShipmentLine $l) => [
                 'key' => "{$s->marketplace_id}|{$s->brand_id}|{$l->seller_sku}",
-                'shipment_id' => $s->id,
-                'order_number' => $s->order_number,
-                'awb' => $s->awb,
-                'quantity' => (int) $l->quantity,
-                'for_date' => $s->batch?->for_date?->toDateString(),
-                'file_url' => $s->label_file_id === null ? null : route('online-orders.files.show', $s->label_file_id),
-                'page' => $s->pages[0] ?? 1,
+                ...self::order($s, $l),
             ]))
             ->groupBy('key');
 
@@ -121,6 +115,18 @@ class ListingController extends Controller
             ->selectRaw('listing_id, MAX(description) AS description')
             ->pluck('description', 'listing_id');
 
+        // The newest orders of each mapped SKU, packed or not, so a mapping
+        // can be checked against its labels before it is changed.
+        $mappedOrders = ShipmentLine::query()
+            ->whereNotNull('listing_id')
+            ->with(['shipment.batch:id,for_date'])
+            ->latest('id')
+            ->limit(3000)
+            ->get()
+            ->filter(fn (ShipmentLine $l) => $l->shipment !== null)
+            ->groupBy('listing_id')
+            ->map(fn ($lines) => $lines->take(8)->map(fn (ShipmentLine $l) => self::order($l->shipment, $l))->values()->all());
+
         $listings = MarketplaceListing::query()
             ->with(['marketplace:id,name', 'brand:id,name', 'item:id,code,name', 'components.item:id,code,name,pack_of_item_id'])
             ->orderBy('marketplace_id')->orderBy('brand_id')->orderBy('seller_sku')
@@ -134,6 +140,8 @@ class ListingController extends Controller
                     && (int) $l->components->first()->units_per_order > 1
                     && $l->components->first()->item?->pack_of_item_id === null
                     && SkuReading::of((string) $l->seller_sku, $printed->get($l->id), $l->brand?->name)->pack !== (int) $l->components->first()->units_per_order,
+                'orders' => $mappedOrders->get($l->id, []),
+                'description' => $printed->get($l->id),
                 'id' => $l->id, 'marketplace' => $l->marketplace?->name, 'marketplace_id' => $l->marketplace_id,
                 'brand' => $l->brand?->name, 'brand_id' => $l->brand_id, 'seller_sku' => $l->seller_sku,
                 'item_id' => $l->item_id, 'item' => $l->item?->name, 'item_code' => $l->item?->code,
@@ -161,6 +169,27 @@ class ListingController extends Controller
             'marketplaces' => Marketplace::query()->orderBy('name')->get(['id', 'name'])->map(fn ($m) => ['value' => (string) $m->id, 'label' => $m->name])->all(),
             'brands' => Brand::query()->orderBy('name')->get(['id', 'name'])->map(fn ($b) => ['value' => (string) $b->id, 'label' => $b->name])->all(),
         ]);
+    }
+
+    /**
+     * One order an SKU was on, for the mapping screen: its numbers, the
+     * quantity ordered, its dates and where its label is.
+     *
+     * @return array{shipment_id: int, order_number: string|null, awb: string|null, quantity: int, order_date: string|null, invoice_date: string|null, for_date: string|null, file_url: string|null, page: int}
+     */
+    private static function order(Shipment $s, ShipmentLine $l): array
+    {
+        return [
+            'shipment_id' => $s->id,
+            'order_number' => $s->order_number,
+            'awb' => $s->awb,
+            'quantity' => (int) $l->quantity,
+            'order_date' => $s->order_date?->toDateString(),
+            'invoice_date' => $s->invoice_date?->toDateString(),
+            'for_date' => $s->batch?->for_date?->toDateString(),
+            'file_url' => $s->label_file_id === null ? null : route('online-orders.files.show', $s->label_file_id),
+            'page' => $s->pages[0] ?? 1,
+        ];
     }
 
     /**

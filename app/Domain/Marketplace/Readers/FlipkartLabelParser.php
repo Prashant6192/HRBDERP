@@ -71,6 +71,7 @@ final class FlipkartLabelParser implements LabelTextParser
             'payable_amount' => $total,
             'invoice_number' => TextLines::after($lines, 'Invoice No:'),
             'invoice_date' => $invoiceDate,
+            'order_date' => preg_match('/Order\s*Date:\s*(\d{2}-\d{2}-\d{4})/i', $all, $od) === 1 ? $od[1] : null,
             'customer_name' => $customer,
             'customer_state' => $state,
             'seller_gstin' => $gstin,

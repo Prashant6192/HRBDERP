@@ -64,7 +64,7 @@ class Shipment extends Model
     protected $fillable = [
         'label_batch_id', 'label_file_id', 'marketplace_id', 'brand_id', 'warehouse_id', 'pages', 'page_slot',
         'awb', 'alt_code', 'order_number', 'courier', 'payment_mode', 'payable_amount', 'shipping_charge',
-        'invoice_number', 'invoice_date', 'customer_name', 'customer_state', 'customer_pincode', 'invoice_file_id', 'invoice_pages', 'seller_gstin',
+        'invoice_number', 'invoice_date', 'order_date', 'customer_name', 'customer_state', 'customer_pincode', 'invoice_file_id', 'invoice_pages', 'seller_gstin',
         'status', 'stock_state',
         'printed_at', 'printed_by', 'print_count', 'packed_at', 'packed_by', 'pack_method', 'pack_note',
         'handed_over_at', 'handed_over_by', 'handover_sheet_id', 'cancelled_at', 'cancelled_by', 'cancel_reason', 'returned_at',
@@ -83,6 +83,7 @@ class Shipment extends Model
             'status' => ShipmentStatus::class,
             'stock_state' => StockState::class,
             'invoice_date' => 'date',
+            'order_date' => 'date',
             'printed_at' => 'datetime',
             'print_count' => 'integer',
             'packed_at' => 'datetime',

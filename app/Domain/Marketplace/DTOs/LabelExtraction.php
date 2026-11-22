@@ -19,6 +19,7 @@ final class LabelExtraction
      * @param  list<string|null>  $lineAmounts  what each line sold for in all, tax included, in the order of $lines
      * @param  list<string>  $warnings
      * @param  int|null  $slot  where on its page the label sits, when a page holds several (0 = first, left to right)
+     * @param  string|null  $orderDate  the day the customer ordered (YYYY-MM-DD), where the paperwork prints it
      * @param  bool  $invoiceOnly  read from a separate tax-invoice file: it completes the parcel whose label has the same AWB
      */
     public function __construct(
@@ -41,6 +42,7 @@ final class LabelExtraction
         public readonly bool $invoiceOnly = false,
         public readonly ?string $shippingCharge = null,
         public readonly array $lineAmounts = [],
+        public readonly ?string $orderDate = null,
     ) {}
 
     /**
@@ -93,6 +95,7 @@ final class LabelExtraction
             invoiceOnly: ($data['invoice_only'] ?? false) === true,
             shippingCharge: self::amount($data['shipping_charge'] ?? null),
             lineAmounts: $amounts,
+            orderDate: self::date($data['order_date'] ?? null),
         );
     }
 
@@ -121,6 +124,7 @@ final class LabelExtraction
             'invoice_only' => $this->invoiceOnly,
             'shipping_charge' => $this->shippingCharge,
             'line_amounts' => $this->lineAmounts,
+            'order_date' => $this->orderDate,
         ];
     }
 

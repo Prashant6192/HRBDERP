@@ -11,6 +11,25 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Changed — Changing a mapped SKU works like mapping a new one
+
+- The mapped list shows each SKU with its product's photo and what one
+  unit is in words ("= 1 × Medicated Oil 500ml · Single"), with Change
+  and Delete.
+- Change opens the same card as a new SKU, filled in with the mapping as
+  it is: Single, Pack of 2 or bundle, then the product by its photo. The
+  SKU's newest orders are listed with View label, and "Now" sits beside
+  "After you save", each saying what a packer would be asked for. Save
+  change is enabled only once something differs.
+
+### Added — Order date
+
+- The day the customer ordered is read off labels and invoices that print
+  it (Flipkart, Amazon, Meesho, the website's Shiprocket labels and the
+  AI reader) and kept with the parcel. SKU mapping shows it on each
+  order, falling back to the invoice date or the day of the labels for
+  parcels uploaded before.
+
 ### Changed — SKU mapping, one SKU at a time
 
 - "Waiting to be mapped" now shows one SKU at a time and asks two things

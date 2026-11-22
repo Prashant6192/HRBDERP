@@ -184,6 +184,7 @@ final class AmazonLabelParser implements LabelFileParser
             'payment_mode' => $payment,
             'payable_amount' => $invoices === [] ? null : $this->total($invoice),
             'invoice_number' => preg_match('/invoice\s*number\s*:\s*([A-Z0-9][A-Z0-9\/-]*)/i', $invoice, $m) === 1 ? $m[1] : null,
+            'order_date' => preg_match('/order\s*date\s*:\s*(\d{1,2}[.\/-]\d{1,2}[.\/-]\d{4})/i', $invoice, $od) === 1 ? $od[1] : null,
             'invoice_date' => preg_match('/invoice\s*date\s*:\s*(\d{1,2}[.\/-]\d{1,2}[.\/-]\d{4})/i', $invoice, $m) === 1 ? $m[1] : null,
             'seller_gstin' => preg_match('/GST\s*Registration\s*No\s*:\s*(\d{2}[A-Z0-9]{13})/i', $invoice, $m) === 1 ? $m[1] : null,
             // The invoice prints the name exactly; OCR adds stray marks.

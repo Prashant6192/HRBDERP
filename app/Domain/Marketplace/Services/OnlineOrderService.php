@@ -433,9 +433,39 @@ class OnlineOrderService
             return $listing;
         });
 
+        $this->rematch($marketplace->id, $brand->id, $key, $user);
+
+        return $listing->refresh()->load('components.item');
+    }
+
+    /**
+     * Take a mapping off the file. Parcels of its SKU still waiting to be
+     * packed go back to "not mapped" and their stock back on the shelf;
+     * parcels already packed keep what they were packed as.
+     *
+     * @return int the waiting parcels sent back to be mapped
+     */
+    public function deleteSkuMapping(MarketplaceListing $listing, User $user): int
+    {
+        $marketplaceId = $listing->marketplace_id;
+        $brandId = $listing->brand_id;
+        $key = $listing->sku_key;
+
+        DB::transaction(fn () => $listing->delete());
+
+        return $this->rematch($marketplaceId, $brandId, $key, $user);
+    }
+
+    /**
+     * Match the waiting parcels of an SKU again after its mapping changed.
+     *
+     * @return int the parcels matched again
+     */
+    private function rematch(int $marketplaceId, int $brandId, string $key, User $user): int
+    {
         $waiting = Shipment::query()
-            ->where('marketplace_id', $marketplace->id)
-            ->where('brand_id', $brand->id)
+            ->where('marketplace_id', $marketplaceId)
+            ->where('brand_id', $brandId)
             ->whereIn('status', ShipmentStatus::awaitingPacking())
             ->with('lines')
             // First uploaded, first served when stock is short.
@@ -444,12 +474,28 @@ class OnlineOrderService
             ->filter(fn (Shipment $s) => $s->lines->contains(fn (ShipmentLine $l) => MarketplaceListing::keyFor($l->seller_sku) === $key));
 
         foreach ($waiting as $shipment) {
+            // Stock already taken at upload was taken for the old mapping
+            // (four pieces an order instead of one, say): it goes back on
+            // the shelf before the parcel is matched and its stock taken
+            // again for what it really holds.
+            if ($shipment->stock_state === StockState::Consumed) {
+                DB::transaction(function () use ($shipment, $user): void {
+                    $posting = $shipment->transactions()->where('type', InventoryTransactionType::MarketplaceSale->value)->latest('id')->first();
+
+                    if ($posting !== null) {
+                        $this->ledger->reverse($posting, "SKU mapping of {$shipment->reference()} changed: stock put back to be taken again", $user->id);
+                    }
+
+                    $this->setStockState($shipment, StockState::Released);
+                });
+            }
+
             $this->reservations->releaseAllFor($shipment);
             $this->mapLines($shipment);
             $this->hold($shipment->refresh());
         }
 
-        return $listing->refresh()->load('components.item');
+        return $waiting->count();
     }
 
     /**

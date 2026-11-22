@@ -11,6 +11,24 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Fixed — An order's quantity typed into SKU mapping as pieces
+
+- SKU mapping asked for "pieces per order", and a label for six of an SKU
+  was mapped as 6 pieces. Every later label was then multiplied twice: a
+  label for 4 asked the packer for 16. The screen now says what it wants:
+  the pieces in ONE unit of the SKU (1 for a bottle, 2 only for a pack of
+  two); the quantity ordered is read from each label.
+- Saving more than one piece on an SKU that does not read as a pack asks
+  first whether the SKU really holds that many.
+- Mappings already saved that way are listed at the top of SKU mapping,
+  each with "Set to 1 piece".
+- A mapping can be deleted (Delete beside Change). Parcels of its SKU
+  still waiting to be packed go back to "Waiting to be mapped" with their
+  stock back on the shelf; parcels already packed are not changed.
+- Changing a mapping now puts back the stock that was taken for waiting
+  parcels under the old mapping and takes it again for what they really
+  hold. Before, a parcel whose stock left at upload kept the old amount.
+
 ### Changed — Packing ends with Enter, then waits for the next label
 
 - When every product of a parcel is scanned, a green Packed button

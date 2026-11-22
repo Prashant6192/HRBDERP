@@ -86,11 +86,28 @@ class ListingController extends Controller
             ];
         })->all();
 
+        // What the labels call each mapped SKU, to tell a real pack ("Pack
+        // of 2") from an order quantity typed in as pieces.
+        $printed = ShipmentLine::query()
+            ->whereNotNull('listing_id')
+            ->whereNotNull('description')
+            ->groupBy('listing_id')
+            ->selectRaw('listing_id, MAX(description) AS description')
+            ->pluck('description', 'listing_id');
+
         $listings = MarketplaceListing::query()
-            ->with(['marketplace:id,name', 'brand:id,name', 'item:id,code,name', 'components.item:id,code,name'])
+            ->with(['marketplace:id,name', 'brand:id,name', 'item:id,code,name', 'components.item:id,code,name,pack_of_item_id'])
             ->orderBy('marketplace_id')->orderBy('brand_id')->orderBy('seller_sku')
             ->get()
             ->map(fn (MarketplaceListing $l) => [
+                // More than one piece of a single product, on an SKU that
+                // does not say it is a pack of that many: most likely the
+                // quantity of one order was typed in as the pieces.
+                'suspect' => $l->is_active
+                    && $l->components->count() === 1
+                    && (int) $l->components->first()->units_per_order > 1
+                    && $l->components->first()->item?->pack_of_item_id === null
+                    && SkuReading::of((string) $l->seller_sku, $printed->get($l->id), $l->brand?->name)->pack !== (int) $l->components->first()->units_per_order,
                 'id' => $l->id, 'marketplace' => $l->marketplace?->name, 'marketplace_id' => $l->marketplace_id,
                 'brand' => $l->brand?->name, 'brand_id' => $l->brand_id, 'seller_sku' => $l->seller_sku,
                 'item_id' => $l->item_id, 'item' => $l->item?->name, 'item_code' => $l->item?->code,
@@ -170,6 +187,24 @@ class ListingController extends Controller
         }
 
         return back()->withToast('success', "\"{$listing->seller_sku}\" is {$this->describe($listing)}. Waiting parcels have been matched.");
+    }
+
+    /**
+     * Take a mapping off the file: its waiting parcels go back to "Waiting
+     * to be mapped".
+     */
+    public function destroy(Request $request, MarketplaceListing $listing): RedirectResponse
+    {
+        $this->authorize('marketplace.manage');
+        $sku = $listing->seller_sku;
+
+        try {
+            $back = $this->orders->deleteSkuMapping($listing, $request->user());
+        } catch (OnlineOrderException $e) {
+            return back()->withToast('error', $e->getMessage());
+        }
+
+        return back()->withToast('success', "\"{$sku}\" is no longer mapped.".($back > 0 ? " {$back} waiting parcel(s) are back under Waiting to be mapped." : ''));
     }
 
     public function update(Request $request, MarketplaceListing $listing): RedirectResponse

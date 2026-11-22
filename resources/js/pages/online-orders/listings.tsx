@@ -1,5 +1,5 @@
 import { Head, router, useForm } from '@inertiajs/react';
-import { Boxes, Plus, Tags, X } from 'lucide-react';
+import { AlertTriangle, Boxes, Plus, Tags, X } from 'lucide-react';
 import { useState } from 'react';
 import InputError from '@/components/input-error';
 import { PageHeader } from '@/components/page-header';
@@ -11,7 +11,7 @@ import {
     type SearchableOption,
 } from '@/components/ui/searchable-select';
 import { cn } from '@/lib/utils';
-import { packs, store, update } from '@/routes/listings';
+import { destroy, packs, store, update } from '@/routes/listings';
 
 type Waiting = {
     marketplace_id: number;
@@ -44,6 +44,8 @@ type Listing = {
     item_code: string | null;
     units_per_order: number;
     is_active: boolean;
+    /** More than one piece on an SKU that is not a pack: likely an order quantity typed as pieces. */
+    suspect: boolean;
     components: {
         item_id: number;
         item: string | null;
@@ -206,11 +208,11 @@ function ComponentsEditor({
                                     ),
                                 })
                             }
-                            aria-label="Pieces per order"
-                            title="Pieces of this product in one order: 2 for a pack of two"
+                            aria-label="Pieces in one unit of this SKU"
+                            title="Pieces in ONE unit of this SKU: 1 for a single bottle, 2 only if the SKU itself is a pack of two. Not the quantity ordered: that is read from each label."
                         />
-                        <p className="text-muted-foreground mt-1 text-xs">
-                            pieces
+                        <p className="text-muted-foreground mt-1 text-xs leading-tight">
+                            pieces in 1 unit
                         </p>
                     </div>
                     {value.length > 1 ? (
@@ -240,7 +242,29 @@ function ComponentsEditor({
                 Add another product (combo)
             </Button>
             <InputError message={errors.components} />
+            <p className="text-muted-foreground text-xs">
+                Pieces is what <strong>one unit</strong> of this SKU holds: 1
+                for a single bottle, 2 only when the SKU itself is a pack of
+                two. Do not enter the quantity ordered: the ERP reads that from
+                each label and multiplies.
+            </p>
         </div>
+    );
+}
+
+/**
+ * Before saving more than one piece on an SKU that does not read as a
+ * pack: is it the SKU that holds that many, or was it one order's quantity?
+ */
+function sureOfPieces(sku: string, components: Component[]): boolean {
+    const most = Math.max(...components.map((c) => c.units));
+
+    if (components.length !== 1 || most <= 1 || guessPieces(sku) === most) {
+        return true;
+    }
+
+    return window.confirm(
+        `Is ONE unit of "${sku}" really ${most} pieces?\n\nIf a customer ordered ${most}, the label already says quantity ${most} and the ERP multiplies by it. A single bottle should be 1 piece.\n\nOK = this SKU is a pack of ${most}. Cancel = go back and set 1.`,
     );
 }
 
@@ -368,11 +392,94 @@ function MapRow({
                     form.data.components.some((c) => c.item_id === '') ||
                     form.processing
                 }
-                onClick={() => form.post(store().url, { preserveScroll: true })}
+                onClick={() =>
+                    sureOfPieces(
+                        `${row.seller_sku} ${row.description ?? ''}`,
+                        form.data.components,
+                    ) && form.post(store().url, { preserveScroll: true })
+                }
             >
                 Map
             </Button>
         </li>
+    );
+}
+
+/**
+ * Mappings that take several pieces for one unit of an SKU that is not a
+ * pack: every label of that SKU is being multiplied twice. One click sets
+ * each back to one piece and matches the waiting parcels again.
+ */
+function SuspectMappings({ listings }: { listings: Listing[] }) {
+    const suspects = listings.filter((l) => l.suspect);
+    const [busy, setBusy] = useState<number | null>(null);
+
+    if (suspects.length === 0) {
+        return null;
+    }
+
+    const setToOne = (l: Listing) => {
+        setBusy(l.id);
+        router.patch(
+            update(l.id).url,
+            {
+                is_active: true,
+                components: [
+                    { item_id: String(l.components[0].item_id), units: 1 },
+                ],
+            },
+            { preserveScroll: true, onFinish: () => setBusy(null) },
+        );
+    };
+
+    return (
+        <section className="rounded-xl border border-red-500/50 bg-red-500/5">
+            <div className="border-b border-red-500/30 px-4 py-3">
+                <h2 className="flex items-center gap-2 text-sm font-semibold text-red-700 dark:text-red-300">
+                    <AlertTriangle className="size-4" />
+                    {suspects.length} mapping{suspects.length === 1 ? '' : 's'}{' '}
+                    to check: more than 1 piece on an SKU that is not a pack
+                </h2>
+                <p className="mt-1 text-xs">
+                    The ERP multiplies the label&rsquo;s quantity by these
+                    pieces. A label for 4 of an SKU mapped as 4 pieces asks for
+                    16. If the SKU is one bottle, set it to 1 piece.
+                </p>
+            </div>
+            <ul className="divide-y divide-red-500/20">
+                {suspects.map((l) => (
+                    <li
+                        key={l.id}
+                        className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm"
+                    >
+                        <div className="min-w-0 flex-1">
+                            <span className="font-mono font-medium">
+                                {l.seller_sku}
+                            </span>
+                            <span className="text-muted-foreground ml-2 text-xs">
+                                {l.brand} · {l.marketplace}
+                            </span>
+                            <div className="mt-0.5">
+                                Now:{' '}
+                                <strong>{l.components[0].units} pieces</strong>{' '}
+                                of {l.components[0].item} for each unit ordered
+                            </div>
+                        </div>
+                        <Button
+                            size="sm"
+                            disabled={busy !== null}
+                            onClick={() => setToOne(l)}
+                        >
+                            {busy === l.id ? 'Setting…' : 'Set to 1 piece'}
+                        </Button>
+                    </li>
+                ))}
+            </ul>
+            <p className="text-muted-foreground border-t border-red-500/20 px-4 py-2 text-xs">
+                If one of these really is a pack of that many, leave it: it
+                stays listed here only as a reminder.
+            </p>
+        </section>
     );
 }
 
@@ -410,7 +517,15 @@ function ListingRow({
                         errors={form.errors as Record<string, string>}
                     />
                 ) : (
-                    <Contents components={listing.components} />
+                    <>
+                        <Contents components={listing.components} />
+                        {listing.suspect && (
+                            <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-700 dark:text-red-300">
+                                <AlertTriangle className="size-3.5" />
+                                Check: this SKU is not a pack
+                            </p>
+                        )}
+                    </>
                 )}
             </td>
             <td className="px-4 py-3">
@@ -453,6 +568,11 @@ function ListingRow({
                                     ))
                             }
                             onClick={() =>
+                                (!form.data.is_active ||
+                                    sureOfPieces(
+                                        listing.seller_sku,
+                                        form.data.components,
+                                    )) &&
                                 form.patch(update(listing.id).url, {
                                     preserveScroll: true,
                                     onSuccess: () => setEditing(false),
@@ -463,13 +583,30 @@ function ListingRow({
                         </Button>
                     </>
                 ) : (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setEditing(true)}
-                    >
-                        Change
-                    </Button>
+                    <>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEditing(true)}
+                        >
+                            Change
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-700 hover:text-red-800 dark:text-red-300"
+                            onClick={() =>
+                                window.confirm(
+                                    `Delete the mapping of "${listing.seller_sku}"?\n\nParcels of this SKU still waiting to be packed go back to "Waiting to be mapped" and their stock goes back on the shelf. Parcels already packed are not changed.`,
+                                ) &&
+                                router.delete(destroy(listing.id).url, {
+                                    preserveScroll: true,
+                                })
+                            }
+                        >
+                            Delete
+                        </Button>
+                    </>
                 )}
             </td>
         </tr>
@@ -502,8 +639,10 @@ export default function SkuMapping({
             <div className="space-y-6 p-4 sm:p-6">
                 <PageHeader
                     title="SKU mapping"
-                    description="What each marketplace prints, and what goes in the box for it: one product, a pack of two (one product, 2 pieces), or a combo of several products. Map an SKU once; every label after carries it straight to the right stock."
+                    description="What each marketplace prints, and what ONE unit of it is: one product, a pack of two (one product, 2 pieces), or a combo of several products. The quantity a customer ordered is read from each label and multiplied, so it is never typed here. Map an SKU once; every label after carries it straight to the right stock."
                 />
+
+                <SuspectMappings listings={listings} />
 
                 <section className="bg-card rounded-xl border">
                     <div className="flex items-center justify-between border-b px-4 py-3">

@@ -1026,7 +1026,7 @@ export default function OnlineOrdersIndex({
                             <div className="ml-auto flex flex-wrap items-center gap-2">
                                 <label
                                     className="text-muted-foreground flex items-center gap-2 text-xs"
-                                    title="Meesho and Flipkart labels print cut to 4×6 inch for the label printer. Tick to print the whole page with the tax invoice."
+                                    title="Meesho and Flipkart labels print cut to 4×6 inch for the label printer, and Amazon labels print without their invoice page. Tick to print the whole page with the tax invoice."
                                 >
                                     <input
                                         type="checkbox"

@@ -133,6 +133,10 @@ export type PrintPlan = {
         fit?: boolean;
         /** Shiprocket: which of the page's labels is this parcel's (0 = left). */
         slot?: number | null;
+        /** What is inside, written under the label (Amazon's label does not say). */
+        stamp?: string;
+        /** Pages that print only when the whole file is asked for (Amazon's invoice). */
+        only_whole?: boolean;
     }[];
     files: Record<string, string>;
 };
@@ -213,6 +217,62 @@ export function rememberFullPage(full: boolean): void {
     }
 }
 
+/** The height, in points, of the band under a label that says what is inside. */
+const STAMP_BAND = 46;
+
+/**
+ * A parcel's contents set in the band under its label: as large as fits
+ * on one line, else on two, else cut short. Only letters a label printer's
+ * plain font has are kept.
+ */
+export function stampLines(
+    text: string,
+    measure: (text: string, size: number) => number,
+    width: number,
+): { text: string[]; size: number } {
+    const plain = text
+        .replace(/[^\x20-\x7E]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    for (const size of [15, 13, 11]) {
+        if (measure(plain, size) <= width) {
+            return { text: [plain], size };
+        }
+    }
+
+    for (const size of [13, 11, 9.5, 8.5]) {
+        const words = plain.split(' ');
+        let first = '';
+
+        while (
+            words.length > 0 &&
+            measure(`${first} ${words[0]}`.trim(), size) <= width
+        ) {
+            first = `${first} ${words.shift()}`.trim();
+        }
+
+        let second = words.join(' ');
+
+        if (first !== '' && measure(second, size) <= width) {
+            return { text: [first, second], size };
+        }
+
+        if (size === 8.5) {
+            while (second.length > 1 && measure(`${second}...`, size) > width) {
+                second = second.slice(0, -1);
+            }
+
+            return {
+                text: first === '' ? [`${second}...`] : [first, `${second}...`],
+                size,
+            };
+        }
+    }
+
+    return { text: [plain], size: 8.5 };
+}
+
 /** Labels already measured in this tab: file URL and page to the label. */
 const measured = new Map<string, Box | null>();
 
@@ -233,7 +293,7 @@ export async function printPlan(
     plan: PrintPlan,
     options: PrintOptions = {},
 ): Promise<void> {
-    const [{ PDFDocument, degrees }, crop] = await Promise.all([
+    const [{ PDFDocument, StandardFonts, degrees }, crop] = await Promise.all([
         import('pdf-lib'),
         import('@/lib/label-crop'),
     ]);
@@ -253,11 +313,15 @@ export async function printPlan(
             seen: PDFDocumentProxy | null;
         }
     >();
-    const total = plan.parts.reduce((n, p) => n + p.pages.length, 0);
+    const parts = plan.parts.filter((p) => options.fullPage || !p.only_whole);
+    const total = parts.reduce((n, p) => n + p.pages.length, 0);
     let done = 0;
+    const bold = plan.parts.some((p) => p.stamp)
+        ? await out.embedFont(StandardFonts.HelveticaBold)
+        : null;
 
     try {
-        for (const part of plan.parts) {
+        for (const part of parts) {
             const url = plan.files[String(part.file_id)];
             let source = sources.get(part.file_id);
 
@@ -328,13 +392,15 @@ export async function printPlan(
                 }
 
                 // A whole-page label of another size is scaled onto 4×6.
-                if (!box && part.fit && !options.fullPage) {
+                if (!box && (part.fit || part.stamp) && !options.fullPage) {
                     const media = source.doc.getPage(index).getMediaBox();
                     const fits =
                         Math.abs(media.width - crop.LABEL_WIDTH) < 2 &&
                         Math.abs(media.height - crop.LABEL_HEIGHT) < 2;
 
-                    if (!fits) {
+                    // A label with a line to write under it is always
+                    // re-set, to make room for the line.
+                    if (!fits || part.stamp) {
                         box = {
                             left: media.x,
                             bottom: media.y,
@@ -349,17 +415,45 @@ export async function printPlan(
                         [source.doc.getPage(index)],
                         [box],
                     );
-                    const at = crop.placeOnLabel(box);
-                    out.addPage([crop.LABEL_WIDTH, crop.LABEL_HEIGHT]).drawPage(
-                        label,
-                        {
-                            x: at.x,
-                            y: at.y,
-                            width: (box.right - box.left) * at.scale,
-                            height: (box.top - box.bottom) * at.scale,
-                            rotate: degrees(at.sideways ? 90 : 0),
-                        },
-                    );
+                    // The product is written in a band under the label.
+                    const band =
+                        part.stamp && bold && !options.fullPage
+                            ? STAMP_BAND
+                            : 0;
+                    const at = crop.placeOnLabel(box, band);
+                    const sheet = out.addPage([
+                        crop.LABEL_WIDTH,
+                        crop.LABEL_HEIGHT,
+                    ]);
+                    sheet.drawPage(label, {
+                        x: at.x,
+                        y: at.y,
+                        width: (box.right - box.left) * at.scale,
+                        height: (box.top - box.bottom) * at.scale,
+                        rotate: degrees(at.sideways ? 90 : 0),
+                    });
+
+                    if (band > 0 && part.stamp && bold) {
+                        const width = crop.LABEL_WIDTH - 16;
+                        const lines = stampLines(
+                            part.stamp,
+                            (text, size) => bold.widthOfTextAtSize(text, size),
+                            width,
+                        );
+                        sheet.drawLine({
+                            start: { x: 8, y: band },
+                            end: { x: crop.LABEL_WIDTH - 8, y: band },
+                            thickness: 1,
+                        });
+                        lines.text.forEach((line, i) =>
+                            sheet.drawText(line, {
+                                x: 8,
+                                y: band - 6 - lines.size - i * (lines.size + 2),
+                                size: lines.size,
+                                font: bold,
+                            }),
+                        );
+                    }
                 } else {
                     const [copied] = await out.copyPages(source.doc, [index]);
                     out.addPage(copied);

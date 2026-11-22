@@ -482,6 +482,16 @@ class OnlineOrderServiceTest extends TestCase
         $orders->mapSku($this->amazon, $this->rahatRooh, 'Hair_Oil_200ml', $this->oil, 1, $this->agency);
         $this->assertSame(StockState::Reserved, Shipment::query()->where('awb', '13300000000002')->sole()->stock_state);
         $this->assertSame('20', $this->free());
+
+        // The label printer gets each label alone, with the product written
+        // under it; the invoice pages go only when the whole file is asked for.
+        $plan = $orders->print($batch, 'all', $this->agency);
+        $this->assertSame(2, $plan['pages']);
+        $this->assertSame([[1], [2], [3], [4]], array_column($plan['parts'], 'pages'));
+        $this->assertSame([false, true, false, true], array_map(fn (array $p) => $p['only_whole'] ?? false, $plan['parts']));
+        $this->assertSame($this->oil->name.' x 1', $plan['parts'][0]['stamp']);
+        $this->assertTrue($plan['parts'][0]['fit']);
+        $this->assertArrayNotHasKey('stamp', $plan['parts'][1]);
     }
 
     #[Test]

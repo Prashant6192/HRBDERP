@@ -952,21 +952,58 @@ class OnlineOrderService
             && $s->invoice_file_id !== $s->label_file_id
             && ($readers->get($s->marketplace_id)?->reader?->printsSeparateInvoice() ?? false);
 
+        // Amazon prints the courier label on one page and the tax invoice on
+        // the page after it. The label alone goes to the 4×6 printer, with
+        // the product written under it (the label itself does not say what
+        // is inside); the invoice pages print only when the whole file is
+        // asked for.
+        $amazon = fn (Shipment $s): bool => $readers->get($s->marketplace_id)?->reader === LabelReaderKind::Amazon
+            && count($s->pages) > 1
+            && ! collect($s->warnings ?? [])->contains(fn ($w) => str_contains((string) $w, 'No Amazon shipping label'));
+
+        $shipments->filter($amazon)->each->loadMissing(['lines', 'picks.item:id,name']);
+
         // Each label, then its invoice when it came in a separate file and
         // is label-sized (Myntra). The website's A4 invoices stay off the
         // label printer.
-        $parts = $shipments->flatMap(fn (Shipment $s) => array_values(array_filter([
-            ['shipment_id' => $s->id, 'file_id' => $s->label_file_id, 'pages' => array_values($s->pages), 'courier' => $s->courier, 'crop' => $crop($s), 'slot' => $s->page_slot, 'fit' => $fit($s)],
-            $withInvoice($s)
-                ? ['shipment_id' => $s->id, 'file_id' => $s->invoice_file_id, 'pages' => array_values($s->invoice_pages), 'courier' => $s->courier, 'crop' => false, 'slot' => null]
-                : null,
-        ])))->values();
+        $parts = $shipments->flatMap(fn (Shipment $s) => $amazon($s)
+            ? [
+                ['shipment_id' => $s->id, 'file_id' => $s->label_file_id, 'pages' => [array_values($s->pages)[0]], 'courier' => $s->courier, 'crop' => false, 'slot' => null, 'fit' => true, 'stamp' => $this->contents($s)],
+                ['shipment_id' => $s->id, 'file_id' => $s->label_file_id, 'pages' => array_slice(array_values($s->pages), 1), 'courier' => $s->courier, 'crop' => false, 'slot' => null, 'only_whole' => true],
+            ]
+            : array_values(array_filter([
+                ['shipment_id' => $s->id, 'file_id' => $s->label_file_id, 'pages' => array_values($s->pages), 'courier' => $s->courier, 'crop' => $crop($s), 'slot' => $s->page_slot, 'fit' => $fit($s)],
+                $withInvoice($s)
+                    ? ['shipment_id' => $s->id, 'file_id' => $s->invoice_file_id, 'pages' => array_values($s->invoice_pages), 'courier' => $s->courier, 'crop' => false, 'slot' => null]
+                    : null,
+            ])))->values();
 
         return [
             'shipments' => $shipments->count(),
-            'pages' => $parts->sum(fn (array $p) => count($p['pages'])),
+            'pages' => $parts->reject(fn (array $p) => $p['only_whole'] ?? false)->sum(fn (array $p) => count($p['pages'])),
             'parts' => $parts->all(),
         ];
+    }
+
+    /**
+     * What is in a parcel, in a line short enough to print under its
+     * label: the ERP's products where the SKU is mapped ("Medicated Oil
+     * 300ml x 2"), otherwise the label's own SKU.
+     */
+    private function contents(Shipment $shipment): string
+    {
+        $picks = $shipment->picks->groupBy('item_id')->map(fn ($picks) => sprintf(
+            '%s x %s',
+            $picks->first()->item?->name ?? '?',
+            Decimal::strip((string) $picks->reduce(fn (BigDecimal $c, ShipmentPick $p) => $c->plus(BigDecimal::of($p->units)), BigDecimal::zero())),
+        ));
+
+        if ($picks->isNotEmpty()) {
+            return $picks->implode(' + ');
+        }
+
+        return $shipment->lines->map(fn (ShipmentLine $l) => sprintf('%s x %s', $l->seller_sku ?: ($l->description ?: '?'), $l->quantity))->implode(' + ')
+            ?: 'Product not known';
     }
 
     // ---- Pack -------------------------------------------------------------

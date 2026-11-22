@@ -411,7 +411,9 @@ export default function OnlineOrderBatch({
     const [printing, setPrinting] = useState(false);
     const [progress, setProgress] = useState<string | null>(null);
     const [fullPage, setFullPage] = useState(printsFullPage);
-    const crops = ['Meesho', 'Flipkart'].includes(batch.marketplace ?? '');
+    const crops = ['Meesho', 'Flipkart', 'Amazon'].includes(
+        batch.marketplace ?? '',
+    );
     const [editing, setEditing] = useState<Parcel | null>(null);
     const [cancelling, setCancelling] = useState<Parcel | null>(null);
     const [forcing, setForcing] = useState<Parcel | null>(null);
@@ -637,8 +639,8 @@ export default function OnlineOrderBatch({
                                                 </DropdownMenuCheckboxItem>
                                                 <p className="text-muted-foreground px-2 pb-1.5 text-xs">
                                                     {fullPage
-                                                        ? 'Prints the whole A4 page.'
-                                                        : 'Labels print cut to 4×6 inch for the label printer.'}
+                                                        ? 'Prints every page whole, tax invoice included.'
+                                                        : 'Labels print on 4×6 inch for the label printer, without the invoice.'}
                                                 </p>
                                             </>
                                         )}

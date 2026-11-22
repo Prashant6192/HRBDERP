@@ -11,6 +11,17 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Changed — Packing ends with Enter, then waits for the next label
+
+- When every product of a parcel is scanned, a green Packed button
+  appears and Enter presses it; the parcel is no longer packed by the
+  last scan alone. The packer closes the packet, presses Enter, and the
+  screen goes straight back to "Scan the sticker", saying which parcel
+  was just packed.
+- A product's barcode read when no parcel is open (the bottle still in
+  front of the camera) no longer says "STOP: no parcel has the code". It
+  says "Scan the label first".
+
 ### Security — Packages with known advisories updated
 
 - The PHP packages with published security advisories are on their

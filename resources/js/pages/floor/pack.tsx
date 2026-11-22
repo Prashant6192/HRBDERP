@@ -135,6 +135,9 @@ export default function ScanParcels({
 
     const [open, setOpen] = useState<Open | null>(null);
     const [flash, setFlash] = useState<Flash | null>(null);
+    // What the waiting screen says between parcels: the last one packed,
+    // or why a scan was not a label.
+    const [note, setNote] = useState<Flash | null>(null);
     // The scanner fires faster than React re-renders: the open parcel is
     // read from here, so two quick scans both count.
     const live = useRef<Open | null>(null);
@@ -169,22 +172,30 @@ export default function ScanParcels({
 
             const result: Result =
                 ok && data.ok ? (data.result ?? 'scanned') : 'stop';
-            setOutcome({
-                result,
-                message: data.message,
-                shipment: data.shipment,
-                code: done.code,
-            });
             signal(result === 'scanned');
 
             if (result === 'scanned' && data.shipment) {
+                // Packed: straight back to waiting for the next label.
                 const parcel = data.shipment;
+                setOutcome(null);
+                setNote({
+                    tone: 'ok',
+                    title: 'Packed',
+                    text: `${parcel.marketplace ?? 'Order'} ${parcel.order_number ?? parcel.awb ?? done.code} is on the ${courierName(parcel.courier)} pile. Scan the next label.`,
+                });
                 setRecent((r) => [parcel, ...r].slice(0, 15));
                 setN((c) => ({
                     ...c,
                     to_scan: Math.max(0, c.to_scan - 1),
                     scanned: c.scanned + 1,
                 }));
+            } else {
+                setOutcome({
+                    result,
+                    message: data.message,
+                    shipment: data.shipment,
+                    code: done.code,
+                });
             }
         } catch {
             setOutcome({
@@ -202,7 +213,10 @@ export default function ScanParcels({
         }
     }, []);
 
-    /** Count pieces against a row, and pack when nothing is left. */
+    /**
+     * Count pieces against a row. When nothing is left the parcel waits for
+     * Enter (the Packed button): the packer closes the packet, then says so.
+     */
     const prove = useCallback(
         (now: Open, row: PackCheckRow, pieces: number, byEye: boolean) => {
             const next: Open = {
@@ -224,7 +238,12 @@ export default function ScanParcels({
             if (
                 next.rows.every((r) => (next.done[r.item_id] ?? 0) >= r.pieces)
             ) {
-                void finish(next);
+                signal(true);
+                setFlash({
+                    tone: 'ok',
+                    title: 'Everything is in',
+                    text: 'Close the packet and press Enter to mark it packed.',
+                });
 
                 return;
             }
@@ -236,7 +255,7 @@ export default function ScanParcels({
                 text: `${row.full_name} · ${next.done[row.item_id]} of ${row.pieces}`,
             });
         },
-        [finish],
+        [],
     );
 
     /** A scan while a parcel is open is a product going into it. */
@@ -252,6 +271,19 @@ export default function ScanParcels({
 
             if (row && (now.done[row.item_id] ?? 0) < row.pieces) {
                 prove(now, row, row.codes[scanned], false);
+
+                return;
+            }
+
+            if (
+                row &&
+                now.rows.every((r) => (now.done[r.item_id] ?? 0) >= r.pieces)
+            ) {
+                setFlash({
+                    tone: 'ok',
+                    title: 'Everything is in',
+                    text: 'Nothing more goes in this parcel. Press Enter to mark it packed.',
+                });
 
                 return;
             }
@@ -347,12 +379,38 @@ export default function ScanParcels({
             setBusy(true);
 
             try {
-                const { ok, data } = await postJson<{
+                const { ok, status, data } = await postJson<{
                     ok: boolean;
                     result?: 'open' | 'scanned' | 'already' | 'dispatched';
                     message: string;
                     shipment?: Parcel;
                 }>(openRoute().url, { code });
+
+                // Not a label. If it is a product's barcode (the bottle
+                // still in front of the camera after its parcel was
+                // packed), say so quietly: it is not a missing parcel.
+                if (!ok && status === 404) {
+                    const product = await fetch(
+                        productRoute({
+                            query: { code: code.trim().toUpperCase() },
+                        }).url,
+                        {
+                            credentials: 'same-origin',
+                            headers: { Accept: 'application/json' },
+                        },
+                    ).catch(() => null);
+
+                    if (product?.ok) {
+                        setOutcome(null);
+                        setNote({
+                            tone: 'wait',
+                            title: 'Scan the label first',
+                            text: 'That was a product. Scan the label on the packet, then its products.',
+                        });
+
+                        return;
+                    }
+                }
 
                 if (
                     ok &&
@@ -369,10 +427,13 @@ export default function ScanParcels({
                     });
                     setOutcome(null);
                     setFlash(null);
+                    setNote(null);
                     signal(true);
 
                     return;
                 }
+
+                setNote(null);
 
                 const result: Result =
                     ok && data.ok && data.result !== 'open'
@@ -424,12 +485,19 @@ export default function ScanParcels({
             (r) => (now.done[r.item_id] ?? 0) < r.pieces,
         );
 
+        // Every product scanned: Enter is the Packed button.
+        if (left.length === 0) {
+            void finish(now);
+
+            return;
+        }
+
         if (left.some((r) => r.has_barcode)) {
             signal(false);
             setFlash({
                 tone: 'bad',
                 title: 'Not finished',
-                text: 'Enter works only for a product with no barcode. Scan the product shown.',
+                text: 'Scan the product shown first. Enter marks the parcel packed once everything is in.',
             });
 
             return;
@@ -526,8 +594,9 @@ export default function ScanParcels({
                         <h1 className="text-lg font-semibold">Scan parcels</h1>
                         <p className="text-muted-foreground text-sm">
                             Scan the label: the screen shows what goes in. Scan
-                            each product as it goes in; when all are in, the
-                            parcel is packed and on the courier&rsquo;s pile.
+                            each product as it goes in. When all are in, press
+                            Enter: the parcel is packed and the screen waits for
+                            the next label.
                         </p>
                     </div>
 
@@ -627,14 +696,42 @@ export default function ScanParcels({
 
                 <div className="space-y-4 lg:sticky lg:top-18 lg:col-start-2 lg:row-span-2 lg:row-start-1">
                     {!open && !outcome && (
-                        <div className="bg-card text-muted-foreground hidden min-h-96 flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-8 text-center lg:flex">
-                            <PackageCheck className="size-14" />
-                            <p className="text-foreground text-3xl font-bold">
-                                Scan the sticker on the packet
+                        <div
+                            role="status"
+                            aria-live="polite"
+                            className={cn(
+                                'bg-card text-muted-foreground min-h-96 flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-8 text-center',
+                                note ? 'flex' : 'hidden lg:flex',
+                                note?.tone === 'ok' &&
+                                    'border-solid border-emerald-600 bg-emerald-500/10',
+                                note?.tone === 'wait' &&
+                                    'border-solid border-amber-500 bg-amber-400/15',
+                            )}
+                        >
+                            {note?.tone === 'ok' ? (
+                                <CheckCircle2 className="size-14 text-emerald-600" />
+                            ) : (
+                                <PackageCheck className="size-14" />
+                            )}
+                            <p
+                                className={cn(
+                                    'text-foreground text-3xl font-bold',
+                                    note?.tone === 'ok' &&
+                                        'text-emerald-700 dark:text-emerald-300',
+                                )}
+                            >
+                                {note?.title ??
+                                    'Scan the sticker on the packet'}
                             </p>
                             <p className="text-base">
-                                The product to pack will show here.
+                                {note?.text ??
+                                    'The product to pack will show here.'}
                             </p>
+                            {note?.tone === 'ok' && (
+                                <p className="text-foreground text-xl font-semibold">
+                                    Scan the sticker on the next packet
+                                </p>
+                            )}
                         </div>
                     )}
 
@@ -1079,6 +1176,17 @@ function PackStage({
             </div>
 
             <div className="flex flex-wrap items-center gap-2 border-t px-4 py-3">
+                {left.length === 0 && (
+                    <Button
+                        type="button"
+                        size="lg"
+                        className="h-14 bg-emerald-600 px-8 text-lg text-white hover:bg-emerald-700"
+                        disabled={busy}
+                        onClick={onEnter}
+                    >
+                        Packed (Enter)
+                    </Button>
+                )}
                 {onlyByEye && (
                     <Button
                         type="button"
@@ -1099,7 +1207,8 @@ function PackStage({
                     Put this parcel aside (Esc)
                 </Button>
                 <p className="text-muted-foreground ml-auto text-xs">
-                    Nothing is packed until every product is in.
+                    Nothing is packed until every product is in and you press
+                    Enter.
                 </p>
             </div>
         </section>

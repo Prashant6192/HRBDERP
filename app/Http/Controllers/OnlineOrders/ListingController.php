@@ -136,6 +136,7 @@ class ListingController extends Controller
                 // does not say it is a pack of that many: most likely the
                 // quantity of one order was typed in as the pieces.
                 'suspect' => $this->suspect($l, $printed->get($l->id)),
+                'reads_as' => $this->readsAs($l, $printed->get($l->id), $candidates, $products),
                 'orders' => $mappedOrders->get($l->id, []),
                 'description' => $printed->get($l->id),
                 'id' => $l->id, 'marketplace' => $l->marketplace?->name, 'marketplace_id' => $l->marketplace_id,
@@ -226,6 +227,37 @@ class ListingController extends Controller
         }
 
         return back()->withToast('success', "\"{$data['seller_sku']}\" removed: {$parcels->count()} parcel(s) cancelled as not our product.");
+    }
+
+    /**
+     * The product an SKU's own words clearly name, when it is not the one it
+     * is mapped to ("Rahat Rooh Medicated Oil 300ml (pack of 2)" mapped to
+     * Ratna): most likely the wrong tile was picked. Null when the words
+     * agree or say too little.
+     *
+     * @param  list<array{id: int, name: string, pack_of: int|null, pack_quantity: int|null}>  $candidates
+     * @param  Collection<int, Item>  $products
+     */
+    private function readsAs(MarketplaceListing $l, ?string $printed, array $candidates, Collection $products): ?string
+    {
+        if (! $l->is_active || $l->components->count() !== 1) {
+            return null;
+        }
+
+        $suggested = SkuReading::of((string) $l->seller_sku, $printed, $l->brand?->name)->suggest($candidates)
+            // The SKU text alone, when the label's title is the noisier one.
+            ?? SkuReading::of((string) $l->seller_sku, (string) $l->seller_sku, $l->brand?->name)->suggest($candidates);
+
+        if ($suggested === null) {
+            return null;
+        }
+
+        $single = fn (?int $id) => ($item = $products->firstWhere('id', $id)) === null ? $id : ($item->pack_of_item_id ?? $item->id);
+        $mapped = $l->components->first()->item_id;
+
+        return $single((int) $suggested['id']) === $single((int) $mapped)
+            ? null
+            : $products->firstWhere('id', $single((int) $suggested['id']))?->name;
     }
 
     /**

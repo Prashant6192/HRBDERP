@@ -11,7 +11,10 @@ import type { SharedData } from '@/types';
  * held in one hand with the other on a drum.
  */
 export default function FloorLayout({ children }: { children: ReactNode }) {
-    const { auth, erp } = usePage<SharedData>().props;
+    const page = usePage<SharedData>();
+    const { auth, erp } = page.props;
+    // The packing table is a big screen: scanner and parcel side by side.
+    const wide = page.component === 'floor/pack';
     useFlashToast();
 
     const atHome =
@@ -60,7 +63,13 @@ export default function FloorLayout({ children }: { children: ReactNode }) {
                     </Link>
                 </div>
             </header>
-            <main className="mx-auto w-full max-w-lg flex-1 px-4 pt-4 pb-10">
+            <main
+                className={
+                    wide
+                        ? 'mx-auto w-full max-w-lg flex-1 px-4 pt-4 pb-10 lg:max-w-[100rem] lg:px-6'
+                        : 'mx-auto w-full max-w-lg flex-1 px-4 pt-4 pb-10'
+                }
+            >
                 {children}
             </main>
         </div>

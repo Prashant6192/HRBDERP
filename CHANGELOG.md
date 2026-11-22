@@ -11,6 +11,18 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Fixed — Scan parcels on a big screen
+
+- On a computer screen the packing check was squeezed into a phone-width
+  column: the product's name ran under the progress ring and the parcel
+  sat below the camera. The scanner now stays on the left and the parcel
+  being packed fills the right, in large letters that fit the space they
+  have. On a phone the two still stack.
+- A label carries several barcodes and the camera reads them all: a
+  barcode that is on no product was called a "wrong product". Only a
+  barcode on another product is a wrong product now; anything else says
+  "Not a product barcode".
+
 ### Changed — Amazon labels print alone, with the product written under them
 
 - Amazon sends the courier label on one page and the tax invoice on the

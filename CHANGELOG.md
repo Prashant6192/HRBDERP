@@ -11,6 +11,15 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Changed — Product photos for Cleanse and the Ratan boxes
+
+- Cleanse Kasvi Hair Oil, Hydra Smooth Shampoo, Dandruff Care Shampoo and
+  Face Moisturiser, Hydrating Facewash and Oil Control (Acne Care)
+  Facewash now show their photos on SKU mapping, Online orders and the
+  packing screen.
+- The green box photo shows on Rahat Rooh Ayurveda Ratan 300 ml and
+  500 ml, and no longer on the single Ayurveda Ratan Green Hair Oil.
+
 ### Added — Mappings whose SKU names another product are flagged
 
 - A Flipkart label for "Rahat Rooh Medicated Oil 300ml (pack of 2)"

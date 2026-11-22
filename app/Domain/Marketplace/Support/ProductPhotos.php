@@ -12,17 +12,32 @@ namespace App\Domain\Marketplace\Support;
  */
 final class ProductPhotos
 {
-    /** Words in a product's name => its photo under public/images/products. Longer names first. */
+    /** Words in a product's name => its photo under public/images/products, null for none. First match wins. */
     private const array PHOTOS = [
+        // The single green bottle sold on its own has a photo of its own
+        // still to come; the Ratan boxes (300 ml, 500 ml) are the green box.
+        'ratan green' => null,
         'neem face wash' => 'neem-face-wash.jpg',
         'neem facewash' => 'neem-face-wash.jpg',
+        'ayurveda ratan' => 'ratna-green.png',
         'ratna green' => 'ratna-green.png',
         'lal tel' => 'lal-tel.png',
         'medicated' => 'medicated.png',
         'satreetha' => 'satreetha.png',
         'sukoon' => 'sukoon.png',
         'lauki' => 'lauki.png',
-        'green' => 'ratna-green.png',
+        // Cleanse.
+        'hydrating facewash' => 'cleanse-hydrating-facewash.webp',
+        'hydrating face wash' => 'cleanse-hydrating-facewash.webp',
+        'acne' => 'cleanse-acne-care-facewash.webp',
+        // Sold as the Acne Care Facewash, for oily skin.
+        'oil control facewash' => 'cleanse-acne-care-facewash.webp',
+        'oil control face wash' => 'cleanse-acne-care-facewash.webp',
+        'kasvi' => 'cleanse-kasvi-hair-oil.webp',
+        'hydra smooth' => 'cleanse-hydra-smooth-shampoo.webp',
+        'dandruff' => 'cleanse-dandruff-shampoo.webp',
+        'moisturiser' => 'cleanse-face-moisturiser.webp',
+        'moisturizer' => 'cleanse-face-moisturiser.webp',
     ];
 
     /**
@@ -35,7 +50,7 @@ final class ProductPhotos
 
         foreach (self::PHOTOS as $words => $file) {
             if (str_contains($name, " {$words} ")) {
-                return "/images/products/{$file}";
+                return $file === null ? null : "/images/products/{$file}";
             }
         }
 

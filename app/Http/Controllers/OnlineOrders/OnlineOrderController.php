@@ -23,6 +23,8 @@ use App\Domain\Marketplace\Services\OnlineOrderAccess;
 use App\Domain\Marketplace\Services\OnlineOrderService;
 use App\Domain\Marketplace\Support\Cutoff;
 use App\Domain\Marketplace\Support\LabelFileStore;
+use App\Domain\Marketplace\Support\PackCheck;
+use App\Domain\Marketplace\Support\ProductPhotos;
 use App\Domain\Warehousing\Enums\WarehouseType;
 use App\Domain\Warehousing\Models\Facility;
 use App\Domain\Warehousing\Models\Warehouse;
@@ -200,6 +202,8 @@ class OnlineOrderController extends Controller
                 ],
             ])->all(),
             'totals' => $totals,
+            // The day's products to take off the racks, each as its single.
+            'products' => $this->brands->isRestricted($user) ? [] : $this->dayProducts($batchIds->all()),
             'shortfall' => $this->brands->isRestricted($user) ? [] : $this->orders->shortfallFor($batches),
             // Scanned parcels waiting for their courier, by courier.
             'dispatchable' => $this->brands->isRestricted($user) ? (object) [] : (object) Shipment::query()
@@ -724,6 +728,56 @@ class OnlineOrderController extends Controller
     /**
      * @return Builder<LabelBatch>
      */
+    /**
+     * What the day's parcels hold, product by product: a Pack of 2 counted
+     * as its single twice. How many pieces in all, how many still to pack,
+     * in how many orders, and whether the packing scan can prove it.
+     *
+     * @param  list<int>  $batchIds
+     * @return list<array{item_id: int, name: string, size: string|null, pieces: int, to_pack: int, orders: int, short: int, has_barcode: bool, photo: string|null}>
+     */
+    private function dayProducts(array $batchIds): array
+    {
+        if ($batchIds === []) {
+            return [];
+        }
+
+        $pieces = 'p.units * (CASE WHEN i.pack_of_item_id IS NOT NULL THEN COALESCE(i.pack_quantity, 1) ELSE 1 END)';
+        $awaiting = implode(',', array_map(fn (string $s) => "'{$s}'", ShipmentStatus::awaitingPacking()));
+
+        return DB::table('shipment_picks as p')
+            ->join('shipments as s', 's.id', '=', 'p.shipment_id')
+            ->join('items as i', 'i.id', '=', 'p.item_id')
+            ->leftJoin('items as single', 'single.id', '=', 'i.pack_of_item_id')
+            ->whereIn('s.label_batch_id', $batchIds)
+            ->whereNotIn('s.status', [ShipmentStatus::Cancelled->value, ShipmentStatus::Returned->value])
+            ->groupByRaw('COALESCE(single.id, i.id), COALESCE(single.name, i.name), (CASE WHEN single.id IS NOT NULL THEN single.barcode ELSE i.barcode END)')
+            ->selectRaw('COALESCE(single.id, i.id) AS item_id, COALESCE(single.name, i.name) AS name')
+            ->selectRaw('(CASE WHEN single.id IS NOT NULL THEN single.barcode ELSE i.barcode END) AS barcode')
+            ->selectRaw("SUM({$pieces}) AS pieces")
+            ->selectRaw("SUM(CASE WHEN s.status IN ({$awaiting}) THEN {$pieces} ELSE 0 END) AS to_pack")
+            ->selectRaw('COUNT(DISTINCT s.id) AS orders')
+            ->selectRaw("SUM(CASE WHEN s.stock_state = ? THEN {$pieces} ELSE 0 END) AS short", [StockState::Short->value])
+            ->orderByRaw('4 DESC')
+            ->get()
+            ->map(function ($row): array {
+                [$name, $size] = PackCheck::nameAndSize((string) $row->name);
+
+                return [
+                    'item_id' => (int) $row->item_id,
+                    'name' => $name,
+                    'size' => $size,
+                    'pieces' => (int) ceil((float) $row->pieces),
+                    'to_pack' => (int) ceil((float) $row->to_pack),
+                    'orders' => (int) $row->orders,
+                    'short' => (int) ceil((float) $row->short),
+                    'has_barcode' => trim((string) $row->barcode) !== '',
+                    'photo' => ProductPhotos::forName((string) $row->name),
+                ];
+            })
+            ->all();
+    }
+
     /**
      * The morning's pick list: every product the day's labels need, how
      * many pieces to take off the racks, what they are selling for, and

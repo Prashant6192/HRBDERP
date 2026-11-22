@@ -256,9 +256,8 @@ export default function ScanParcels({
                 return;
             }
 
-            signal(false);
-
             if (row) {
+                signal(false);
                 setFlash({
                     tone: 'bad',
                     title: 'One too many',
@@ -270,7 +269,12 @@ export default function ScanParcels({
 
             // The label itself, scanned again: nothing wrong, nothing to count.
             if (
-                [now.code, now.parcel.awb, now.parcel.order_number]
+                [
+                    now.code,
+                    now.parcel.awb,
+                    now.parcel.alt_code,
+                    now.parcel.order_number,
+                ]
                     .filter(Boolean)
                     .some((c) => String(c).toUpperCase() === scanned)
             ) {
@@ -283,11 +287,10 @@ export default function ScanParcels({
                 return;
             }
 
-            setFlash({
-                tone: 'bad',
-                title: 'Wrong product',
-                text: 'This is not what the order asks for. Take it out and scan the product shown.',
-            });
+            // A label carries several barcodes, and the camera reads them
+            // all: only a barcode that is on another product is a wrong
+            // product. Anything else is simply not a product's barcode.
+            let other: string | null = null;
 
             try {
                 const response = await fetch(
@@ -298,17 +301,33 @@ export default function ScanParcels({
                     },
                 );
 
-                if (response.ok && live.current?.code === now.code) {
-                    const found = (await response.json()) as { name: string };
-                    setFlash({
-                        tone: 'bad',
-                        title: 'Wrong product',
-                        text: `You scanned ${found.name}. Take it out and scan the product shown.`,
-                    });
+                if (response.ok) {
+                    other = ((await response.json()) as { name: string }).name;
                 }
             } catch {
-                // The red screen already says it.
+                // Treated as not a product's barcode.
             }
+
+            if (live.current?.code !== now.code) {
+                return;
+            }
+
+            if (other === null) {
+                setFlash({
+                    tone: 'wait',
+                    title: 'Not a product barcode',
+                    text: 'That barcode is not on any product. Scan the barcode printed on the product itself.',
+                });
+
+                return;
+            }
+
+            signal(false);
+            setFlash({
+                tone: 'bad',
+                title: 'Wrong product',
+                text: `You scanned ${other}. Take it out and scan the product shown.`,
+            });
         },
         [prove],
     );
@@ -499,279 +518,305 @@ export default function ScanParcels({
     return (
         <>
             <Head title="Scan parcels" />
-            <div className="space-y-4">
-                <div>
-                    <h1 className="text-lg font-semibold">Scan parcels</h1>
-                    <p className="text-muted-foreground text-sm">
-                        Scan the label: the screen shows what goes in. Scan each
-                        product as it goes in; when all are in, the parcel is
-                        packed and on the courier&rsquo;s pile.
-                    </p>
-                </div>
-
-                <div className="bg-card flex items-center gap-2 rounded-2xl border p-2">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Day before"
-                        onClick={() => shift(-1)}
-                    >
-                        <ChevronLeft className="size-5" />
-                    </Button>
-                    <div className="min-w-0 flex-1 text-center">
-                        <p className="text-sm font-semibold">
-                            {is_today ? 'Today · ' : ''}
-                            {dayLabel}
-                        </p>
-                        <Input
-                            type="date"
-                            value={date}
-                            onChange={(e) =>
-                                e.target.value && goTo(e.target.value)
-                            }
-                            className="mx-auto mt-1 h-8 w-40 text-center text-xs"
-                            aria-label="Choose the day"
-                        />
-                    </div>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Day after"
-                        onClick={() => shift(1)}
-                    >
-                        <ChevronRight className="size-5" />
-                    </Button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-card rounded-2xl border p-3">
-                        <p className="text-muted-foreground text-xs uppercase">
-                            To scan
-                        </p>
-                        <p className="text-3xl font-semibold tabular-nums">
-                            {n.to_scan}
-                        </p>
-                        <p className="text-muted-foreground text-xs">
-                            by {cutoff}
+            {/* On a wide screen the scanner stays on the left and the parcel
+                being packed fills the right; on a phone they stack. */}
+            <div className="space-y-4 lg:grid lg:grid-cols-[23rem_minmax(0,1fr)] lg:items-start lg:gap-5 lg:space-y-0">
+                <div className="space-y-4 lg:col-start-1 lg:row-start-1">
+                    <div>
+                        <h1 className="text-lg font-semibold">Scan parcels</h1>
+                        <p className="text-muted-foreground text-sm">
+                            Scan the label: the screen shows what goes in. Scan
+                            each product as it goes in; when all are in, the
+                            parcel is packed and on the courier&rsquo;s pile.
                         </p>
                     </div>
-                    <div className="bg-card rounded-2xl border p-3">
-                        <p className="text-muted-foreground text-xs uppercase">
-                            Scanned
-                        </p>
-                        <p className="text-3xl font-semibold text-emerald-700 tabular-nums dark:text-emerald-300">
-                            {n.scanned}
-                        </p>
-                        <p className="text-muted-foreground text-xs">
-                            {n.dispatched} dispatched · {n.cancelled} cancelled
-                        </p>
-                    </div>
-                </div>
 
-                {no_barcode.length > 0 && !open && (
-                    <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-3 text-sm">
-                        <p className="font-semibold text-red-700 dark:text-red-300">
-                            {no_barcode.length}{' '}
-                            {no_barcode.length === 1
-                                ? 'product to pack has'
-                                : 'products to pack have'}{' '}
-                            no barcode on file
-                        </p>
-                        <p className="mt-0.5">
-                            {no_barcode.map((p) => p.name).join(' · ')}
-                        </p>
-                        <p className="text-muted-foreground mt-1 text-xs">
-                            These are checked by eye, not by scan. Ask the
-                            office to add the barcode on the product&rsquo;s
-                            page.
-                        </p>
-                    </div>
-                )}
-
-                <Scanner
-                    onCode={onCode}
-                    busy={busy}
-                    placeholder={
-                        open
-                            ? 'Scan the barcode on each product…'
-                            : "Start scanning: scan the label's barcode…"
-                    }
-                    repeatMs={1200}
-                    captureKeys
-                    onEnter={onEnter}
-                />
-
-                {open && (
-                    <PackStage
-                        open={open}
-                        flash={flash}
-                        busy={busy}
-                        canPassByEye={can_pass_by_eye}
-                        onPassByEye={(row) =>
-                            live.current &&
-                            prove(live.current, row, row.pieces, true)
-                        }
-                        onEnter={onEnter}
-                        onPutAside={putAside}
-                    />
-                )}
-
-                {outcome && !open && (
-                    <section
-                        role="status"
-                        aria-live="assertive"
-                        className={cn(
-                            'rounded-2xl border-2 p-4',
-                            outcome.result === 'scanned' &&
-                                'border-emerald-600 bg-emerald-500/15',
-                            (outcome.result === 'already' ||
-                                outcome.result === 'dispatched') &&
-                                'border-amber-500 bg-amber-400/20',
-                            outcome.result === 'stop' &&
-                                'border-red-600 bg-red-500/15',
-                        )}
-                    >
-                        <div className="flex items-center gap-3">
-                            {outcome.result === 'stop' ? (
-                                <OctagonX className="size-12 shrink-0 text-red-600" />
-                            ) : outcome.result === 'already' ||
-                              outcome.result === 'dispatched' ? (
-                                <AlertTriangle className="size-12 shrink-0 text-amber-600" />
-                            ) : (
-                                <CheckCircle2 className="size-12 shrink-0 text-emerald-600" />
-                            )}
-                            <div>
-                                <p
-                                    className={cn(
-                                        'text-3xl font-bold tracking-wide',
-                                        outcome.result === 'stop' &&
-                                            'text-red-700 dark:text-red-300',
-                                        (outcome.result === 'already' ||
-                                            outcome.result === 'dispatched') &&
-                                            'text-amber-800 dark:text-amber-200',
-                                        outcome.result === 'scanned' &&
-                                            'text-emerald-700 dark:text-emerald-300',
-                                    )}
-                                >
-                                    {outcome.result === 'stop'
-                                        ? 'STOP'
-                                        : outcome.result === 'already'
-                                          ? 'ALREADY SCANNED'
-                                          : outcome.result === 'dispatched'
-                                            ? 'ALREADY DISPATCHED'
-                                            : 'SCANNED'}
-                                </p>
-                                <p className="text-sm">{outcome.message}</p>
-                            </div>
+                    <div className="bg-card flex items-center gap-2 rounded-2xl border p-2">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Day before"
+                            onClick={() => shift(-1)}
+                        >
+                            <ChevronLeft className="size-5" />
+                        </Button>
+                        <div className="min-w-0 flex-1 text-center">
+                            <p className="text-sm font-semibold">
+                                {is_today ? 'Today · ' : ''}
+                                {dayLabel}
+                            </p>
+                            <Input
+                                type="date"
+                                value={date}
+                                onChange={(e) =>
+                                    e.target.value && goTo(e.target.value)
+                                }
+                                className="mx-auto mt-1 h-8 w-40 text-center text-xs"
+                                aria-label="Choose the day"
+                            />
                         </div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Day after"
+                            onClick={() => shift(1)}
+                        >
+                            <ChevronRight className="size-5" />
+                        </Button>
+                    </div>
 
-                        {(outcome.result === 'already' ||
-                            outcome.result === 'dispatched') &&
-                            s && (
-                                <div className="mt-4">
-                                    {outcome.settled ? (
-                                        <p className="rounded-xl bg-white/60 px-3 py-2 text-sm font-semibold dark:bg-black/20">
-                                            {outcome.settled}
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-card rounded-2xl border p-3">
+                            <p className="text-muted-foreground text-xs uppercase">
+                                To scan
+                            </p>
+                            <p className="text-3xl font-semibold tabular-nums">
+                                {n.to_scan}
+                            </p>
+                            <p className="text-muted-foreground text-xs">
+                                by {cutoff}
+                            </p>
+                        </div>
+                        <div className="bg-card rounded-2xl border p-3">
+                            <p className="text-muted-foreground text-xs uppercase">
+                                Scanned
+                            </p>
+                            <p className="text-3xl font-semibold text-emerald-700 tabular-nums dark:text-emerald-300">
+                                {n.scanned}
+                            </p>
+                            <p className="text-muted-foreground text-xs">
+                                {n.dispatched} dispatched · {n.cancelled}{' '}
+                                cancelled
+                            </p>
+                        </div>
+                    </div>
+
+                    {no_barcode.length > 0 && !open && (
+                        <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-3 text-sm">
+                            <p className="font-semibold text-red-700 dark:text-red-300">
+                                {no_barcode.length}{' '}
+                                {no_barcode.length === 1
+                                    ? 'product to pack has'
+                                    : 'products to pack have'}{' '}
+                                no barcode on file
+                            </p>
+                            <p className="mt-0.5">
+                                {no_barcode.map((p) => p.name).join(' · ')}
+                            </p>
+                            <p className="text-muted-foreground mt-1 text-xs">
+                                These are checked by eye, not by scan. Ask the
+                                office to add the barcode on the product&rsquo;s
+                                page.
+                            </p>
+                        </div>
+                    )}
+
+                    <Scanner
+                        onCode={onCode}
+                        busy={busy}
+                        placeholder={
+                            open
+                                ? 'Scan the barcode on each product…'
+                                : "Start scanning: scan the label's barcode…"
+                        }
+                        repeatMs={1200}
+                        captureKeys
+                        onEnter={onEnter}
+                    />
+                </div>
+
+                <div className="space-y-4 lg:sticky lg:top-18 lg:col-start-2 lg:row-span-2 lg:row-start-1">
+                    {!open && !outcome && (
+                        <div className="bg-card text-muted-foreground hidden min-h-96 flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-8 text-center lg:flex">
+                            <PackageCheck className="size-14" />
+                            <p className="text-foreground text-3xl font-bold">
+                                Scan the sticker on the packet
+                            </p>
+                            <p className="text-base">
+                                The product to pack will show here.
+                            </p>
+                        </div>
+                    )}
+
+                    {open && (
+                        <PackStage
+                            open={open}
+                            flash={flash}
+                            busy={busy}
+                            canPassByEye={can_pass_by_eye}
+                            onPassByEye={(row) =>
+                                live.current &&
+                                prove(live.current, row, row.pieces, true)
+                            }
+                            onEnter={onEnter}
+                            onPutAside={putAside}
+                        />
+                    )}
+
+                    {outcome && !open && (
+                        <section
+                            role="status"
+                            aria-live="assertive"
+                            className={cn(
+                                'rounded-2xl border-2 p-4',
+                                outcome.result === 'scanned' &&
+                                    'border-emerald-600 bg-emerald-500/15',
+                                (outcome.result === 'already' ||
+                                    outcome.result === 'dispatched') &&
+                                    'border-amber-500 bg-amber-400/20',
+                                outcome.result === 'stop' &&
+                                    'border-red-600 bg-red-500/15',
+                            )}
+                        >
+                            <div className="flex items-center gap-3">
+                                {outcome.result === 'stop' ? (
+                                    <OctagonX className="size-12 shrink-0 text-red-600" />
+                                ) : outcome.result === 'already' ||
+                                  outcome.result === 'dispatched' ? (
+                                    <AlertTriangle className="size-12 shrink-0 text-amber-600" />
+                                ) : (
+                                    <CheckCircle2 className="size-12 shrink-0 text-emerald-600" />
+                                )}
+                                <div>
+                                    <p
+                                        className={cn(
+                                            'text-3xl font-bold tracking-wide',
+                                            outcome.result === 'stop' &&
+                                                'text-red-700 dark:text-red-300',
+                                            (outcome.result === 'already' ||
+                                                outcome.result ===
+                                                    'dispatched') &&
+                                                'text-amber-800 dark:text-amber-200',
+                                            outcome.result === 'scanned' &&
+                                                'text-emerald-700 dark:text-emerald-300',
+                                        )}
+                                    >
+                                        {outcome.result === 'stop'
+                                            ? 'STOP'
+                                            : outcome.result === 'already'
+                                              ? 'ALREADY SCANNED'
+                                              : outcome.result === 'dispatched'
+                                                ? 'ALREADY DISPATCHED'
+                                                : 'SCANNED'}
+                                    </p>
+                                    <p className="text-sm">{outcome.message}</p>
+                                </div>
+                            </div>
+
+                            {(outcome.result === 'already' ||
+                                outcome.result === 'dispatched') &&
+                                s && (
+                                    <div className="mt-4">
+                                        {outcome.settled ? (
+                                            <p className="rounded-xl bg-white/60 px-3 py-2 text-sm font-semibold dark:bg-black/20">
+                                                {outcome.settled}
+                                            </p>
+                                        ) : (
+                                            can_cancel && (
+                                                <Button
+                                                    size="lg"
+                                                    variant="destructive"
+                                                    className="h-14 w-full text-base"
+                                                    disabled={busy}
+                                                    onClick={cancelIt}
+                                                >
+                                                    Order cancelled
+                                                </Button>
+                                            )
+                                        )}
+                                    </div>
+                                )}
+
+                            {s && (
+                                <div className="mt-4 space-y-3">
+                                    {s.picks.length > 1 && (
+                                        <p className="rounded-xl bg-amber-500/20 px-3 py-2 text-base font-semibold text-amber-900 dark:text-amber-100">
+                                            {s.picks.length} different products,{' '}
+                                            {pieceCount(s)} pieces in this
+                                            parcel. Put every one in.
                                         </p>
-                                    ) : (
-                                        can_cancel && (
-                                            <Button
-                                                size="lg"
-                                                variant="destructive"
-                                                className="h-14 w-full text-base"
-                                                disabled={busy}
-                                                onClick={cancelIt}
-                                            >
-                                                Order cancelled
-                                            </Button>
-                                        )
                                     )}
+                                    <div className="space-y-2">
+                                        {s.picks.length === 0
+                                            ? s.lines.map((l) => (
+                                                  <div
+                                                      key={l.id}
+                                                      className="bg-background rounded-xl border p-3"
+                                                  >
+                                                      <p className="text-lg font-semibold">
+                                                          {l.seller_sku} ×{' '}
+                                                          {l.quantity}
+                                                      </p>
+                                                  </div>
+                                              ))
+                                            : s.picks.map((pick) => {
+                                                  const picture =
+                                                      s.pictures?.find(
+                                                          (p) =>
+                                                              p.item_id ===
+                                                              pick.item_id,
+                                                      );
+                                                  const pieces = Number(
+                                                      pick.units,
+                                                  );
+
+                                                  return (
+                                                      <div
+                                                          key={pick.item_id}
+                                                          className="bg-background flex items-center gap-3 rounded-xl border p-3"
+                                                      >
+                                                          {picture && (
+                                                              <img
+                                                                  src={
+                                                                      picture.url
+                                                                  }
+                                                                  alt=""
+                                                                  className="size-16 shrink-0 rounded-lg border object-contain"
+                                                              />
+                                                          )}
+                                                          <div className="min-w-0 flex-1">
+                                                              <p className="text-lg leading-tight font-semibold">
+                                                                  {pick.item}
+                                                              </p>
+                                                              <p className="text-muted-foreground truncate text-xs">
+                                                                  {pick.skus.join(
+                                                                      ', ',
+                                                                  )}
+                                                              </p>
+                                                          </div>
+                                                          <div className="text-right">
+                                                              <p className="text-muted-foreground text-xs font-semibold uppercase">
+                                                                  Pick
+                                                              </p>
+                                                              <p className="text-4xl leading-none font-bold tabular-nums">
+                                                                  {pieces}
+                                                              </p>
+                                                              <p className="text-muted-foreground text-xs">
+                                                                  {pieces === 1
+                                                                      ? 'piece'
+                                                                      : 'pieces'}
+                                                              </p>
+                                                          </div>
+                                                      </div>
+                                                  );
+                                              })}
+                                    </div>
+                                    <p className="text-muted-foreground text-sm">
+                                        <span className="font-mono">
+                                            {s.awb ?? outcome.code}
+                                        </span>{' '}
+                                        · {s.marketplace} ·{' '}
+                                        {courierName(s.courier)} ·{' '}
+                                        {s.payment_label}
+                                    </p>
                                 </div>
                             )}
-
-                        {s && (
-                            <div className="mt-4 space-y-3">
-                                {s.picks.length > 1 && (
-                                    <p className="rounded-xl bg-amber-500/20 px-3 py-2 text-base font-semibold text-amber-900 dark:text-amber-100">
-                                        {s.picks.length} different products,{' '}
-                                        {pieceCount(s)} pieces in this parcel.
-                                        Put every one in.
-                                    </p>
-                                )}
-                                <div className="space-y-2">
-                                    {s.picks.length === 0
-                                        ? s.lines.map((l) => (
-                                              <div
-                                                  key={l.id}
-                                                  className="bg-background rounded-xl border p-3"
-                                              >
-                                                  <p className="text-lg font-semibold">
-                                                      {l.seller_sku} ×{' '}
-                                                      {l.quantity}
-                                                  </p>
-                                              </div>
-                                          ))
-                                        : s.picks.map((pick) => {
-                                              const picture = s.pictures?.find(
-                                                  (p) =>
-                                                      p.item_id ===
-                                                      pick.item_id,
-                                              );
-                                              const pieces = Number(pick.units);
-
-                                              return (
-                                                  <div
-                                                      key={pick.item_id}
-                                                      className="bg-background flex items-center gap-3 rounded-xl border p-3"
-                                                  >
-                                                      {picture && (
-                                                          <img
-                                                              src={picture.url}
-                                                              alt=""
-                                                              className="size-16 shrink-0 rounded-lg border object-contain"
-                                                          />
-                                                      )}
-                                                      <div className="min-w-0 flex-1">
-                                                          <p className="text-lg leading-tight font-semibold">
-                                                              {pick.item}
-                                                          </p>
-                                                          <p className="text-muted-foreground truncate text-xs">
-                                                              {pick.skus.join(
-                                                                  ', ',
-                                                              )}
-                                                          </p>
-                                                      </div>
-                                                      <div className="text-right">
-                                                          <p className="text-muted-foreground text-xs font-semibold uppercase">
-                                                              Pick
-                                                          </p>
-                                                          <p className="text-4xl leading-none font-bold tabular-nums">
-                                                              {pieces}
-                                                          </p>
-                                                          <p className="text-muted-foreground text-xs">
-                                                              {pieces === 1
-                                                                  ? 'piece'
-                                                                  : 'pieces'}
-                                                          </p>
-                                                      </div>
-                                                  </div>
-                                              );
-                                          })}
-                                </div>
-                                <p className="text-muted-foreground text-sm">
-                                    <span className="font-mono">
-                                        {s.awb ?? outcome.code}
-                                    </span>{' '}
-                                    · {s.marketplace} · {courierName(s.courier)}{' '}
-                                    · {s.payment_label}
-                                </p>
-                            </div>
-                        )}
-                    </section>
-                )}
+                        </section>
+                    )}
+                </div>
 
                 {recent.length > 0 && (
-                    <section className="bg-card rounded-2xl border">
+                    <section className="bg-card rounded-2xl border lg:col-start-1 lg:row-start-2">
                         <h2 className="flex items-center gap-2 border-b px-4 py-3 text-sm font-semibold">
                             <PackageCheck className="size-4" />
                             Scanned by you today
@@ -835,7 +880,7 @@ function PackStage({
             role="status"
             aria-live="assertive"
             className={cn(
-                'bg-card overflow-hidden rounded-2xl border-2 shadow-lg',
+                'bg-card @container overflow-hidden rounded-2xl border-2 shadow-lg',
                 tone === 'ok' &&
                     'border-emerald-600 ring-4 ring-emerald-500/20',
                 tone === 'bad' && 'border-red-600 ring-4 ring-red-500/25',
@@ -845,14 +890,14 @@ function PackStage({
             <style>{`@keyframes pack-shake{20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}@keyframes pack-rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}@media (prefers-reduced-motion:reduce){[data-pack-anim]{animation:none!important}}`}</style>
 
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b px-4 py-3">
-                <span className="bg-foreground text-background rounded-xl px-4 py-1.5 text-2xl font-bold sm:text-3xl">
+                <span className="bg-foreground text-background rounded-xl px-4 py-1.5 text-2xl font-bold @3xl:text-3xl">
                     {parcel.marketplace ?? 'Order'}
                 </span>
                 <div className="min-w-0">
                     <p className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
                         Order no.
                     </p>
-                    <p className="text-2xl leading-tight font-bold break-all tabular-nums sm:text-4xl">
+                    <p className="text-2xl leading-tight font-bold break-all tabular-nums @3xl:text-4xl">
                         {parcel.order_number ?? parcel.awb ?? open.code}
                     </p>
                 </div>
@@ -886,7 +931,7 @@ function PackStage({
                     <PackageCheck className="size-11 shrink-0" />
                 )}
                 <div>
-                    <p className="text-2xl font-bold tracking-wide uppercase sm:text-3xl">
+                    <p className="text-2xl font-bold tracking-wide uppercase @3xl:text-3xl">
                         {flash?.title ??
                             (rows.length > 1
                                 ? `Put these ${rows.length} products in the packet`
@@ -912,7 +957,7 @@ function PackStage({
                             data-pack-anim
                             style={{ animationDelay: `${i * 70}ms` }}
                             className={cn(
-                                'bg-background grid animate-[pack-rise_0.35s_both] grid-cols-[5.5rem_minmax(0,1fr)] items-center gap-4 rounded-2xl border p-3 transition-colors sm:grid-cols-[minmax(7rem,14rem)_minmax(0,1fr)_auto] sm:gap-5',
+                                'bg-background grid animate-[pack-rise_0.35s_both] grid-cols-[5.5rem_minmax(0,1fr)] items-center gap-4 rounded-2xl border p-3 transition-colors @3xl:grid-cols-[minmax(9rem,16rem)_minmax(0,1fr)_auto] @3xl:gap-6 @3xl:p-4',
                                 complete &&
                                     'border-emerald-600 bg-emerald-500/10',
                                 !complete &&
@@ -940,16 +985,16 @@ function PackStage({
                                 )}
                             </div>
                             <div className="min-w-0">
-                                <p className="text-3xl leading-[1.05] font-bold text-balance sm:text-5xl lg:text-6xl">
+                                <p className="text-3xl leading-[1.05] font-bold text-balance break-words @3xl:text-5xl @5xl:text-6xl">
                                     {row.name}
                                 </p>
                                 {row.size && (
-                                    <p className="bg-primary text-primary-foreground mt-2 inline-block rounded-xl px-4 py-1 text-2xl font-bold sm:text-4xl">
+                                    <p className="bg-primary text-primary-foreground mt-2 inline-block rounded-xl px-4 py-1 text-2xl font-bold @3xl:text-4xl">
                                         {row.size}
                                     </p>
                                 )}
                             </div>
-                            <div className="col-span-2 flex items-center gap-3 sm:col-span-1 sm:flex-col sm:gap-2">
+                            <div className="col-span-2 flex items-center gap-3 @3xl:col-span-1 @3xl:flex-col @3xl:gap-2">
                                 <div className="relative size-24 shrink-0">
                                     <svg
                                         viewBox="0 0 96 96"

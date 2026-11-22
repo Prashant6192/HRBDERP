@@ -388,9 +388,13 @@ export async function findSlot(
 /**
  * Where a label of the given size goes on a 4×6 page: its scale, whether
  * it is turned a quarter to the left (when wider than tall), and where the
- * turned or upright label's own bottom-left corner lands.
+ * turned or upright label's own bottom-left corner lands. `band` keeps
+ * that much of the page's foot clear (for a line written under the label).
  */
-export function placeOnLabel(box: Box): {
+export function placeOnLabel(
+    box: Box,
+    band = 0,
+): {
     scale: number;
     sideways: boolean;
     x: number;
@@ -403,10 +407,10 @@ export function placeOnLabel(box: Box): {
     const up = sideways ? w : h;
     const scale = Math.min(
         (LABEL_WIDTH - 2 * MARGIN) / across,
-        (LABEL_HEIGHT - 2 * MARGIN) / up,
+        (LABEL_HEIGHT - band - 2 * MARGIN) / up,
     );
     const left = (LABEL_WIDTH - across * scale) / 2;
-    const bottom = (LABEL_HEIGHT - up * scale) / 2;
+    const bottom = band + (LABEL_HEIGHT - band - up * scale) / 2;
 
     // Turned a quarter to the left, the label's bottom-left corner sits at
     // the bottom right of the space it takes.

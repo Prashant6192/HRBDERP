@@ -11,6 +11,17 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Changed — Amazon labels print alone, with the product written under them
+
+- Amazon sends the courier label on one page and the tax invoice on the
+  next. On the 4×6 label printer the invoice page came out cut off, and
+  the label itself does not say what is inside. Now only the label
+  prints, and the ERP writes the product and quantity in a band under it
+  ("Medicated Oil 300ml x 2"): the ERP's own product where the SKU is
+  mapped, otherwise the label's SKU.
+- "Full page with invoice" now covers Amazon too: ticked, every page
+  prints whole, tax invoice included, as the file came.
+
 ### Added — Products with no barcode are flagged
 
 - Products shows a Barcode column: the barcode, or a red "No barcode"

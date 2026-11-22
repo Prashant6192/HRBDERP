@@ -460,6 +460,7 @@ final class LabelFixtures
             $p['order'],
             'Invoice No:',
             $p['invoice'],
+            'Order Date: 22-09-2026, 11:05 AM',
             'Invoice Date: 24-09-2026, 01:29',
             "GSTIN: {$gstin}",
             "AWB No. {$p['awb']}",

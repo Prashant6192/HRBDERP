@@ -30,7 +30,7 @@ Rules:
 - courier: the courier company carrying the parcel as printed (Amazon Shipping / ATSPL, Ekart, Delhivery, Shadowfax, Xpress Bees, Valmo, Ecom Express…). A route code such as EK_E2E means Ekart.
 - payment_mode: "cod" when the label says COD, cash on delivery or an amount to collect; "prepaid" when it says prepaid or do not collect cash; otherwise null.
 - payable_amount: the amount to collect for COD, else the invoice total, as a plain number.
-- invoice_number, invoice_date (YYYY-MM-DD; Indian documents print DD.MM.YYYY or DD-MM-YYYY), seller_gstin (the seller's 15-character GSTIN), customer_name, customer_state (the delivery state).
+- order_date (YYYY-MM-DD: the day the customer ordered, where printed), invoice_number, invoice_date (YYYY-MM-DD; Indian documents print DD.MM.YYYY or DD-MM-YYYY), seller_gstin (the seller's 15-character GSTIN), customer_name, customer_state (the delivery state).
 - lines: one per product in the parcel, from the label's product table or the invoice. seller_sku is the seller's own SKU: on Amazon invoices it is the text in parentheses after the ASIN, e.g. "B0XXXXXXXX ( Hair_Oil_500ml )" gives "Hair_Oil_500ml"; on other labels it is the "SKU" column. description is the product title as printed. quantity is the number of units ordered. Skip shipping charges, handling fees, COD fees and totals. If the label names no product at all, return an empty list.
 - customer_pincode: the 6-digit PIN code of the delivery address.
 - warnings: anything unclear, cut off or unreadable on a parcel's pages.
@@ -51,7 +51,7 @@ PROMPT;
         ],
     ];
 
-    private const PARCEL_FIELDS = ['awb', 'alt_code', 'order_number', 'courier', 'payment_mode', 'payable_amount', 'invoice_number', 'invoice_date', 'seller_gstin', 'customer_name', 'customer_state', 'customer_pincode'];
+    private const PARCEL_FIELDS = ['awb', 'alt_code', 'order_number', 'courier', 'payment_mode', 'payable_amount', 'invoice_number', 'invoice_date', 'order_date', 'seller_gstin', 'customer_name', 'customer_state', 'customer_pincode'];
 
     public function __construct(private readonly ClaudeDocuments $documents) {}
 

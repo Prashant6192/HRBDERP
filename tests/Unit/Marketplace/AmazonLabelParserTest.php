@@ -53,6 +53,7 @@ class AmazonLabelParserTest extends TestCase
         $this->assertSame('265.00', $parcel->payableAmount);
         $this->assertSame('IN-101', $parcel->invoiceNumber);
         $this->assertSame('2026-11-12', $parcel->invoiceDate);
+        $this->assertSame('2026-11-12', $parcel->orderDate);
         $this->assertSame('07AAAAA0000A1Z5', $parcel->sellerGstin);
         $this->assertSame('Asha Test', $parcel->customerName);
         $this->assertSame('Uttar Pradesh', $parcel->customerState);

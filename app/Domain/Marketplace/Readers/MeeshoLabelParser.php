@@ -82,6 +82,7 @@ final class MeeshoLabelParser implements LabelTextParser
             'payable_amount' => $total,
             'invoice_number' => $this->code(TextLines::after($lines, 'Invoice No.'), '/^[A-Za-z0-9\/-]{3,32}$/'),
             'invoice_date' => TextLines::after($lines, 'Invoice Date'),
+            'order_date' => TextLines::after($lines, 'Order Date'),
             'customer_name' => TextLines::after($lines, 'Customer Address'),
             'customer_state' => $state,
             'seller_gstin' => $gstin,

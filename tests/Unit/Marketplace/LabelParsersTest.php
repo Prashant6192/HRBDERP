@@ -44,6 +44,7 @@ class LabelParsersTest extends TestCase
         $this->assertSame('199.00', $parcel->payableAmount);
         $this->assertSame('abcde1001', $parcel->invoiceNumber);
         $this->assertSame('2026-09-24', $parcel->invoiceDate);
+        $this->assertSame('2026-09-20', $parcel->orderDate);
         $this->assertSame('100000000000000001', $parcel->orderNumber);
         $this->assertSame('Asha Test', $parcel->customerName);
         $this->assertSame('Uttar Pradesh', $parcel->customerState);
@@ -108,6 +109,7 @@ class LabelParsersTest extends TestCase
         $this->assertSame(PaymentMode::Prepaid, $parcel->paymentMode);
         $this->assertSame('432.00', $parcel->payableAmount);
         $this->assertSame('FAKEINV0001', $parcel->invoiceNumber);
+        $this->assertSame('2026-09-22', $parcel->orderDate);
         $this->assertSame('Mira Test', $parcel->customerName);
         $this->assertSame('OR', $parcel->customerState);
         $this->assertSame('05AAAAA0000A1Z5', $parcel->sellerGstin);

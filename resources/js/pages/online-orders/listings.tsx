@@ -1,10 +1,9 @@
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { AlertTriangle, Plus, Tags, X } from 'lucide-react';
 import { useState } from 'react';
 import InputError from '@/components/input-error';
 import { LabelPreview } from '@/components/online-orders/label-preview';
 import { PageHeader } from '@/components/page-header';
-import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -27,16 +26,30 @@ type Waiting = {
     /** The ERP product it most likely is, picked in advance to confirm. */
     suggested: { item_id: string; pieces: number } | null;
     /** The parcels this SKU is on, newest first, each with its label. */
-    orders: {
-        shipment_id: number;
-        order_number: string | null;
-        awb: string | null;
-        quantity: number;
-        for_date: string | null;
-        file_url: string | null;
-        page: number;
-    }[];
+    orders: Order[];
 };
+
+/** One order an SKU was on, with its label. */
+type Order = {
+    shipment_id: number;
+    order_number: string | null;
+    awb: string | null;
+    quantity: number;
+    /** The day the customer ordered, where the label prints it. */
+    order_date: string | null;
+    invoice_date: string | null;
+    /** The day the labels were uploaded for. */
+    for_date: string | null;
+    file_url: string | null;
+    page: number;
+};
+
+const day = (d: string) =>
+    new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+    });
 
 /** A product to choose from: with its photo for the tiles. */
 type ProductOption = SearchableOption & {
@@ -65,6 +78,10 @@ type Listing = {
     is_active: boolean;
     /** More than one piece on an SKU that is not a pack: likely an order quantity typed as pieces. */
     suspect: boolean;
+    /** What the labels call this SKU. */
+    description: string | null;
+    /** Its newest orders, packed or not. */
+    orders: Order[];
     components: {
         item_id: number;
         item: string | null;
@@ -192,31 +209,6 @@ function sureOfPieces(sku: string, components: Component[]): boolean {
     );
 }
 
-function Contents({ components }: { components: Listing['components'] }) {
-    return (
-        <div className="space-y-1">
-            {components.map((c) => (
-                <div key={c.item_id}>
-                    <span className="font-medium">{c.item}</span>
-                    {c.units > 1 && (
-                        <span className="ml-1 rounded bg-amber-500/15 px-1.5 text-xs font-semibold text-amber-800 dark:text-amber-200">
-                            {c.units} pieces
-                        </span>
-                    )}
-                    <div className="text-muted-foreground font-mono text-xs">
-                        {c.item_code}
-                    </div>
-                </div>
-            ))}
-            {components.length > 1 && (
-                <StatusBadge variant="info">
-                    Combo · {components.length} products
-                </StatusBadge>
-            )}
-        </div>
-    );
-}
-
 /** What one unit of an SKU is: a single, a pack of two, or something else. */
 type Kind = 'single' | 'pack2' | 'other';
 
@@ -276,27 +268,59 @@ function WizardCard({
     row,
     products,
     onSkip,
+    editing,
+    onClose,
 }: {
     row: Waiting;
     products: ProductOption[];
     onSkip?: () => void;
+    /** Changing this mapping, rather than mapping a new SKU. */
+    editing?: Listing;
+    onClose?: () => void;
 }) {
     const singles = products.filter((p) => !p.is_pack);
     const suggested = singles.find((p) => p.value === row.suggested?.item_id);
     const said = row.suggested?.pieces ?? row.reading.pack ?? 1;
 
-    const [itemId, setItemId] = useState(suggested?.value ?? '');
-    const [kind, setKind] = useState<Kind>(
-        said === 1 ? 'single' : said === 2 ? 'pack2' : 'other',
+    // A mapping being changed starts as it is now: a single or a pack of
+    // two of a single product as those buttons; anything else in the
+    // detailed editor.
+    const was = editing?.components ?? [];
+    const plain =
+        was.length === 1 &&
+        singles.some((p) => p.value === String(was[0].item_id)) &&
+        (was[0].units === 1 || was[0].units === 2);
+    const [itemId, setItemId] = useState(
+        editing
+            ? plain
+                ? String(was[0].item_id)
+                : ''
+            : (suggested?.value ?? ''),
     );
-    const [parts, setParts] = useState<Component[]>([
-        { item_id: suggested?.value ?? '', units: said },
-    ]);
+    const [kind, setKind] = useState<Kind>(
+        editing
+            ? plain
+                ? was[0].units === 2
+                    ? 'pack2'
+                    : 'single'
+                : 'other'
+            : said === 1
+              ? 'single'
+              : said === 2
+                ? 'pack2'
+                : 'other',
+    );
+    const [parts, setParts] = useState<Component[]>(
+        editing
+            ? was.map((c) => ({ item_id: String(c.item_id), units: c.units }))
+            : [{ item_id: suggested?.value ?? '', units: said }],
+    );
     const [find, setFind] = useState('');
     // An SKU that is only a number, or names no size, says too little:
     // its first label is opened straight away to read the product off it.
     const [label, setLabel] = useState<number | null>(
-        (/^\d+$/.test(row.seller_sku.trim()) || !row.reading.size) &&
+        (/^\d+$/.test(row.seller_sku.trim()) ||
+            (!editing && !row.reading.size)) &&
             row.orders[0]?.file_url
             ? row.orders[0].shipment_id
             : null,
@@ -310,6 +334,16 @@ function WizardCard({
             ? parts
             : [{ item_id: itemId, units: kind === 'pack2' ? 2 : 1 }];
     const ready = components.every((c) => c.item_id !== '');
+    const unchanged =
+        editing !== undefined &&
+        JSON.stringify(components.map((c) => [c.item_id, c.units])) ===
+            JSON.stringify(was.map((c) => [String(c.item_id), c.units]));
+    const nameOf = (id: string) =>
+        products.find((p) => p.value === id)?.label ?? '?';
+    const describe = (list: Component[]) =>
+        list.map((c) => `${c.units} × ${nameOf(c.item_id)}`).join(' + ');
+    const piecesOf = (list: Component[]) =>
+        list.reduce((n, c) => n + c.units, 0);
     const example = row.orders[0]?.quantity ?? 1;
     const shown = singles.filter((p) =>
         `${p.label} ${p.hint ?? ''}`.toLowerCase().includes(find.toLowerCase()),
@@ -328,6 +362,23 @@ function WizardCard({
         }
 
         setBusy(true);
+        const options = {
+            preserveScroll: true,
+            onError: (e: Record<string, string>) => setErrors(e),
+            onSuccess: () => onClose?.(),
+            onFinish: () => setBusy(false),
+        };
+
+        if (editing) {
+            router.patch(
+                update(editing.id).url,
+                { is_active: true, components },
+                options,
+            );
+
+            return;
+        }
+
         router.post(
             store().url,
             {
@@ -336,11 +387,7 @@ function WizardCard({
                 seller_sku: row.seller_sku,
                 components,
             },
-            {
-                preserveScroll: true,
-                onError: (e) => setErrors(e as Record<string, string>),
-                onFinish: () => setBusy(false),
-            },
+            options,
         );
     };
 
@@ -353,8 +400,10 @@ function WizardCard({
                             {row.marketplace}
                         </span>
                         <span className="text-muted-foreground text-xs">
-                            {row.brand} · {row.parcels}{' '}
-                            {row.parcels === 1 ? 'parcel' : 'parcels'} waiting
+                            {row.brand} ·{' '}
+                            {editing
+                                ? `${row.orders.length} recent ${row.orders.length === 1 ? 'order' : 'orders'}`
+                                : `${row.parcels} ${row.parcels === 1 ? 'parcel' : 'parcels'} waiting`}
                         </span>
                     </div>
                     <p className="mt-2 font-mono text-lg font-semibold break-all">
@@ -413,10 +462,19 @@ function WizardCard({
                                         <p className="font-mono text-xs font-semibold break-all">
                                             {o.order_number ?? o.awb ?? '—'}
                                         </p>
+                                        <p className="text-xs font-semibold">
+                                            {o.order_date
+                                                ? `Ordered ${day(o.order_date)}`
+                                                : o.invoice_date
+                                                  ? `Invoiced ${day(o.invoice_date)}`
+                                                  : o.for_date
+                                                    ? `Labels of ${day(o.for_date)}`
+                                                    : ''}
+                                        </p>
                                         <p className="text-muted-foreground text-xs">
                                             Quantity {o.quantity}
-                                            {o.for_date
-                                                ? ` · ${new Date(`${o.for_date}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+                                            {o.order_date && o.for_date
+                                                ? ` · labels of ${day(o.for_date)}`
                                                 : ''}
                                             {o.awb && o.order_number
                                                 ? ` · ${o.awb}`
@@ -581,28 +639,113 @@ function WizardCard({
                     </div>
                 )}
 
-                <p
-                    className={cn(
-                        'rounded-xl px-4 py-3 text-sm font-semibold',
-                        ready
-                            ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200'
-                            : 'bg-muted text-muted-foreground font-normal',
-                    )}
-                >
-                    {kind === 'other'
-                        ? ready
-                            ? `One "${row.seller_sku}" holds the products above. A label's quantity multiplies all of them.`
-                            : 'Choose every product in the bundle.'
-                        : chosen
-                          ? `One "${row.seller_sku}" = ${kind === 'pack2' ? 2 : 1} × ${chosen.label}. ${row.orders[0] ? 'This order' : 'A label'} with quantity ${example} asks the packer for ${example * (kind === 'pack2' ? 2 : 1)}.`
-                          : 'Pick the product above.'}
-                </p>
+                {editing ? (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                        <div className="bg-muted/40 rounded-xl border px-4 py-3 text-sm">
+                            <p className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                                Now
+                            </p>
+                            <p className="mt-1 font-semibold">
+                                {describe(
+                                    was.map((c) => ({
+                                        item_id: String(c.item_id),
+                                        units: c.units,
+                                    })),
+                                )}
+                            </p>
+                            <p className="text-muted-foreground text-xs">
+                                Quantity {example} asks the packer for{' '}
+                                {example * was.reduce((n, c) => n + c.units, 0)}
+                                .
+                            </p>
+                        </div>
+                        <div
+                            className={cn(
+                                'rounded-xl px-4 py-3 text-sm',
+                                ready && !unchanged
+                                    ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200'
+                                    : 'bg-muted text-muted-foreground',
+                            )}
+                        >
+                            <p className="text-xs font-semibold tracking-wide uppercase">
+                                {unchanged
+                                    ? 'After: no change yet'
+                                    : 'After you save'}
+                            </p>
+                            <p className="mt-1 font-semibold">
+                                {ready
+                                    ? describe(components)
+                                    : 'Choose the product'}
+                            </p>
+                            {ready && (
+                                <p className="text-xs">
+                                    Quantity {example} asks the packer for{' '}
+                                    {example * piecesOf(components)}.
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    <p
+                        className={cn(
+                            'rounded-xl px-4 py-3 text-sm font-semibold',
+                            ready
+                                ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-200'
+                                : 'bg-muted text-muted-foreground font-normal',
+                        )}
+                    >
+                        {kind === 'other'
+                            ? ready
+                                ? `One "${row.seller_sku}" holds the products above. A label's quantity multiplies all of them.`
+                                : 'Choose every product in the bundle.'
+                            : chosen
+                              ? `One "${row.seller_sku}" = ${kind === 'pack2' ? 2 : 1} × ${chosen.label}. ${row.orders[0] ? 'This order' : 'A label'} with quantity ${example} asks the packer for ${example * (kind === 'pack2' ? 2 : 1)}.`
+                              : 'Pick the product above.'}
+                    </p>
+                )}
 
                 <div className="flex flex-wrap gap-2">
-                    <Button size="lg" disabled={!ready || busy} onClick={save}>
-                        {busy ? 'Mapping…' : 'Map and next'}
+                    <Button
+                        size="lg"
+                        disabled={!ready || busy || unchanged}
+                        onClick={save}
+                    >
+                        {busy
+                            ? 'Saving…'
+                            : editing
+                              ? 'Save change'
+                              : 'Map and next'}
                     </Button>
-                    {onSkip && (
+                    {editing && onClose && (
+                        <Button
+                            size="lg"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={onClose}
+                        >
+                            Cancel
+                        </Button>
+                    )}
+                    {editing && (
+                        <Button
+                            size="lg"
+                            variant="ghost"
+                            className="text-red-700 hover:text-red-800 dark:text-red-300"
+                            disabled={busy}
+                            onClick={() =>
+                                window.confirm(
+                                    `Delete the mapping of "${editing.seller_sku}"?\n\nParcels of this SKU still waiting to be packed go back to "Waiting to be mapped" and their stock goes back on the shelf. Parcels already packed are not changed.`,
+                                ) &&
+                                router.delete(destroy(editing.id).url, {
+                                    preserveScroll: true,
+                                    onSuccess: () => onClose?.(),
+                                })
+                            }
+                        >
+                            Delete this mapping
+                        </Button>
+                    )}
+                    {!editing && onSkip && (
                         <Button
                             size="lg"
                             variant="outline"
@@ -613,6 +756,13 @@ function WizardCard({
                         </Button>
                     )}
                 </div>
+                {editing && (
+                    <p className="text-muted-foreground text-xs">
+                        Saving re-checks every parcel of this SKU still waiting
+                        to be packed and corrects its stock. Parcels already
+                        packed are not changed.
+                    </p>
+                )}
             </div>
         </div>
     );
@@ -696,134 +846,119 @@ function SuspectMappings({ listings }: { listings: Listing[] }) {
     );
 }
 
+/**
+ * One mapped SKU in plain words: its photo, where it is sold, and what one
+ * unit of it is. Change opens the same two questions as a new SKU.
+ */
 function ListingRow({
     listing,
     products,
+    active,
+    onChange,
 }: {
     listing: Listing;
-    products: SearchableOption[];
+    products: ProductOption[];
+    active: boolean;
+    onChange: () => void;
 }) {
-    const [editing, setEditing] = useState(false);
-    const form = useForm<{ components: Component[]; is_active: boolean }>({
-        components: listing.components.map((c) => ({
-            item_id: String(c.item_id),
-            units: c.units,
-        })),
-        is_active: listing.is_active,
-    });
+    const first = listing.components[0];
+    const photo = products.find(
+        (p) => p.value === String(first?.item_id),
+    )?.photo;
+    const kind =
+        listing.components.length > 1
+            ? 'Bundle'
+            : first?.units === 1
+              ? 'Single'
+              : first?.units === 2
+                ? 'Pack of 2'
+                : `${first?.units} pieces in one unit`;
 
     return (
-        <tr className={cn('align-top', editing && 'bg-muted/30')}>
-            <td className="px-4 py-3 font-mono">{listing.seller_sku}</td>
-            <td className="px-4 py-3">
-                {listing.brand}
-                <div className="text-muted-foreground text-xs">
+        <li
+            className={cn(
+                'grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3 px-4 py-3 md:grid-cols-[3rem_minmax(0,1.1fr)_minmax(0,1.4fr)_auto]',
+                active && 'bg-primary/10',
+                !listing.is_active && 'opacity-60',
+            )}
+        >
+            {photo ? (
+                <img
+                    src={photo}
+                    alt=""
+                    className="size-12 rounded-lg border bg-white object-contain"
+                />
+            ) : (
+                <span className="bg-muted size-12 rounded-lg border" />
+            )}
+            <div className="min-w-0">
+                <span className="bg-foreground text-background rounded-md px-2 py-0.5 text-xs font-bold">
                     {listing.marketplace}
-                </div>
-            </td>
-            <td className="px-4 py-3">
-                {editing ? (
-                    <ComponentsEditor
-                        value={form.data.components}
-                        onChange={(next) => form.setData('components', next)}
-                        products={products}
-                        errors={form.errors as Record<string, string>}
-                    />
-                ) : (
-                    <>
-                        <Contents components={listing.components} />
-                        {listing.suspect && (
-                            <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-700 dark:text-red-300">
-                                <AlertTriangle className="size-3.5" />
-                                Check: this SKU is not a pack
-                            </p>
-                        )}
-                    </>
+                </span>
+                <p className="mt-1 font-mono text-sm font-semibold break-all">
+                    {listing.seller_sku}
+                </p>
+            </div>
+            <div className="col-span-2 min-w-0 md:col-span-1">
+                <p className="font-semibold">
+                    ={' '}
+                    {listing.components
+                        .map((c) => `${c.units} × ${c.item ?? '?'}`)
+                        .join(' + ')}
+                </p>
+                <p className="text-muted-foreground text-xs">
+                    {kind}
+                    {!listing.is_active && ' · switched off'}
+                </p>
+                {listing.suspect && (
+                    <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-700 dark:text-red-300">
+                        <AlertTriangle className="size-3.5" />
+                        Check: this SKU is not a pack
+                    </p>
                 )}
-            </td>
-            <td className="px-4 py-3">
-                {editing ? (
-                    <label className="flex items-center gap-2 text-sm">
-                        <input
-                            type="checkbox"
-                            checked={form.data.is_active}
-                            onChange={(e) =>
-                                form.setData('is_active', e.target.checked)
-                            }
-                        />
-                        Matched
-                    </label>
-                ) : (
-                    <StatusBadge
-                        variant={listing.is_active ? 'success' : 'muted'}
-                    >
-                        {listing.is_active ? 'Matched' : 'Off'}
-                    </StatusBadge>
-                )}
-            </td>
-            <td className="px-4 py-3 text-right whitespace-nowrap">
-                {editing ? (
-                    <>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setEditing(false)}
-                        >
-                            Back
-                        </Button>
-                        <Button
-                            size="sm"
-                            disabled={
-                                form.processing ||
-                                (form.data.is_active &&
-                                    form.data.components.some(
-                                        (c) => c.item_id === '',
-                                    ))
-                            }
-                            onClick={() =>
-                                (!form.data.is_active ||
-                                    sureOfPieces(
-                                        listing.seller_sku,
-                                        form.data.components,
-                                    )) &&
-                                form.patch(update(listing.id).url, {
-                                    preserveScroll: true,
-                                    onSuccess: () => setEditing(false),
-                                })
-                            }
-                        >
-                            Save
-                        </Button>
-                    </>
-                ) : (
-                    <>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setEditing(true)}
-                        >
-                            Change
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-700 hover:text-red-800 dark:text-red-300"
-                            onClick={() =>
-                                window.confirm(
-                                    `Delete the mapping of "${listing.seller_sku}"?\n\nParcels of this SKU still waiting to be packed go back to "Waiting to be mapped" and their stock goes back on the shelf. Parcels already packed are not changed.`,
-                                ) &&
-                                router.delete(destroy(listing.id).url, {
-                                    preserveScroll: true,
-                                })
-                            }
-                        >
-                            Delete
-                        </Button>
-                    </>
-                )}
-            </td>
-        </tr>
+            </div>
+            <div className="col-span-2 flex gap-2 md:col-span-1">
+                <Button
+                    size="sm"
+                    variant={active ? 'default' : 'outline'}
+                    onClick={onChange}
+                >
+                    {active ? 'Changing…' : 'Change'}
+                </Button>
+                <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-red-700 hover:text-red-800 dark:text-red-300"
+                    onClick={() =>
+                        window.confirm(
+                            `Delete the mapping of "${listing.seller_sku}"?\n\nParcels of this SKU still waiting to be packed go back to "Waiting to be mapped" and their stock goes back on the shelf. Parcels already packed are not changed.`,
+                        ) &&
+                        router.delete(destroy(listing.id).url, {
+                            preserveScroll: true,
+                        })
+                    }
+                >
+                    Delete
+                </Button>
+            </div>
+        </li>
     );
+}
+
+/** A mapped SKU, set out as the mapping card wants a waiting one. */
+function asWaiting(l: Listing): Waiting {
+    return {
+        marketplace_id: l.marketplace_id,
+        marketplace: l.marketplace ?? '',
+        brand_id: l.brand_id,
+        brand: l.brand ?? '',
+        seller_sku: l.seller_sku,
+        description: l.description,
+        parcels: l.orders.length,
+        reading: { name: null, size: null, pack: null },
+        suggested: null,
+        orders: l.orders,
+    };
 }
 
 export default function SkuMapping({
@@ -838,6 +973,8 @@ export default function SkuMapping({
     brands: { value: string; label: string }[];
 }) {
     const [filter, setFilter] = useState('');
+    const [changing, setChanging] = useState<number | null>(null);
+    const current = listings.find((l) => l.id === changing);
     const shown = listings.filter((l) =>
         `${l.seller_sku} ${l.components.map((c) => c.item ?? '').join(' ')} ${l.brand ?? ''} ${l.marketplace ?? ''}`
             .toLowerCase()
@@ -886,39 +1023,53 @@ export default function SkuMapping({
                             className="max-w-xs"
                         />
                     </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="text-muted-foreground text-left text-xs uppercase">
-                                <tr className="border-b">
-                                    <th className="px-4 py-2 font-medium">
-                                        SKU as printed
-                                    </th>
-                                    <th className="px-4 py-2 font-medium">
-                                        Brand · marketplace
-                                    </th>
-                                    <th className="px-4 py-2 font-medium">
-                                        What goes in the box
-                                    </th>
-                                    <th className="px-4 py-2 font-medium" />
-                                    <th className="px-4 py-2" />
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y">
-                                {shown.map((l) => (
-                                    <ListingRow
-                                        key={l.id}
-                                        listing={l}
-                                        products={products}
-                                    />
-                                ))}
-                            </tbody>
-                        </table>
-                        {shown.length === 0 && (
-                            <p className="text-muted-foreground px-4 py-6 text-center text-sm">
-                                Nothing mapped yet.
-                            </p>
-                        )}
-                    </div>
+                    {current && (
+                        <div
+                            id="change-mapping"
+                            className="border-primary bg-primary/5 scroll-mt-4 border-b-2"
+                        >
+                            <div className="flex items-center justify-between px-4 pt-4">
+                                <p className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+                                    Changing the mapping of this SKU
+                                </p>
+                            </div>
+                            <div className="p-4">
+                                <WizardCard
+                                    key={current.id}
+                                    row={asWaiting(current)}
+                                    products={products}
+                                    editing={current}
+                                    onClose={() => setChanging(null)}
+                                />
+                            </div>
+                        </div>
+                    )}
+                    <ul className="divide-y">
+                        {shown.map((l) => (
+                            <ListingRow
+                                key={l.id}
+                                listing={l}
+                                products={products}
+                                active={changing === l.id}
+                                onChange={() => {
+                                    setChanging(l.id);
+                                    window.setTimeout(() =>
+                                        document
+                                            .getElementById('change-mapping')
+                                            ?.scrollIntoView({
+                                                behavior: 'smooth',
+                                                block: 'start',
+                                            }),
+                                    );
+                                }}
+                            />
+                        ))}
+                    </ul>
+                    {shown.length === 0 && (
+                        <p className="text-muted-foreground px-4 py-6 text-center text-sm">
+                            Nothing mapped yet.
+                        </p>
+                    )}
                 </section>
             </div>
         </>

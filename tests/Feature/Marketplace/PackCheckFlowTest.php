@@ -317,4 +317,27 @@ class PackCheckFlowTest extends TestCase
                     && collect($products)->contains(fn ($p) => $p['value'] === (string) $this->pack->id && $p['is_pack'] === true))
                 ->etc());
     }
+
+    #[Test]
+    public function a_mapped_sku_lists_its_newest_orders_with_their_order_date(): void
+    {
+        $parcel = $this->parcel('VL0000000000001');
+        $parcel->forceFill(['order_date' => '2026-09-28'])->save();
+        $listing = MarketplaceListing::query()->where('seller_sku', 'Medicated oil 300 ml')->sole();
+
+        // Packed parcels stay on the list: a mapping is checked against them too.
+        $this->actingAs($this->shanu)->postJson(route('floor.pack.scan'), ['code' => 'VL0000000000001'])->assertOk();
+
+        $this->actingAs($this->boss)->get(route('listings.index'))
+            ->assertInertia(fn (Assert $page) => $page->where('listings', function ($listings) use ($listing, $parcel): bool {
+                $row = collect($listings)->firstWhere('id', $listing->id);
+                $order = collect($row['orders'])->firstWhere('shipment_id', $parcel->id);
+
+                return $order !== null
+                    && $order['order_date'] === '2026-09-28'
+                    && $order['quantity'] === 1
+                    && $order['for_date'] === '2026-09-30'
+                    && $order['file_url'] === route('online-orders.files.show', $parcel->label_file_id);
+            })->etc());
+    }
 }

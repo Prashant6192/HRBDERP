@@ -1396,9 +1396,9 @@ class OnlineOrderService
      *
      * @return array{result: 'scanned'|'already'|'dispatched', shipment: Shipment}
      */
-    public function scanOut(Shipment $shipment, User $user): array
+    public function scanOut(Shipment $shipment, User $user, ?string $note = null): array
     {
-        return DB::transaction(function () use ($shipment, $user): array {
+        return DB::transaction(function () use ($shipment, $user, $note): array {
             $current = Shipment::query()->lockForUpdate()->findOrFail($shipment->id);
 
             if ($current->status === ShipmentStatus::Packed) {
@@ -1410,7 +1410,7 @@ class OnlineOrderService
             }
 
             // Refuses cancelled, returned and unmapped parcels, and short stock.
-            return ['result' => 'scanned', 'shipment' => $this->forScreen($this->pack($current, $user))];
+            return ['result' => 'scanned', 'shipment' => $this->forScreen($this->pack($current, $user, 'scan', $note))];
         });
     }
 

@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Floor;
 
 use App\Domain\Contract\Enums\ArtworkStatus;
 use App\Domain\Contract\Services\ArtworkService;
+use App\Domain\Inventory\Services\ScanInService;
 use App\Domain\Marketplace\Enums\ShipmentStatus;
 use App\Domain\Marketplace\Exceptions\OnlineOrderException;
 use App\Domain\Marketplace\Models\HandoverSheet;
@@ -15,6 +16,7 @@ use App\Domain\Marketplace\Services\HandoverSheetPdf;
 use App\Domain\Marketplace\Services\OnlineOrderAccess;
 use App\Domain\Marketplace\Services\OnlineOrderService;
 use App\Domain\Marketplace\Support\Cutoff;
+use App\Domain\Marketplace\Support\PackCheck;
 use App\Domain\Warehousing\Enums\WarehouseType;
 use App\Domain\Warehousing\Models\Warehouse;
 use App\Http\Controllers\Controller;
@@ -45,6 +47,7 @@ class ParcelController extends Controller
         private readonly OnlineOrderService $orders,
         private readonly OnlineOrderAccess $access,
         private readonly ArtworkService $artworks,
+        private readonly ScanInService $scanIn,
     ) {}
 
     /**
@@ -90,7 +93,52 @@ class ParcelController extends Controller
             'mine' => $mine->map(fn (Shipment $s) => OnlineOrderPresenter::shipment($s))->all(),
             'cutoff' => Cutoff::label(),
             'can_cancel' => $user->can('marketplace.pack') || $user->can('marketplace.print') || $user->can('marketplace.manage'),
+            // A product whose barcode will not scan can be passed by eye by whoever runs the dispatch.
+            'can_pass_by_eye' => $user->can('marketplace.print') || $user->can('marketplace.manage'),
         ]);
+    }
+
+    /**
+     * The label is scanned first: the screen shows what goes in the parcel
+     * and nothing is packed yet. The packer then scans each product; the
+     * parcel is packed (scan) once every piece is proved. A parcel that
+     * cannot be packed — cancelled, already scanned, its SKU not mapped —
+     * is answered as a scan would answer it.
+     */
+    public function open(Request $request): JsonResponse
+    {
+        $this->authorize('marketplace.pack');
+        $user = $request->user();
+        $data = $request->validate(['code' => ['required', 'string', 'max:255']]);
+
+        $shipment = $this->orders->findByCode($data['code']);
+
+        if ($shipment !== null
+            && $shipment->status->awaitsPacking()
+            && $shipment->isMapped()
+            && $this->access->canWorkIn($user, $shipment->warehouse)) {
+            return response()->json([
+                'ok' => true,
+                'result' => 'open',
+                'message' => 'Put these in the packet and scan each product.',
+                'shipment' => $this->describe($shipment),
+            ]);
+        }
+
+        return $this->scan($request);
+    }
+
+    /**
+     * The product a barcode is on, so a wrong product can be named.
+     */
+    public function product(Request $request): JsonResponse
+    {
+        $this->authorize('marketplace.pack');
+        $found = $this->scanIn->findBarcode(trim($request->string('code')->toString()));
+
+        return $found === null
+            ? response()->json(['message' => 'This barcode is not on any product.'], 404)
+            : response()->json(['item_id' => $found['product_id'], 'name' => $found['name'], 'pack' => $found['pack']]);
     }
 
     /**
@@ -100,7 +148,12 @@ class ParcelController extends Controller
     {
         $this->authorize('marketplace.pack');
         $user = $request->user();
-        $data = $request->validate(['code' => ['required', 'string', 'max:255']]);
+        $data = $request->validate([
+            'code' => ['required', 'string', 'max:255'],
+            // Products passed by eye because their barcode is not on file or would not scan.
+            'by_eye' => ['nullable', 'array', 'max:20'],
+            'by_eye.*' => ['string', 'max:255'],
+        ]);
 
         $shipment = $this->orders->findByCode($data['code']);
 
@@ -120,7 +173,7 @@ class ParcelController extends Controller
         }
 
         try {
-            ['result' => $result, 'shipment' => $scanned] = $this->orders->scanOut($shipment, $user);
+            ['result' => $result, 'shipment' => $scanned] = $this->orders->scanOut($shipment, $user, ($data['by_eye'] ?? []) === [] ? null : mb_substr('Checked by eye, not by barcode: '.implode(', ', $data['by_eye']), 0, 255));
         } catch (OnlineOrderException $e) {
             return response()->json([
                 'ok' => false,
@@ -261,6 +314,13 @@ class ParcelController extends Controller
 
         return [
             ...OnlineOrderPresenter::shipment($shipment),
+            // Piece by piece, with the barcodes that prove each one.
+            'check' => array_map(function (array $row) use ($shipment): array {
+                $art = $this->artworks->forProduct($row['item_id'], $shipment->brand?->client_id)
+                    ->first(fn ($a) => $a->status === ArtworkStatus::Approved && $a->document_mime !== null && str_starts_with($a->document_mime, 'image/'));
+
+                return [...$row, 'photo' => $art !== null ? route('artworks.document', $art) : $row['photo']];
+            }, PackCheck::for($shipment)),
             // The approved pack, so the packer can see it is the right bottle.
             'pictures' => $shipment->picks
                 ->pluck('item_id')

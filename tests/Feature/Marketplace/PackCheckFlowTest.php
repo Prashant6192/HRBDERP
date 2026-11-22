@@ -294,4 +294,27 @@ class PackCheckFlowTest extends TestCase
         $this->actingAs($this->boss)->get(route('listings.index'))
             ->assertInertia(fn (Assert $page) => $page->where('waiting.0.seller_sku', 'Medicated oil 300 ml')->etc());
     }
+
+    #[Test]
+    public function a_waiting_sku_names_the_orders_it_is_on_with_their_labels(): void
+    {
+        $parcel = $this->parcel('DL0000000000005');
+
+        $this->actingAs($this->boss)->get(route('listings.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('waiting.0.seller_sku', 'Mystery oil')
+                ->has('waiting.0.orders', 1)
+                ->where('waiting.0.orders.0.shipment_id', $parcel->id)
+                ->where('waiting.0.orders.0.order_number', $parcel->order_number)
+                ->where('waiting.0.orders.0.awb', 'DL0000000000005')
+                ->where('waiting.0.orders.0.quantity', 1)
+                ->where('waiting.0.orders.0.page', $parcel->pages[0])
+                ->where('waiting.0.orders.0.file_url', route('online-orders.files.show', $parcel->label_file_id))
+                // The photo tiles: the single with its photo, the pack marked as one.
+                ->where('products', fn ($products) => collect($products)->contains(fn ($p) => $p['value'] === (string) $this->oil->id
+                    && $p['name'] === 'Rahat Rooh Medicated Oil' && $p['size'] === '300 ml' && $p['is_pack'] === false
+                    && $p['photo'] === '/images/products/medicated.png')
+                    && collect($products)->contains(fn ($p) => $p['value'] === (string) $this->pack->id && $p['is_pack'] === true))
+                ->etc());
+    }
 }

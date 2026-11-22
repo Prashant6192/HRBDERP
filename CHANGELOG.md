@@ -11,6 +11,21 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Changed — SKU mapping, one SKU at a time
+
+- "Waiting to be mapped" now shows one SKU at a time and asks two things
+  with large buttons: whether one unit is a Single, a Pack of 2 or a
+  bundle, and which product it is, chosen by its photo (the likely one is
+  marked Suggested). There is no pieces box for a single or a pack of
+  two. It then says in words what a packer will be asked for, using a
+  real order's quantity, before Map and next.
+- Each waiting SKU lists the orders it is on (order number, AWB,
+  quantity, day), and "View label" shows that parcel's label on the page.
+  An SKU that is only a number, or names no size, opens its first label
+  by itself.
+- The "Sold as packs, taken as single pieces" panel is off the page:
+  packs are made up at the depot from single bottles.
+
 ### Fixed — An order's quantity typed into SKU mapping as pieces
 
 - SKU mapping asked for "pieces per order", and a label for six of an SKU

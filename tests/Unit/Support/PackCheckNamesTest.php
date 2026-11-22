@@ -28,9 +28,16 @@ class PackCheckNamesTest extends TestCase
         $this->assertSame('/images/products/lal-tel.png', ProductPhotos::forName('Ayurvedic LAL TEL 100ml'));
         $this->assertSame('/images/products/neem-face-wash.jpg', ProductPhotos::forName('Neem Face Wash 100 ml'));
         $this->assertNull(ProductPhotos::forName('Ratna Cool Hair Oil 300ml'));
+        $this->assertSame('/images/products/ratna-green.png', ProductPhotos::forName('Rahat Rooh Ayurveda Ratan 300ml'));
+        $this->assertSame('/images/products/ratna-green.png', ProductPhotos::forName('Rahat Rooh Ayurveda Ratan 500ml'));
+        $this->assertNull(ProductPhotos::forName('Ayurveda Ratan Green Hair Oil'));
+        $this->assertSame('/images/products/cleanse-kasvi-hair-oil.webp', ProductPhotos::forName('Cleanse Ayurveda Kasvi Hair Oil'));
+        $this->assertSame('/images/products/cleanse-hydra-smooth-shampoo.webp', ProductPhotos::forName('Cleanse Ayurveda Hydra Smooth Shampoo'));
+        $this->assertSame('/images/products/cleanse-face-moisturiser.webp', ProductPhotos::forName('Cleanse Ayurveda Face Moisturiser'));
+        $this->assertSame('/images/products/cleanse-dandruff-shampoo.webp', ProductPhotos::forName('Cleanse Dandruff Care Shampoo 250 ml'));
         $this->assertNull(ProductPhotos::forName('Cleanse Hydrating Facewash'));
 
-        foreach (['medicated.png', 'sukoon.png', 'ratna-green.png', 'satreetha.png', 'lauki.png', 'lal-tel.png', 'neem-face-wash.jpg'] as $file) {
+        foreach (['medicated.png', 'sukoon.png', 'ratna-green.png', 'satreetha.png', 'lauki.png', 'lal-tel.png', 'neem-face-wash.jpg', 'cleanse-kasvi-hair-oil.webp', 'cleanse-hydra-smooth-shampoo.webp', 'cleanse-dandruff-shampoo.webp', 'cleanse-face-moisturiser.webp'] as $file) {
             $this->assertFileExists(dirname(__DIR__, 3)."/public/images/products/{$file}");
         }
     }

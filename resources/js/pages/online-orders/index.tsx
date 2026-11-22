@@ -17,9 +17,15 @@ import {
     Upload,
     X,
 } from 'lucide-react';
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { CancelOrderDialog } from '@/components/online-orders/cancel-order-dialog';
+import {
+    DayPlatforms,
+    DayProducts,
+    DayStep,
+    type DayProduct,
+} from '@/components/online-orders/day-board';
 import {
     ParcelTable,
     printable,
@@ -62,6 +68,7 @@ import {
     dispatch as dispatchRoute,
     holdAll,
     index,
+    pickList,
     printSelected,
     report as reportPage,
     show,
@@ -140,61 +147,6 @@ function shiftDay(date: string, days: number): string {
  * One stage of the day: its count, a click lists its parcels, and the
  * button that moves them on.
  */
-function StageBox({
-    label,
-    value,
-    hint,
-    tone = 'default',
-    active,
-    onClick,
-    children,
-}: {
-    label: string;
-    value: number;
-    hint?: string;
-    tone?: 'default' | 'danger' | 'success';
-    active: boolean;
-    onClick: () => void;
-    children?: ReactNode;
-}) {
-    return (
-        <div
-            className={cn(
-                'bg-card flex flex-col rounded-xl border p-4 transition',
-                tone === 'danger' && 'border-red-600/40 bg-red-500/5',
-                active && 'ring-primary ring-2 ring-offset-2',
-            )}
-        >
-            <button
-                type="button"
-                onClick={onClick}
-                aria-pressed={active}
-                className="text-left"
-            >
-                <p className="text-muted-foreground text-xs tracking-wide uppercase">
-                    {label}
-                </p>
-                <p
-                    className={cn(
-                        'mt-1 text-4xl font-semibold tabular-nums',
-                        tone === 'danger' && 'text-red-700 dark:text-red-300',
-                        tone === 'success' &&
-                            'text-emerald-700 dark:text-emerald-300',
-                    )}
-                >
-                    {value}
-                </p>
-                {hint && (
-                    <p className="text-muted-foreground mt-1 text-xs">{hint}</p>
-                )}
-            </button>
-            {children && (
-                <div className="mt-3 flex flex-wrap gap-2">{children}</div>
-            )}
-        </div>
-    );
-}
-
 /**
  * A courier's light: glowing green once every parcel for it is packed,
  * amber while some wait, red once it is past the cut-off with some still
@@ -248,6 +200,7 @@ export default function OnlineOrdersIndex({
     past_cutoff,
     batches,
     totals,
+    products,
     shortfall,
     dispatchable,
     couriers,
@@ -270,6 +223,7 @@ export default function OnlineOrdersIndex({
     past_cutoff: boolean;
     batches: (Batch & { counts: Counts })[];
     totals: Omit<Counts, 'total'> & { parcels: number };
+    products: DayProduct[];
     shortfall: Shortfall[];
     dispatchable: Record<string, number[]>;
     couriers: CourierRow[];
@@ -426,6 +380,24 @@ export default function OnlineOrdersIndex({
     };
 
     const awaiting = totals.not_printed + totals.printed;
+    // Parcels that are still going out today.
+    const live = awaiting + totals.packed + totals.handed_over;
+    const pieces = products.reduce((n, p) => n + p.pieces, 0);
+    const platforms = Object.entries(
+        batches.reduce<Record<string, number>>((by, b) => {
+            const name = b.marketplace ?? 'Other';
+            by[name] =
+                (by[name] ?? 0) +
+                b.counts.total -
+                b.counts.cancelled -
+                b.counts.returned;
+
+            return by;
+        }, {}),
+    )
+        .map(([name, parcels]) => ({ name, parcels }))
+        .filter((p) => p.parcels > 0)
+        .sort((a, b) => b.parcels - a.parcels);
     const dayLabel = new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', {
         weekday: 'long',
         day: 'numeric',
@@ -679,28 +651,54 @@ export default function OnlineOrdersIndex({
                     </section>
                 )}
 
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                    <StageBox
-                        label="Orders"
-                        value={totals.parcels}
-                        active={showing === 'all'}
+                {/* The day in order: the step the depot is on is outlined
+                    and carries the one button it needs next. */}
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+                    <DayStep
+                        number={1}
+                        label="Labels uploaded"
+                        value={String(totals.parcels)}
+                        hint={
+                            platforms.length === 1
+                                ? platforms[0].name
+                                : `${platforms.length} platforms`
+                        }
+                        state={totals.parcels > 0 ? 'done' : 'now'}
                         onClick={() => pick('all')}
-                    />
-                    <StageBox
-                        label="In packing"
-                        value={totals.not_printed + totals.printed}
+                    >
+                        {can.upload && (
+                            <Button
+                                size="sm"
+                                variant={
+                                    totals.parcels > 0 ? 'outline' : 'default'
+                                }
+                                asChild
+                            >
+                                <Link href={create()}>
+                                    <Upload className="size-4" />
+                                    {totals.parcels > 0
+                                        ? 'Upload more'
+                                        : 'Upload labels'}
+                                </Link>
+                            </Button>
+                        )}
+                    </DayStep>
+                    <DayStep
+                        number={2}
+                        label="Printed"
+                        value={`${live - totals.not_printed} / ${live}`}
                         hint={
                             totals.not_printed > 0
                                 ? `${totals.not_printed} not printed yet`
-                                : `Scan by ${cutoff}`
+                                : 'Sorted by courier'
                         }
-                        tone={
-                            past_cutoff &&
-                            totals.not_printed + totals.printed > 0
-                                ? 'danger'
-                                : 'default'
+                        state={
+                            live === 0
+                                ? 'ahead'
+                                : totals.not_printed > 0
+                                  ? 'now'
+                                  : 'done'
                         }
-                        active={showing === 'to_pack'}
                         onClick={() => pick('to_pack')}
                     >
                         {can.print && totals.not_printed > 0 && (
@@ -713,29 +711,98 @@ export default function OnlineOrdersIndex({
                                 Print {totals.not_printed}
                             </Button>
                         )}
-                        {can.pack &&
-                            totals.not_printed === 0 &&
-                            totals.printed > 0 && (
-                                <Button size="sm" asChild>
-                                    <Link href={scanToPack()}>
-                                        <ScanLine className="size-4" />
-                                        Start scanning
-                                    </Link>
-                                </Button>
-                            )}
-                    </StageBox>
-                    <StageBox
-                        label="Scanned"
-                        value={totals.packed}
-                        hint="On the courier piles"
-                        active={showing === 'packed'}
-                        onClick={() => pick('packed')}
+                    </DayStep>
+                    <DayStep
+                        number={3}
+                        label="Pick from racks"
+                        value={`${pieces} pcs`}
+                        hint={`${products.length} ${products.length === 1 ? 'product' : 'products'}`}
+                        state={
+                            live === 0
+                                ? 'ahead'
+                                : awaiting === 0
+                                  ? 'done'
+                                  : 'ahead'
+                        }
+                    >
+                        <Button size="sm" variant="outline" asChild>
+                            <Link href={pickList({ query: { date } }).url}>
+                                Pick list
+                            </Link>
+                        </Button>
+                    </DayStep>
+                    <DayStep
+                        number={4}
+                        label="Packed"
+                        value={`${totals.packed + totals.handed_over} / ${live}`}
+                        hint={
+                            awaiting > 0
+                                ? `${awaiting} left · by ${cutoff}`
+                                : 'Every parcel scanned'
+                        }
+                        state={
+                            live === 0
+                                ? 'ahead'
+                                : awaiting === 0
+                                  ? 'done'
+                                  : totals.not_printed === 0
+                                    ? 'now'
+                                    : 'ahead'
+                        }
+                        onClick={() =>
+                            pick(awaiting > 0 ? 'to_pack' : 'packed')
+                        }
+                    >
+                        {can.pack && awaiting > 0 && (
+                            <Button
+                                size={
+                                    totals.not_printed === 0 ? 'default' : 'sm'
+                                }
+                                variant={
+                                    totals.not_printed === 0
+                                        ? 'default'
+                                        : 'outline'
+                                }
+                                asChild
+                            >
+                                <Link
+                                    href={scanToPack({ query: { date } }).url}
+                                >
+                                    <ScanLine className="size-4" />
+                                    Start packing
+                                </Link>
+                            </Button>
+                        )}
+                    </DayStep>
+                    <DayStep
+                        number={5}
+                        label="Handed to courier"
+                        value={`${totals.handed_over} / ${live}`}
+                        hint={`${couriers.length} ${couriers.length === 1 ? 'courier' : 'couriers'}`}
+                        state={
+                            live === 0
+                                ? 'ahead'
+                                : totals.handed_over === live
+                                  ? 'done'
+                                  : awaiting === 0
+                                    ? 'now'
+                                    : 'ahead'
+                        }
+                        onClick={() =>
+                            pick(
+                                totals.handed_over > 0
+                                    ? 'handed_over'
+                                    : 'packed',
+                            )
+                        }
                     >
                         {(can.handover || can.manage) &&
                             allScanned.length > 0 && (
                                 <Button
                                     size="sm"
-                                    variant="outline"
+                                    variant={
+                                        awaiting === 0 ? 'default' : 'outline'
+                                    }
                                     onClick={() =>
                                         markDispatched(
                                             allScanned,
@@ -747,14 +814,7 @@ export default function OnlineOrdersIndex({
                                     Mark all dispatched
                                 </Button>
                             )}
-                    </StageBox>
-                    <StageBox
-                        label="Dispatched"
-                        value={totals.handed_over}
-                        tone={totals.handed_over > 0 ? 'success' : 'default'}
-                        active={showing === 'handed_over'}
-                        onClick={() => pick('handed_over')}
-                    />
+                    </DayStep>
                 </div>
 
                 <ShortfallPanel
@@ -764,6 +824,20 @@ export default function OnlineOrdersIndex({
                     }
                     checkData={{ date, facility }}
                 />
+
+                {(products.length > 0 || platforms.length > 0) && (
+                    <div className="grid items-start gap-3 lg:grid-cols-12">
+                        <div className="lg:col-span-7">
+                            <DayProducts
+                                products={products}
+                                pickListUrl={pickList({ query: { date } }).url}
+                            />
+                        </div>
+                        <div className="lg:col-span-5">
+                            <DayPlatforms platforms={platforms} />
+                        </div>
+                    </div>
+                )}
 
                 {couriers.length > 0 && (
                     <section className="bg-card rounded-xl border">

@@ -212,4 +212,30 @@ class PackCheckFlowTest extends TestCase
                 ->has('items.data', 1)
                 ->where('items.data.0.id', $this->oil->id));
     }
+
+    #[Test]
+    public function the_online_orders_page_lists_the_days_products_each_as_its_single(): void
+    {
+        $this->actingAs($this->boss)->get(route('online-orders.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('online-orders/index')
+                // Three single parcels and a Pack of 2: five pieces in four orders.
+                ->has('products', 1)
+                ->where('products.0.item_id', $this->oil->id)
+                ->where('products.0.name', 'Rahat Rooh Medicated Oil')
+                ->where('products.0.size', '300 ml')
+                ->where('products.0.pieces', 5)
+                ->where('products.0.to_pack', 5)
+                ->where('products.0.orders', 4)
+                ->where('products.0.has_barcode', true)
+                ->where('products.0.photo', '/images/products/medicated.png'));
+
+        // One packed: it is still in the day's count, no longer to pack.
+        $this->actingAs($this->shanu)->postJson(route('floor.pack.scan'), ['code' => 'DL0000000000004'])->assertOk();
+
+        $this->actingAs($this->boss)->get(route('online-orders.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('products.0.pieces', 5)
+                ->where('products.0.to_pack', 3));
+    }
 }

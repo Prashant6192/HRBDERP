@@ -93,7 +93,7 @@ class ListingController extends Controller
             'pack_quantity' => $i->pack_quantity === null ? null : (int) $i->pack_quantity,
         ])->all();
 
-        $waiting = $waiting->map(function ($r) use ($titles, $candidates): array {
+        $waiting = $waiting->map(function ($r) use ($titles, $candidates, $orders): array {
             $readings = ($titles->get("{$r->marketplace_id}|{$r->brand_id}|{$r->seller_sku}") ?? collect([(object) ['description' => $r->description]]))
                 ->map(fn ($t) => SkuReading::of((string) $r->seller_sku, $t->description, $r->brand))
                 ->sortByDesc(fn (SkuReading $x) => [(int) ($x->size !== null), mb_strlen((string) $x->name)])

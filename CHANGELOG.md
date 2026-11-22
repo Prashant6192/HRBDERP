@@ -11,6 +11,15 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Added — Mappings whose SKU names another product are flagged
+
+- A Flipkart label for "Rahat Rooh Medicated Oil 300ml (pack of 2)"
+  asked the packer for Ratna 300ml: that SKU had been mapped to the wrong
+  product. SKU mapping now compares each mapping with the product its SKU
+  names in words; where they differ it says "Check: the SKU reads as …"
+  on the row and lists it in a red box at the top, each with "Check and
+  change". SKUs that are only numbers are not judged.
+
 ### Fixed — Real packs listed as "mappings to check"
 
 - The red "mappings to check" box listed real packs of two, even after

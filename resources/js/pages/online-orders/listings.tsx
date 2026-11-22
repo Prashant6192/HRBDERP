@@ -78,6 +78,8 @@ type Listing = {
     is_active: boolean;
     /** More than one piece on an SKU that is not a pack: likely an order quantity typed as pieces. */
     suspect: boolean;
+    /** The product the SKU's own words name, when it is not the one mapped. */
+    reads_as: string | null;
     /** What the labels call this SKU. */
     description: string | null;
     /** Its newest orders, packed or not. */
@@ -802,11 +804,18 @@ function WizardCard({
  * pack: every label of that SKU is being multiplied twice. One click sets
  * each back to one piece and matches the waiting parcels again.
  */
-function SuspectMappings({ listings }: { listings: Listing[] }) {
+function SuspectMappings({
+    listings,
+    onChange,
+}: {
+    listings: Listing[];
+    onChange: (id: number) => void;
+}) {
     const suspects = listings.filter((l) => l.suspect);
+    const others = listings.filter((l) => l.reads_as && !l.suspect);
     const [busy, setBusy] = useState<number | null>(null);
 
-    if (suspects.length === 0) {
+    if (suspects.length === 0 && others.length === 0) {
         return null;
     }
 
@@ -825,73 +834,133 @@ function SuspectMappings({ listings }: { listings: Listing[] }) {
     };
 
     return (
-        <section className="rounded-xl border border-red-500/50 bg-red-500/5">
-            <div className="border-b border-red-500/30 px-4 py-3">
-                <h2 className="flex items-center gap-2 text-sm font-semibold text-red-700 dark:text-red-300">
-                    <AlertTriangle className="size-4" />
-                    {suspects.length} mapping{suspects.length === 1 ? '' : 's'}{' '}
-                    to check: more than 1 piece on an SKU that is not a pack
-                </h2>
-                <p className="mt-1 text-xs">
-                    The ERP multiplies the label&rsquo;s quantity by these
-                    pieces. A label for 4 of an SKU mapped as 4 pieces asks for
-                    16. If the SKU is one bottle, set it to 1 piece.
-                </p>
-            </div>
-            <ul className="divide-y divide-red-500/20">
-                {suspects.map((l) => (
-                    <li
-                        key={l.id}
-                        className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm"
-                    >
-                        <div className="min-w-0 flex-1">
-                            <span className="font-mono font-medium">
-                                {l.seller_sku}
-                            </span>
-                            <span className="text-muted-foreground ml-2 text-xs">
-                                {l.brand} · {l.marketplace}
-                            </span>
-                            <div className="mt-0.5">
-                                Now:{' '}
-                                <strong>{l.components[0].units} pieces</strong>{' '}
-                                of {l.components[0].item} for each unit ordered
-                            </div>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                disabled={busy !== null}
-                                onClick={() => {
-                                    setBusy(l.id);
-                                    router.post(
-                                        confirm(l.id).url,
-                                        {},
-                                        {
-                                            preserveScroll: true,
-                                            onFinish: () => setBusy(null),
-                                        },
-                                    );
-                                }}
+        <>
+            {others.length > 0 && (
+                <section className="rounded-xl border border-red-500/50 bg-red-500/5">
+                    <div className="border-b border-red-500/30 px-4 py-3">
+                        <h2 className="flex items-center gap-2 text-sm font-semibold text-red-700 dark:text-red-300">
+                            <AlertTriangle className="size-4" />
+                            {others.length} mapping
+                            {others.length === 1 ? '' : 's'} to check: the SKU
+                            names a different product
+                        </h2>
+                        <p className="mt-1 text-xs">
+                            The SKU&rsquo;s own words name another product than
+                            the one it is mapped to, so the packer is asked for
+                            the wrong product. Open it, look at the label and
+                            pick the right one.
+                        </p>
+                    </div>
+                    <ul className="divide-y divide-red-500/20">
+                        {others.map((l) => (
+                            <li
+                                key={l.id}
+                                className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm"
                             >
-                                It is a pack of {l.components[0].units}
-                            </Button>
-                            <Button
-                                size="sm"
-                                disabled={busy !== null}
-                                onClick={() => setToOne(l)}
+                                <div className="min-w-0 flex-1">
+                                    <span className="font-mono font-medium break-all">
+                                        {l.seller_sku}
+                                    </span>
+                                    <span className="text-muted-foreground ml-2 text-xs">
+                                        {l.brand} · {l.marketplace}
+                                    </span>
+                                    <div className="mt-0.5">
+                                        Mapped to{' '}
+                                        <strong>{l.components[0].item}</strong>,
+                                        but reads as{' '}
+                                        <strong>{l.reads_as}</strong>
+                                    </div>
+                                </div>
+                                <Button
+                                    size="sm"
+                                    onClick={() => onChange(l.id)}
+                                >
+                                    Check and change
+                                </Button>
+                            </li>
+                        ))}
+                    </ul>
+                </section>
+            )}
+            {suspects.length > 0 && (
+                <section className="rounded-xl border border-red-500/50 bg-red-500/5">
+                    <div className="border-b border-red-500/30 px-4 py-3">
+                        <h2 className="flex items-center gap-2 text-sm font-semibold text-red-700 dark:text-red-300">
+                            <AlertTriangle className="size-4" />
+                            {suspects.length} mapping
+                            {suspects.length === 1 ? '' : 's'} to check: more
+                            than 1 piece on an SKU that is not a pack
+                        </h2>
+                        <p className="mt-1 text-xs">
+                            The ERP multiplies the label&rsquo;s quantity by
+                            these pieces. A label for 4 of an SKU mapped as 4
+                            pieces asks for 16. If the SKU is one bottle, set it
+                            to 1 piece.
+                        </p>
+                    </div>
+                    <ul className="divide-y divide-red-500/20">
+                        {suspects.map((l) => (
+                            <li
+                                key={l.id}
+                                className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm"
                             >
-                                {busy === l.id ? 'Saving…' : 'Set to 1 piece'}
-                            </Button>
-                        </div>
-                    </li>
-                ))}
-            </ul>
-            <p className="text-muted-foreground border-t border-red-500/20 px-4 py-2 text-xs">
-                If the SKU really is a pack of that many, press &ldquo;It is a
-                pack&rdquo;: it leaves this list and stays as it is.
-            </p>
-        </section>
+                                <div className="min-w-0 flex-1">
+                                    <span className="font-mono font-medium">
+                                        {l.seller_sku}
+                                    </span>
+                                    <span className="text-muted-foreground ml-2 text-xs">
+                                        {l.brand} · {l.marketplace}
+                                    </span>
+                                    <div className="mt-0.5">
+                                        Now:{' '}
+                                        <strong>
+                                            {l.components[0].units} pieces
+                                        </strong>{' '}
+                                        of {l.components[0].item} for each unit
+                                        ordered
+                                    </div>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={busy !== null}
+                                        onClick={() => {
+                                            setBusy(l.id);
+                                            router.post(
+                                                confirm(l.id).url,
+                                                {},
+                                                {
+                                                    preserveScroll: true,
+                                                    onFinish: () =>
+                                                        setBusy(null),
+                                                },
+                                            );
+                                        }}
+                                    >
+                                        It is a pack of {l.components[0].units}
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        disabled={busy !== null}
+                                        onClick={() => setToOne(l)}
+                                    >
+                                        {busy === l.id
+                                            ? 'Saving…'
+                                            : 'Set to 1 piece'}
+                                    </Button>
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                    <p className="text-muted-foreground border-t border-red-500/20 px-4 py-2 text-xs">
+                        If the SKU really is a pack of that many, press
+                        &ldquo;It is a pack&rdquo;: it leaves this list and
+                        stays as it is.
+                    </p>
+                </section>
+            )}
+        </>
     );
 }
 
@@ -963,6 +1032,12 @@ function ListingRow({
                     <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-700 dark:text-red-300">
                         <AlertTriangle className="size-3.5" />
                         Check: this SKU is not a pack
+                    </p>
+                )}
+                {listing.reads_as && (
+                    <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-xs font-semibold text-red-700 dark:text-red-300">
+                        <AlertTriangle className="size-3.5" />
+                        Check: the SKU reads as {listing.reads_as}
                     </p>
                 )}
             </div>
@@ -1039,7 +1114,20 @@ export default function SkuMapping({
                     description="What each marketplace prints, and what ONE unit of it is: one product, a pack of two (one product, 2 pieces), or a combo of several products. The quantity a customer ordered is read from each label and multiplied, so it is never typed here. Map an SKU once; every label after carries it straight to the right stock."
                 />
 
-                <SuspectMappings listings={listings} />
+                <SuspectMappings
+                    listings={listings}
+                    onChange={(id) => {
+                        setChanging(id);
+                        window.setTimeout(() =>
+                            document
+                                .getElementById('change-mapping')
+                                ?.scrollIntoView({
+                                    behavior: 'smooth',
+                                    block: 'start',
+                                }),
+                        );
+                    }}
+                />
 
                 <section className="bg-card rounded-xl border">
                     <div className="flex items-center justify-between border-b px-4 py-3">

@@ -388,4 +388,25 @@ class PackCheckFlowTest extends TestCase
         $this->actingAs($this->boss)->get(route('listings.index'))
             ->assertInertia(fn (Assert $page) => $page->where('waiting', []));
     }
+
+    #[Test]
+    public function a_mapping_to_a_product_the_sku_does_not_name_is_flagged(): void
+    {
+        $orders = app(OnlineOrderService::class);
+        $brand = Brand::query()->where('code', 'RR')->sole();
+        $meesho = Marketplace::query()->where('code', 'MEESHO')->sole();
+        $ratna = Product::factory()->create(['code' => 'FG-RT-300', 'name' => 'Rahat Rooh Ayurveda Ratan 300ml', 'stock_uom_id' => $this->oil->stock_uom_id, 'client_id' => null, 'barcode' => null]);
+        $readsAs = fn (string $sku) => collect($this->actingAs($this->boss)->get(route('listings.index'))->viewData('page')['props']['listings'])
+            ->firstWhere('seller_sku', $sku)['reads_as'];
+
+        // A Medicated Oil SKU mapped to Ratna by mistake.
+        $orders->mapSku($meesho, $brand, 'Rahat Rooh Medicated Oil 300ml (pack of 2) (600ml)', $ratna, 2, $this->boss);
+        $this->assertSame('Rahat Rooh Medicated Oil 300ml', $readsAs('Rahat Rooh Medicated Oil 300ml (pack of 2) (600ml)'));
+
+        // Mapped right: no flag. Nor on an SKU whose words name nothing clearly.
+        $orders->mapSku($meesho, $brand, 'Rahat Rooh Medicated Oil 300ml (pack of 2) (600ml)', $this->oil, 2, $this->boss);
+        $this->assertNull($readsAs('Rahat Rooh Medicated Oil 300ml (pack of 2) (600ml)'));
+        $orders->mapSku($meesho, $brand, '1347006533_4', $ratna, 1, $this->boss);
+        $this->assertNull($readsAs('1347006533_4'));
+    }
 }

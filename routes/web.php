@@ -246,6 +246,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::get('online-orders/sku-mapping', [ListingController::class, 'index'])->name('listings.index');
     Route::post('online-orders/sku-mapping', [ListingController::class, 'store'])->name('listings.store');
     Route::patch('online-orders/sku-mapping/{listing}', [ListingController::class, 'update'])->name('listings.update');
+    Route::delete('online-orders/sku-mapping/{listing}', [ListingController::class, 'destroy'])->name('listings.destroy');
     Route::post('online-orders/sku-mapping/packs', [ListingController::class, 'usePacks'])->name('listings.packs');
     Route::get('online-orders/brands', [BrandController::class, 'index'])->name('brands.index');
     Route::patch('online-orders/brands/{brand}', [BrandController::class, 'update'])->name('brands.update');

@@ -12,8 +12,10 @@ use App\Domain\Inventory\Services\InventoryLedgerService;
 use App\Domain\Inventory\Services\StockBalanceService;
 use App\Domain\Marketplace\Contracts\AiLabelReader;
 use App\Domain\Marketplace\Enums\ShipmentStatus;
+use App\Domain\Marketplace\Enums\StockState;
 use App\Domain\Marketplace\Models\Brand;
 use App\Domain\Marketplace\Models\Marketplace;
+use App\Domain\Marketplace\Models\MarketplaceListing;
 use App\Domain\Marketplace\Models\Shipment;
 use App\Domain\Marketplace\Services\OnlineOrderService;
 use App\Domain\MasterData\Models\Product;
@@ -267,5 +269,29 @@ class PackCheckFlowTest extends TestCase
         $this->assertSame(1, $pieces('VL0000000000001'));
         $this->assertSame(20 - 3, $onShelf());
         $this->assertSame([], $suspects());
+    }
+
+    #[Test]
+    public function a_mapping_can_be_deleted_and_its_waiting_parcels_go_back_to_be_mapped(): void
+    {
+        $listing = MarketplaceListing::query()->where('seller_sku', 'Medicated oil 300 ml')->sole();
+        $onShelf = fn () => app(StockBalanceService::class)->onHand($this->oil, $this->depotFg)->toInt();
+
+        // One is packed before the mapping goes: it keeps what it was packed as.
+        $this->actingAs($this->shanu)->postJson(route('floor.pack.scan'), ['code' => 'VL0000000000001'])->assertOk();
+        $this->assertSame(19, $onShelf());
+
+        $this->actingAs($this->boss)->delete(route('listings.destroy', $listing))->assertRedirect();
+
+        $this->assertNull(MarketplaceListing::query()->find($listing->id));
+        $this->assertSame(ShipmentStatus::Packed, $this->parcel('VL0000000000001')->status);
+        $this->assertSame(1, (int) $this->parcel('VL0000000000001')->picks()->sum('units'));
+        $this->assertSame(StockState::Unmapped, $this->parcel('VL0000000000002')->stock_state);
+        $this->assertSame(0, $this->parcel('VL0000000000002')->picks()->count());
+        $this->assertSame(19, $onShelf());
+
+        // The SKU is waiting to be mapped again, and can be.
+        $this->actingAs($this->boss)->get(route('listings.index'))
+            ->assertInertia(fn (Assert $page) => $page->where('waiting.0.seller_sku', 'Medicated oil 300 ml')->etc());
     }
 }

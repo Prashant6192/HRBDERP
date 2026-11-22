@@ -22,6 +22,9 @@ sign-in card and at the foot of the sidebar.
   first whether the SKU really holds that many.
 - Mappings already saved that way are listed at the top of SKU mapping,
   each with "Set to 1 piece".
+- A mapping can be deleted (Delete beside Change). Parcels of its SKU
+  still waiting to be packed go back to "Waiting to be mapped" with their
+  stock back on the shelf; parcels already packed are not changed.
 - Changing a mapping now puts back the stock that was taken for waiting
   parcels under the old mapping and takes it again for what they really
   hold. Before, a parcel whose stock left at upload kept the old amount.

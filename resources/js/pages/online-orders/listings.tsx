@@ -11,7 +11,7 @@ import {
     type SearchableOption,
 } from '@/components/ui/searchable-select';
 import { cn } from '@/lib/utils';
-import { packs, store, update } from '@/routes/listings';
+import { destroy, packs, store, update } from '@/routes/listings';
 
 type Waiting = {
     marketplace_id: number;
@@ -583,13 +583,30 @@ function ListingRow({
                         </Button>
                     </>
                 ) : (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setEditing(true)}
-                    >
-                        Change
-                    </Button>
+                    <>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEditing(true)}
+                        >
+                            Change
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-700 hover:text-red-800 dark:text-red-300"
+                            onClick={() =>
+                                window.confirm(
+                                    `Delete the mapping of "${listing.seller_sku}"?\n\nParcels of this SKU still waiting to be packed go back to "Waiting to be mapped" and their stock goes back on the shelf. Parcels already packed are not changed.`,
+                                ) &&
+                                router.delete(destroy(listing.id).url, {
+                                    preserveScroll: true,
+                                })
+                            }
+                        >
+                            Delete
+                        </Button>
+                    </>
                 )}
             </td>
         </tr>

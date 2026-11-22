@@ -189,6 +189,24 @@ class ListingController extends Controller
         return back()->withToast('success', "\"{$listing->seller_sku}\" is {$this->describe($listing)}. Waiting parcels have been matched.");
     }
 
+    /**
+     * Take a mapping off the file: its waiting parcels go back to "Waiting
+     * to be mapped".
+     */
+    public function destroy(Request $request, MarketplaceListing $listing): RedirectResponse
+    {
+        $this->authorize('marketplace.manage');
+        $sku = $listing->seller_sku;
+
+        try {
+            $back = $this->orders->deleteSkuMapping($listing, $request->user());
+        } catch (OnlineOrderException $e) {
+            return back()->withToast('error', $e->getMessage());
+        }
+
+        return back()->withToast('success', "\"{$sku}\" is no longer mapped.".($back > 0 ? " {$back} waiting parcel(s) are back under Waiting to be mapped." : ''));
+    }
+
     public function update(Request $request, MarketplaceListing $listing): RedirectResponse
     {
         $this->authorize('marketplace.manage');

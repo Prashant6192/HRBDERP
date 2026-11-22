@@ -9,8 +9,11 @@ use App\Domain\Marketplace\Exceptions\OnlineOrderException;
 use App\Domain\Marketplace\Models\Brand;
 use App\Domain\Marketplace\Models\Marketplace;
 use App\Domain\Marketplace\Models\MarketplaceListing;
+use App\Domain\Marketplace\Models\Shipment;
 use App\Domain\Marketplace\Models\ShipmentLine;
 use App\Domain\Marketplace\Services\OnlineOrderService;
+use App\Domain\Marketplace\Support\PackCheck;
+use App\Domain\Marketplace\Support\ProductPhotos;
 use App\Domain\Marketplace\Support\SkuReading;
 use App\Domain\MasterData\Enums\ItemType;
 use App\Domain\MasterData\Models\Item;
@@ -61,6 +64,27 @@ class ListingController extends Controller
             ->get(['shipments.marketplace_id', 'shipments.brand_id', 'shipment_lines.seller_sku', 'shipment_lines.description'])
             ->groupBy(fn ($r) => "{$r->marketplace_id}|{$r->brand_id}|{$r->seller_sku}");
 
+        // The parcels each waiting SKU is on, so the label can be looked at
+        // before the SKU is mapped: newest first, a handful each.
+        $orders = Shipment::query()
+            ->whereIn('status', ShipmentStatus::awaitingPacking())
+            ->whereHas('lines', fn ($q) => $q->whereNull('listing_id'))
+            ->with(['lines' => fn ($q) => $q->whereNull('listing_id'), 'batch:id,for_date'])
+            ->latest('id')
+            ->limit(500)
+            ->get()
+            ->flatMap(fn (Shipment $s) => $s->lines->map(fn (ShipmentLine $l) => [
+                'key' => "{$s->marketplace_id}|{$s->brand_id}|{$l->seller_sku}",
+                'shipment_id' => $s->id,
+                'order_number' => $s->order_number,
+                'awb' => $s->awb,
+                'quantity' => (int) $l->quantity,
+                'for_date' => $s->batch?->for_date?->toDateString(),
+                'file_url' => $s->label_file_id === null ? null : route('online-orders.files.show', $s->label_file_id),
+                'page' => $s->pages[0] ?? 1,
+            ]))
+            ->groupBy('key');
+
         $products = Item::query()->where('type', ItemType::FinishedGood->value)->where('is_active', true)->orderBy('name')
             ->get(['id', 'code', 'name', 'pack_of_item_id', 'pack_quantity']);
         $candidates = $products->map(fn (Item $i) => [
@@ -82,6 +106,8 @@ class ListingController extends Controller
                 'brand_id' => (int) $r->brand_id, 'brand' => $r->brand,
                 'seller_sku' => $r->seller_sku, 'description' => $r->description, 'parcels' => (int) $r->parcels,
                 'reading' => ['name' => $reading->name, 'size' => $reading->size, 'pack' => $reading->pack],
+                'orders' => ($orders->get("{$r->marketplace_id}|{$r->brand_id}|{$r->seller_sku}") ?? collect())
+                    ->take(8)->map(fn (array $o) => collect($o)->except('key')->all())->values()->all(),
                 'suggested' => $suggested === null ? null : ['item_id' => (string) $suggested['id'], 'pieces' => $suggested['pieces']],
             ];
         })->all();
@@ -122,7 +148,16 @@ class ListingController extends Controller
             'waiting' => $waiting,
             'listings' => $listings,
             'pack_moves' => $this->packMoves(),
-            'products' => $products->map(fn (Item $i) => ['value' => (string) $i->id, 'label' => $i->name, 'hint' => $i->code])->all(),
+            'products' => $products->map(function (Item $i): array {
+                [$name, $size] = PackCheck::nameAndSize((string) $i->name);
+
+                return [
+                    'value' => (string) $i->id, 'label' => $i->name, 'hint' => $i->code,
+                    // For the photo tiles: singles only, a pack is chosen with "Pack of 2".
+                    'name' => $name, 'size' => $size, 'is_pack' => $i->pack_of_item_id !== null,
+                    'photo' => ProductPhotos::forName((string) $i->name),
+                ];
+            })->all(),
             'marketplaces' => Marketplace::query()->orderBy('name')->get(['id', 'name'])->map(fn ($m) => ['value' => (string) $m->id, 'label' => $m->name])->all(),
             'brands' => Brand::query()->orderBy('name')->get(['id', 'name'])->map(fn ($b) => ['value' => (string) $b->id, 'label' => $b->name])->all(),
         ]);

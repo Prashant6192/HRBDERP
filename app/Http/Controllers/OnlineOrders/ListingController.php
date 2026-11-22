@@ -194,6 +194,41 @@ class ListingController extends Controller
     }
 
     /**
+     * Not the company's product (a label uploaded by mistake): the parcels
+     * still waiting with this SKU are cancelled, so it leaves "Waiting to be
+     * mapped" and the day's counts. Packed parcels are not touched.
+     */
+    public function dismiss(Request $request): RedirectResponse
+    {
+        $this->authorize('marketplace.manage');
+
+        $data = $request->validate([
+            'marketplace_id' => ['required', 'integer', Rule::exists('marketplaces', 'id')],
+            'brand_id' => ['required', 'integer', Rule::exists('brands', 'id')],
+            'seller_sku' => ['required', 'string', 'max:255'],
+        ]);
+
+        $key = MarketplaceListing::keyFor($data['seller_sku']);
+        $parcels = Shipment::query()
+            ->where('marketplace_id', $data['marketplace_id'])
+            ->where('brand_id', $data['brand_id'])
+            ->whereIn('status', ShipmentStatus::awaitingPacking())
+            ->with('lines')
+            ->get()
+            ->filter(fn (Shipment $s) => $s->lines->contains(fn (ShipmentLine $l) => MarketplaceListing::keyFor($l->seller_sku) === $key));
+
+        try {
+            foreach ($parcels as $parcel) {
+                $this->orders->cancel($parcel, "Not our product: SKU {$data['seller_sku']} uploaded by mistake", $request->user());
+            }
+        } catch (OnlineOrderException $e) {
+            return back()->withToast('error', $e->getMessage());
+        }
+
+        return back()->withToast('success', "\"{$data['seller_sku']}\" removed: {$parcels->count()} parcel(s) cancelled as not our product.");
+    }
+
+    /**
      * Someone has looked: one unit of this SKU really is that many pieces.
      */
     public function confirm(Request $request, MarketplaceListing $listing): RedirectResponse

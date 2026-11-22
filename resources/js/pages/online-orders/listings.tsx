@@ -11,7 +11,7 @@ import {
     type SearchableOption,
 } from '@/components/ui/searchable-select';
 import { cn } from '@/lib/utils';
-import { confirm, destroy, store, update } from '@/routes/listings';
+import { confirm, destroy, dismiss, store, update } from '@/routes/listings';
 
 type Waiting = {
     marketplace_id: number;
@@ -758,6 +758,30 @@ function WizardCard({
                             onClick={onSkip}
                         >
                             Skip for now
+                        </Button>
+                    )}
+                    {!editing && (
+                        <Button
+                            size="lg"
+                            variant="ghost"
+                            className="text-red-700 hover:text-red-800 dark:text-red-300"
+                            disabled={busy}
+                            onClick={() =>
+                                window.confirm(
+                                    `"${row.seller_sku}" is not our product?\n\nIts ${row.parcels} waiting parcel(s) are cancelled as "not our product" and it leaves this list. Nothing is mapped.`,
+                                ) &&
+                                router.post(
+                                    dismiss().url,
+                                    {
+                                        marketplace_id: row.marketplace_id,
+                                        brand_id: row.brand_id,
+                                        seller_sku: row.seller_sku,
+                                    },
+                                    { preserveScroll: true },
+                                )
+                            }
+                        >
+                            Not our product
                         </Button>
                     )}
                 </div>

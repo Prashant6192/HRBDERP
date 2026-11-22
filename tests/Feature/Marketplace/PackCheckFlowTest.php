@@ -369,4 +369,23 @@ class PackCheckFlowTest extends TestCase
         ])->assertRedirect();
         $this->assertSame([], $flagged());
     }
+
+    #[Test]
+    public function an_sku_that_is_not_ours_is_removed_with_its_waiting_parcels(): void
+    {
+        $meesho = Marketplace::query()->where('code', 'MEESHO')->sole();
+        $brand = Brand::query()->where('code', 'RR')->sole();
+
+        $this->actingAs($this->boss)->post(route('listings.dismiss'), [
+            'marketplace_id' => $meesho->id, 'brand_id' => $brand->id, 'seller_sku' => 'Mystery oil',
+        ])->assertRedirect();
+
+        $parcel = $this->parcel('DL0000000000005');
+        $this->assertSame(ShipmentStatus::Cancelled, $parcel->status);
+        $this->assertStringContainsString('Not our product', (string) $parcel->cancel_reason);
+        $this->assertTrue($this->parcel('VL0000000000001')->status->awaitsPacking(), 'Other parcels are not touched.');
+
+        $this->actingAs($this->boss)->get(route('listings.index'))
+            ->assertInertia(fn (Assert $page) => $page->where('waiting', []));
+    }
 }

@@ -247,6 +247,7 @@ Route::middleware(['auth', 'verified'])->group(function (): void {
     Route::post('online-orders/sku-mapping', [ListingController::class, 'store'])->name('listings.store');
     Route::patch('online-orders/sku-mapping/{listing}', [ListingController::class, 'update'])->name('listings.update');
     Route::delete('online-orders/sku-mapping/{listing}', [ListingController::class, 'destroy'])->name('listings.destroy');
+    Route::post('online-orders/sku-mapping/not-ours', [ListingController::class, 'dismiss'])->name('listings.dismiss');
     Route::post('online-orders/sku-mapping/{listing}/confirm', [ListingController::class, 'confirm'])->name('listings.confirm');
     Route::post('online-orders/sku-mapping/packs', [ListingController::class, 'usePacks'])->name('listings.packs');
     Route::get('online-orders/brands', [BrandController::class, 'index'])->name('brands.index');

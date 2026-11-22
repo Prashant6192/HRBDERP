@@ -11,6 +11,17 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Security — Packages with known advisories updated
+
+- The PHP packages with published security advisories are on their
+  patched releases: Laravel 13.43, Symfony 8.1.11, PhpSpreadsheet 5.12,
+  CommonMark 2.10.7 and what they depend on. `composer audit` now finds
+  none (it found 20 across 10 packages).
+- The build tool (Vite 8.3) and `shell-quote` are on patched releases;
+  nothing that ships to the browser is flagged. The lint and test tools
+  bundled in `vite-plus` still carry advisories of their own; they run
+  only on a developer's machine and in CI.
+
 ### Changed — Online orders shows the day step by step
 
 - The four tiles at the top of Online orders are now the day in order:

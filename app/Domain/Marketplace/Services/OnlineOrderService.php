@@ -444,6 +444,22 @@ class OnlineOrderService
             ->filter(fn (Shipment $s) => $s->lines->contains(fn (ShipmentLine $l) => MarketplaceListing::keyFor($l->seller_sku) === $key));
 
         foreach ($waiting as $shipment) {
+            // Stock already taken at upload was taken for the old mapping
+            // (four pieces an order instead of one, say): it goes back on
+            // the shelf before the parcel is matched and its stock taken
+            // again for what it really holds.
+            if ($shipment->stock_state === StockState::Consumed) {
+                DB::transaction(function () use ($shipment, $user): void {
+                    $posting = $shipment->transactions()->where('type', InventoryTransactionType::MarketplaceSale->value)->latest('id')->first();
+
+                    if ($posting !== null) {
+                        $this->ledger->reverse($posting, "SKU mapping of {$shipment->reference()} changed: stock put back to be taken again", $user->id);
+                    }
+
+                    $this->setStockState($shipment, StockState::Released);
+                });
+            }
+
             $this->reservations->releaseAllFor($shipment);
             $this->mapLines($shipment);
             $this->hold($shipment->refresh());

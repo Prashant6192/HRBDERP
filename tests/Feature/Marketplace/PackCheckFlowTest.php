@@ -9,6 +9,7 @@ use App\Domain\Inventory\Enums\InventoryTransactionType;
 use App\Domain\Inventory\Enums\LotQcStatus;
 use App\Domain\Inventory\Models\InventoryLot;
 use App\Domain\Inventory\Services\InventoryLedgerService;
+use App\Domain\Inventory\Services\StockBalanceService;
 use App\Domain\Marketplace\Contracts\AiLabelReader;
 use App\Domain\Marketplace\Enums\ShipmentStatus;
 use App\Domain\Marketplace\Models\Brand;
@@ -237,5 +238,34 @@ class PackCheckFlowTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->where('products.0.pieces', 5)
                 ->where('products.0.to_pack', 3));
+    }
+
+    #[Test]
+    public function an_order_quantity_typed_in_as_pieces_is_flagged_and_put_right_with_its_stock(): void
+    {
+        $orders = app(OnlineOrderService::class);
+        $brand = Brand::query()->where('code', 'RR')->sole();
+        $meesho = Marketplace::query()->where('code', 'MEESHO')->sole();
+        $onShelf = fn () => app(StockBalanceService::class)->onHand($this->oil, $this->depotFg)->toInt();
+        $pieces = fn (string $awb) => (int) $this->parcel($awb)->picks()->sum('units');
+        $suspects = fn () => collect($this->actingAs($this->boss)->get(route('listings.index'))->viewData('page')['props']['listings'])
+            ->where('suspect', true)->pluck('seller_sku')->all();
+
+        // The depot takes stock as labels are matched, as Paper Market does.
+        $this->depotFg->facility->forceFill(['takes_stock_on_upload' => true])->save();
+        $this->assertSame([], $suspects());
+
+        // Someone saw an order for four and typed 4 pieces: every single
+        // parcel now asks for four, and four leave the shelf for each.
+        $orders->mapSku($meesho, $brand, 'Medicated oil 300 ml', $this->oil, 4, $this->boss);
+        $this->assertSame(4, $pieces('VL0000000000001'));
+        $this->assertSame(20 - 12, $onShelf());
+        $this->assertSame(['Medicated oil 300 ml'], $suspects(), 'A real Pack of 2 is not flagged.');
+
+        // Set back to one piece: the parcels ask for one and the extra stock is back.
+        $orders->mapSku($meesho, $brand, 'Medicated oil 300 ml', $this->oil, 1, $this->boss);
+        $this->assertSame(1, $pieces('VL0000000000001'));
+        $this->assertSame(20 - 3, $onShelf());
+        $this->assertSame([], $suspects());
     }
 }

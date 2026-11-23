@@ -11,6 +11,11 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Changed — The last Cleanse photos
+
+- Cleanse Exfoliating Bodywash and Oil Control Shampoo (the Dandruff Care
+  Shampoo) now show their photos.
+
 ### Changed — Product photos for Cleanse and the Ratan boxes
 
 - Cleanse Kasvi Hair Oil, Hydra Smooth Shampoo, Dandruff Care Shampoo and

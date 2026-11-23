@@ -36,6 +36,9 @@ final class ProductPhotos
         'kasvi' => 'cleanse-kasvi-hair-oil.webp',
         'hydra smooth' => 'cleanse-hydra-smooth-shampoo.webp',
         'dandruff' => 'cleanse-dandruff-shampoo.webp',
+        // Sold as the Dandruff Care Shampoo.
+        'oil control shampoo' => 'cleanse-dandruff-shampoo.webp',
+        'exfoliating' => 'cleanse-exfoliating-body-wash.webp',
         'moisturiser' => 'cleanse-face-moisturiser.webp',
         'moisturizer' => 'cleanse-face-moisturiser.webp',
     ];

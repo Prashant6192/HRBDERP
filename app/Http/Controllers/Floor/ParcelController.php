@@ -108,15 +108,22 @@ class ParcelController extends Controller
             ->map(fn (Shipment $s) => $this->describe($s))
             ->values();
 
-        $barcodes = Product::query()
+        // Built key by key: merging would renumber a barcode that is all digits.
+        $barcodes = [];
+
+        Product::query()
             ->where('is_active', true)
             ->with('packOf:id,name')
             ->get(['id', 'code', 'name', 'barcode', 'pack_of_item_id'])
-            ->flatMap(fn (Product $p) => collect([$p->barcode, $p->code])
-                ->map(fn ($code) => strtoupper(trim((string) $code)))
-                ->filter()
-                ->mapWithKeys(fn (string $code) => [$code => $p->packOf?->name ?? $p->name]))
-            ->all();
+            ->each(function (Product $p) use (&$barcodes): void {
+                foreach ([$p->barcode, $p->code] as $code) {
+                    $code = strtoupper(trim((string) $code));
+
+                    if ($code !== '') {
+                        $barcodes[$code] = $p->packOf?->name ?? $p->name;
+                    }
+                }
+            });
 
         return Inertia::render('floor/pack', [
             'parcels' => $ready->all(),

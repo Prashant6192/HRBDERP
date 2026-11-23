@@ -93,6 +93,25 @@ final class ShiprocketLabelParser implements LabelFileParser, LabelSheetParser
      * quantity, but no amount: the selling price and the cash to collect
      * come from elsewhere.
      */
+    /**
+     * A variant the store gave no SKU prints the product's number instead,
+     * the same for every size and pack of that product: "8364222513425"
+     * is Satreetha Shampoo 200ml, its Pack of 2 and the 1000ml alike. The
+     * variant named at the end of the SKU's name ("… - 200ml Pack of 2")
+     * is added, so each variant is an SKU of its own to map.
+     */
+    public static function skuWithVariant(string $sku, ?string $description): string
+    {
+        if (preg_match('/^\d{6,20}$/', $sku) !== 1 || $description === null) {
+            return $sku;
+        }
+
+        $at = strrpos($description, ' - ');
+        $variant = $at === false ? '' : trim(substr($description, $at + 3));
+
+        return $variant === '' || mb_strlen($variant) > 60 ? $sku : "{$sku} ({$variant})";
+    }
+
     private function shadowfax360(string $text, int $page): ?LabelExtraction
     {
         $lines = TextLines::of($text);
@@ -165,12 +184,16 @@ final class ShiprocketLabelParser implements LabelFileParser, LabelSheetParser
             }
         }
 
-        $items = array_map(fn (array $r) => [
-            'seller_sku' => $r['seller_sku'],
+        $items = array_map(function (array $r): array {
             // "… - 200ml (1)": the bracketed count is the label's own.
-            'description' => $r['description'] === null ? null : (trim((string) preg_replace('/\s*\(\d+\)\s*$/', '', $r['description'])) ?: null),
-            'quantity' => max(1, (int) ($r['quantity'] ?? 1)),
-        ], $rows);
+            $description = $r['description'] === null ? null : (trim((string) preg_replace('/\s*\(\d+\)\s*$/', '', $r['description'])) ?: null);
+
+            return [
+                'seller_sku' => self::skuWithVariant($r['seller_sku'], $description),
+                'description' => $description,
+                'quantity' => max(1, (int) ($r['quantity'] ?? 1)),
+            ];
+        }, $rows);
 
         return LabelExtraction::fromArray([
             'pages' => [$page],

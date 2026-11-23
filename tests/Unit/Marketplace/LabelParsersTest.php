@@ -9,6 +9,7 @@ use App\Domain\Marketplace\Models\MarketplaceListing;
 use App\Domain\Marketplace\Readers\Couriers;
 use App\Domain\Marketplace\Readers\FlipkartLabelParser;
 use App\Domain\Marketplace\Readers\MeeshoLabelParser;
+use App\Domain\Marketplace\Readers\ShiprocketLabelParser;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Tests\Support\LabelFixtures;
@@ -156,5 +157,20 @@ class LabelParsersTest extends TestCase
         $this->assertSame(MarketplaceListing::keyFor('Medicated oil 300 ml'), MarketplaceListing::keyFor('  MEDICATED  oil 300 ml '));
         $this->assertSame(MarketplaceListing::keyFor('RR-Ratna-300ml-P1'), MarketplaceListing::keyFor('rr - ratna - 300ml - p1'));
         $this->assertNotSame(MarketplaceListing::keyFor('Medicated_Oil_500ml_Po2'), MarketplaceListing::keyFor('Medicated_Oil_500ml-MFN'));
+    }
+
+    #[Test]
+    public function a_products_number_for_an_sku_takes_the_variant_from_its_name(): void
+    {
+        $sku = fn (string $sku, ?string $name) => ShiprocketLabelParser::skuWithVariant($sku, $name);
+
+        $this->assertSame('8364222513425 (200ml)', $sku('8364222513425', 'Rahat Rooh Ayurvedic Satreetha Shampoo for Hairfall Control - 200ml'));
+        $this->assertSame('8364222513425 (200ml Pack of 2)', $sku('8364222513425', 'Rahat Rooh Ayurvedic Satreetha Shampoo for Hairfall Control - 200ml Pack of 2'));
+        $this->assertSame('8364222513425 (1000ml Pack of 2)', $sku('8364222513425', 'Rahat Rooh Ayurvedic Satreetha Shampoo for Hairfall Control - 1000ml Pack of 2'));
+        $this->assertSame('15533662011665 (50 ml)', $sku('15533662011665', 'Rahat Rooh Neem Face Wash Ayurvedic Face Wash with Neem & Aloe Vera for Oily & Acne-Prone Skin - 50 ml'));
+        // A real SKU, or a name with no variant, is left alone.
+        $this->assertSame('RR-MED-HMO-005 (300ML-2Pack)', $sku('RR-MED-HMO-005 (300ML-2Pack)', 'Rahat Rooh Ayurvedic Medicated Oil - Pack of 2 (300ml)'));
+        $this->assertSame('8364222513425', $sku('8364222513425', 'Satreetha Shampoo'));
+        $this->assertSame('8364222513425', $sku('8364222513425', null));
     }
 }

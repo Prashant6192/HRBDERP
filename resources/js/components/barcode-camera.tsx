@@ -18,6 +18,7 @@ export function BarcodeCamera({
     busy = false,
     autoStart = true,
     repeatMs = 2500,
+    formats,
     onClose,
     className,
 }: {
@@ -26,6 +27,8 @@ export function BarcodeCamera({
     autoStart?: boolean;
     /** How soon the same code may be read again. */
     repeatMs?: number;
+    /** The kinds of barcode to read; every kind when not given. */
+    formats?: string[];
     onClose?: () => void;
     className?: string;
 }) {
@@ -118,7 +121,7 @@ export function BarcodeCamera({
             let detector;
 
             try {
-                detector = await barcodeDetector();
+                detector = await barcodeDetector(formats);
             } catch {
                 if (!cancelled) {
                     setError(

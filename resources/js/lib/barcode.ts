@@ -40,9 +40,18 @@ export const LABEL_FORMATS = [
     'pdf417',
 ];
 
-let pending: Promise<Detector> | null = null;
+/**
+ * The barcodes printed in lines: every AWB, order and product barcode.
+ * A packing table reads only these, so the square codes a label also
+ * carries (routing codes, not the parcel's own) are never taken for it.
+ */
+export const LINE_FORMATS = LABEL_FORMATS.filter(
+    (f) => !['qr_code', 'data_matrix', 'pdf417'].includes(f),
+);
 
-async function nativeDetector(): Promise<Detector | null> {
+const pending = new Map<string, Promise<Detector>>();
+
+async function nativeDetector(wanted: string[]): Promise<Detector | null> {
     const Native =
         typeof window !== 'undefined' ? window.BarcodeDetector : undefined;
 
@@ -52,7 +61,7 @@ async function nativeDetector(): Promise<Detector | null> {
 
     try {
         const supported = (await Native.getSupportedFormats?.()) ?? [];
-        const formats = LABEL_FORMATS.filter((f) => supported.includes(f));
+        const formats = wanted.filter((f) => supported.includes(f));
 
         // A built-in reader that cannot read Code 128 cannot read an AWB.
         return formats.includes('code_128') ? new Native({ formats }) : null;
@@ -61,7 +70,7 @@ async function nativeDetector(): Promise<Detector | null> {
     }
 }
 
-async function bundledDetector(): Promise<Detector> {
+async function bundledDetector(wanted: string[]): Promise<Detector> {
     const [{ BarcodeDetector, prepareZXingModule }, wasm] = await Promise.all([
         import('barcode-detector/ponyfill'),
         import('zxing-wasm/reader/zxing_reader.wasm?url'),
@@ -76,25 +85,33 @@ async function bundledDetector(): Promise<Detector> {
     });
 
     return new BarcodeDetector({
-        formats: LABEL_FORMATS as NonNullable<
+        formats: wanted as NonNullable<
             ConstructorParameters<typeof BarcodeDetector>[0]
         >['formats'],
     });
 }
 
 /**
- * One reader for the page, made on first use.
+ * One reader for the page for each set of formats, made on first use.
  */
-export function barcodeDetector(): Promise<Detector> {
-    pending ??= nativeDetector()
-        .then((native) => native ?? bundledDetector())
-        .catch((error: unknown) => {
-            pending = null;
+export function barcodeDetector(
+    formats: string[] = LABEL_FORMATS,
+): Promise<Detector> {
+    const key = formats.join(',');
+    let made = pending.get(key);
 
-            throw error;
-        });
+    if (!made) {
+        made = nativeDetector(formats)
+            .then((native) => native ?? bundledDetector(formats))
+            .catch((error: unknown) => {
+                pending.delete(key);
 
-    return pending;
+                throw error;
+            });
+        pending.set(key, made);
+    }
+
+    return made;
 }
 
 /**

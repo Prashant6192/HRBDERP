@@ -35,6 +35,7 @@ use App\Domain\Marketplace\Models\MarketplaceListing;
 use App\Domain\Marketplace\Models\Shipment;
 use App\Domain\Marketplace\Models\ShipmentLine;
 use App\Domain\Marketplace\Models\ShipmentPick;
+use App\Domain\Marketplace\Readers\ShiprocketLabelParser;
 use App\Domain\Marketplace\Support\Cutoff;
 use App\Domain\Marketplace\Support\LabelFileStore;
 use App\Domain\MasterData\Enums\ItemType;
@@ -474,28 +475,75 @@ class OnlineOrderService
             ->filter(fn (Shipment $s) => $s->lines->contains(fn (ShipmentLine $l) => MarketplaceListing::keyFor($l->seller_sku) === $key));
 
         foreach ($waiting as $shipment) {
-            // Stock already taken at upload was taken for the old mapping
-            // (four pieces an order instead of one, say): it goes back on
-            // the shelf before the parcel is matched and its stock taken
-            // again for what it really holds.
-            if ($shipment->stock_state === StockState::Consumed) {
-                DB::transaction(function () use ($shipment, $user): void {
-                    $posting = $shipment->transactions()->where('type', InventoryTransactionType::MarketplaceSale->value)->latest('id')->first();
-
-                    if ($posting !== null) {
-                        $this->ledger->reverse($posting, "SKU mapping of {$shipment->reference()} changed: stock put back to be taken again", $user->id);
-                    }
-
-                    $this->setStockState($shipment, StockState::Released);
-                });
-            }
-
-            $this->reservations->releaseAllFor($shipment);
-            $this->mapLines($shipment);
-            $this->hold($shipment->refresh());
+            $this->matchAgain($shipment, $user->id);
         }
 
         return $waiting->count();
+    }
+
+    /**
+     * Match one waiting parcel to the listings again. Stock already taken
+     * at upload was taken for the old mapping (four pieces an order instead
+     * of one, say): it goes back on the shelf first, and is taken again
+     * for what the parcel really holds.
+     */
+    private function matchAgain(Shipment $shipment, ?int $userId): void
+    {
+        if ($shipment->stock_state === StockState::Consumed) {
+            DB::transaction(function () use ($shipment, $userId): void {
+                $posting = $shipment->transactions()->where('type', InventoryTransactionType::MarketplaceSale->value)->latest('id')->first();
+
+                if ($posting !== null) {
+                    $this->ledger->reverse($posting, "SKU mapping of {$shipment->reference()} changed: stock put back to be taken again", $userId);
+                }
+
+                $this->setStockState($shipment, StockState::Released);
+            });
+        }
+
+        $this->reservations->releaseAllFor($shipment);
+        $this->mapLines($shipment);
+        $this->hold($shipment->refresh());
+    }
+
+    /**
+     * Parcels still waiting whose label gave a product's number for an SKU
+     * (the same number for every size and pack) are given the SKU with its
+     * variant, read from the SKU's name, and matched again: until the new
+     * SKU is mapped they wait as "not mapped" rather than be packed as the
+     * wrong size.
+     *
+     * @return int the parcels put right
+     */
+    public function splitSharedSkus(): int
+    {
+        $waiting = Shipment::query()
+            ->whereIn('status', ShipmentStatus::awaitingPacking())
+            ->whereHas('lines', fn ($q) => $q->whereRaw("seller_sku ~ '^[0-9]{6,20}$'")->whereNotNull('description'))
+            ->with('lines')
+            ->orderBy('id')
+            ->get();
+        $changed = 0;
+
+        foreach ($waiting as $shipment) {
+            $touched = false;
+
+            foreach ($shipment->lines as $line) {
+                $sku = ShiprocketLabelParser::skuWithVariant((string) $line->seller_sku, $line->description);
+
+                if ($sku !== $line->seller_sku) {
+                    $line->forceFill(['seller_sku' => $sku])->save();
+                    $touched = true;
+                }
+            }
+
+            if ($touched) {
+                $this->matchAgain($shipment->unsetRelation('lines'), null);
+                $changed++;
+            }
+        }
+
+        return $changed;
     }
 
     /**

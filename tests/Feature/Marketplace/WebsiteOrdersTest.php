@@ -344,11 +344,12 @@ class WebsiteOrdersTest extends TestCase
 
         $first = Shipment::query()->where('awb', 'SF40000000001')->sole();
         $this->assertSame(['Shadowfax Website', '3201', PaymentMode::Cod, 'Madhya Pradesh', '458441'], [$first->courier, $first->order_number, $first->payment_mode, $first->customer_state, $first->customer_pincode]);
-        $this->assertSame(['10940000000001'], $first->lines->pluck('seller_sku')->all());
+        // A product's number alone is every size of it: the variant is added.
+        $this->assertSame(['10940000000001 (200ml)'], $first->lines->pluck('seller_sku')->all());
 
         $second = Shipment::query()->where('awb', 'SF40000000002')->sole();
         $this->assertSame(PaymentMode::Prepaid, $second->payment_mode);
-        $this->assertSame([['RR-MED-HMO-005 (300ML)', 1], ['10940000000001', 2]], $second->lines->map(fn ($l) => [$l->seller_sku, (int) $l->quantity])->all());
+        $this->assertSame([['RR-MED-HMO-005 (300ML)', 1], ['10940000000001 (200ml)', 2]], $second->lines->map(fn ($l) => [$l->seller_sku, (int) $l->quantity])->all());
 
         // Booked twice: both parcels say so; neither is refused.
         $this->assertStringContainsString('Order 3201 is also on AWB SF4300000009SPF', (string) collect($first->fresh()->warnings)->last());

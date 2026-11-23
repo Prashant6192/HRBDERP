@@ -11,6 +11,29 @@ sign-in card and at the foot of the sidebar.
 
 ## [Unreleased]
 
+### Fixed — Website labels asking for the wrong size or pack
+
+- Shadowfax 360 labels print a product's number where a variant has no
+  SKU, the same number for every size and pack: Satreetha 200ml, its Pack
+  of 2 and the 1000ml Pack of 2 all read "8364222513425", so one mapping
+  answered for all of them. The variant at the end of the SKU's name is
+  now part of the SKU ("8364222513425 (200ml Pack of 2)"), so each is
+  mapped on its own. Parcels still waiting are put right the same way and
+  wait as "not mapped" until each new SKU is mapped once.
+
+### Changed — Scan parcels works from what the page already holds
+
+- The day's parcels and every product barcode are sent with the page, so
+  a label opens and a product is checked at once, with no wait on the
+  connection for each scan.
+- Enter shows "Packed" and is ready for the next label immediately; the
+  save goes to the server behind it and is tried again if the connection
+  drops. A parcel that could not be saved is listed in red, to be scanned
+  again.
+- The camera reads only line barcodes on this screen, so the square codes
+  on a Flipkart or Shadowfax label are no longer taken for the parcel's.
+  A note under the scanner says which barcode to scan on each label.
+
 ### Changed — The last Cleanse photos
 
 - Cleanse Exfoliating Bodywash and Oil Control Shampoo (the Dandruff Care

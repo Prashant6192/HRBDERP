@@ -17,6 +17,7 @@ export function Scanner({
     placeholder = 'Scan or type a code…',
     autoStart = true,
     repeatMs,
+    formats,
     captureKeys = false,
     onEnter,
 }: {
@@ -25,6 +26,7 @@ export function Scanner({
     placeholder?: string;
     autoStart?: boolean;
     repeatMs?: number;
+    formats?: string[];
     captureKeys?: boolean;
     onEnter?: () => void;
 }) {
@@ -107,6 +109,7 @@ export function Scanner({
                 busy={busy}
                 autoStart={autoStart}
                 repeatMs={repeatMs}
+                formats={formats}
             />
             <form onSubmit={submit} className="flex gap-2">
                 <div className="relative flex-1">

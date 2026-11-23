@@ -409,4 +409,36 @@ class PackCheckFlowTest extends TestCase
         $orders->mapSku($meesho, $brand, '1347006533_4', $ratna, 1, $this->boss);
         $this->assertNull($readsAs('1347006533_4'));
     }
+
+    #[Test]
+    public function the_packing_screen_is_sent_the_days_parcels_and_barcodes_up_front(): void
+    {
+        $this->actingAs($this->shanu)->get(route('floor.pack'))
+            ->assertInertia(fn (Assert $page) => $page
+                // The four mapped parcels, each with what goes in it; the unmapped one is left out.
+                ->has('parcels', 4)
+                ->where('parcels', fn ($parcels) => collect($parcels)->pluck('awb')->sort()->values()->all() === ['DL0000000000003', 'DL0000000000004', 'VL0000000000001', 'VL0000000000002']
+                    && collect($parcels)->every(fn ($p) => count($p['check']) === 1 && $p['check'][0]['item_id'] === $this->oil->id))
+                ->where('barcodes.8901234567890', 'Rahat Rooh Medicated Oil 300ml')
+                // A pack's code names its single.
+                ->where('barcodes.FG-MO-300-P2', 'Rahat Rooh Medicated Oil 300ml')
+                ->etc());
+    }
+
+    #[Test]
+    public function a_waiting_parcel_with_a_products_number_for_an_sku_is_given_its_variant(): void
+    {
+        $parcel = $this->parcel('VL0000000000001');
+        $parcel->lines()->update(['seller_sku' => '8364222513425', 'description' => 'Rahat Rooh Satreetha Shampoo for Hairfall Control - 200ml Pack of 2']);
+
+        $this->assertSame(1, app(OnlineOrderService::class)->splitSharedSkus());
+
+        $parcel->refresh();
+        $this->assertSame('8364222513425 (200ml Pack of 2)', $parcel->lines()->sole()->seller_sku);
+        // It waits to be mapped: it is no longer packed as whatever the number was mapped to.
+        $this->assertSame(StockState::Unmapped, $parcel->stock_state);
+        $this->assertSame(0, $parcel->picks()->count());
+        // Running it again changes nothing.
+        $this->assertSame(0, app(OnlineOrderService::class)->splitSharedSkus());
+    }
 }

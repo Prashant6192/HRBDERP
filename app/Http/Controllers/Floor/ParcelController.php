@@ -19,6 +19,7 @@ use App\Domain\Marketplace\Services\OnlineOrderService;
 use App\Domain\Marketplace\Support\Cutoff;
 use App\Domain\Marketplace\Support\PackCheck;
 use App\Domain\MasterData\Models\Item;
+use App\Domain\MasterData\Models\Product;
 use App\Domain\Warehousing\Enums\WarehouseType;
 use App\Domain\Warehousing\Models\Warehouse;
 use App\Http\Controllers\Controller;
@@ -95,7 +96,39 @@ class ParcelController extends Controller
             ->sortBy('name')
             ->values();
 
+        // Everything the day's scanning needs, sent once: a label or a
+        // product is then answered on the screen at once, without waiting
+        // on the connection for each scan.
+        $ready = $ofDay()
+            ->whereIn('status', ShipmentStatus::awaitingPacking())
+            ->with(['lines.item:id,code,name', 'picks.item:id,code,name', 'picks.line:id,seller_sku', 'marketplace:id,name', 'brand:id,name,client_id', 'packer:id,name', 'handedOverBy:id,name', 'warehouse:id,name'])
+            ->limit(1500)
+            ->get()
+            ->filter(fn (Shipment $s) => $s->isMapped())
+            ->map(fn (Shipment $s) => $this->describe($s))
+            ->values();
+
+        // Built key by key: merging would renumber a barcode that is all digits.
+        $barcodes = [];
+
+        Product::query()
+            ->where('is_active', true)
+            ->with('packOf:id,name')
+            ->get(['id', 'code', 'name', 'barcode', 'pack_of_item_id'])
+            ->each(function (Product $p) use (&$barcodes): void {
+                foreach ([$p->barcode, $p->code] as $code) {
+                    $code = strtoupper(trim((string) $code));
+
+                    if ($code !== '') {
+                        $barcodes[$code] = $p->packOf?->name ?? $p->name;
+                    }
+                }
+            });
+
         return Inertia::render('floor/pack', [
+            'parcels' => $ready->all(),
+            // Barcode or product code (upper case) => the product's name.
+            'barcodes' => (object) $barcodes,
             'no_barcode' => $waiting->map(fn (Item $single) => ['id' => $single->id, 'name' => $single->name])->all(),
             'date' => $day->toDateString(),
             'is_today' => $day->equalTo($today),
@@ -330,26 +363,39 @@ class ParcelController extends Controller
         return [
             ...OnlineOrderPresenter::shipment($shipment),
             // Piece by piece, with the barcodes that prove each one.
-            'check' => array_map(function (array $row) use ($shipment): array {
-                $art = $this->artworks->forProduct($row['item_id'], $shipment->brand?->client_id)
-                    ->first(fn ($a) => $a->status === ArtworkStatus::Approved && $a->document_mime !== null && str_starts_with($a->document_mime, 'image/'));
-
-                return [...$row, 'photo' => $art !== null ? route('artworks.document', $art) : $row['photo']];
-            }, PackCheck::for($shipment)),
+            'check' => array_map(fn (array $row): array => [
+                ...$row,
+                'photo' => $this->artworkPhoto($row['item_id'], $shipment->brand?->client_id) ?? $row['photo'],
+            ], PackCheck::for($shipment)),
             // The approved pack, so the packer can see it is the right bottle.
             'pictures' => $shipment->picks
                 ->pluck('item_id')
                 ->unique()
                 ->map(function (int $itemId) use ($shipment): ?array {
-                    $art = $this->artworks->forProduct($itemId, $shipment->brand?->client_id)
-                        ->first(fn ($a) => $a->status === ArtworkStatus::Approved && $a->document_mime !== null && str_starts_with($a->document_mime, 'image/'));
+                    $url = $this->artworkPhoto($itemId, $shipment->brand?->client_id);
 
-                    return $art === null ? null : ['item_id' => $itemId, 'url' => route('artworks.document', $art)];
+                    return $url === null ? null : ['item_id' => $itemId, 'url' => $url];
                 })
                 ->filter()
                 ->values()
                 ->all(),
         ];
+    }
+
+    /** @var array<string, string|null> */
+    private array $artworkPhotos = [];
+
+    /**
+     * The approved artwork picture of a product, looked up once a request.
+     */
+    private function artworkPhoto(int $itemId, ?int $clientId): ?string
+    {
+        return $this->artworkPhotos["{$itemId}|{$clientId}"] ??= (function () use ($itemId, $clientId): ?string {
+            $art = $this->artworks->forProduct($itemId, $clientId)
+                ->first(fn ($a) => $a->status === ArtworkStatus::Approved && $a->document_mime !== null && str_starts_with($a->document_mime, 'image/'));
+
+            return $art === null ? null : route('artworks.document', $art);
+        })();
     }
 
     /**

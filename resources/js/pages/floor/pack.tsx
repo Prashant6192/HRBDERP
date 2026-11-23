@@ -20,12 +20,12 @@ import {
     type PackCheckRow,
     type Parcel,
 } from '@/lib/online-orders';
+import { LINE_FORMATS } from '@/lib/barcode';
 import { cn } from '@/lib/utils';
 import { pack as packPage } from '@/routes/floor';
 import {
     cancel as cancelRoute,
     open as openRoute,
-    product as productRoute,
     scan as scanRoute,
 } from '@/routes/floor/pack';
 
@@ -107,6 +107,8 @@ export default function ScanParcels({
     can_cancel,
     can_pass_by_eye,
     no_barcode,
+    parcels,
+    barcodes,
 }: {
     date: string;
     is_today: boolean;
@@ -117,6 +119,10 @@ export default function ScanParcels({
     can_pass_by_eye: boolean;
     /** Products in the day's parcels that have no barcode on file. */
     no_barcode: { id: number; name: string }[];
+    /** The day's parcels ready to pack, sent once so a label opens at once. */
+    parcels: Parcel[];
+    /** Barcode or product code (upper case) => the product's name. */
+    barcodes: Record<string, string>;
 }) {
     const [busy, setBusy] = useState(false);
     const [outcome, setOutcome] = useState<Outcome | null>(null);
@@ -141,76 +147,132 @@ export default function ScanParcels({
     // The scanner fires faster than React re-renders: the open parcel is
     // read from here, so two quick scans both count.
     const live = useRef<Open | null>(null);
-    const finishing = useRef(false);
+    // The day's parcels by every code on their label, so a label scan is
+    // answered here and now, without a trip to the server.
+    const ready = useRef<Map<string, Parcel> | null>(null);
+
+    if (ready.current === null) {
+        ready.current = new Map();
+
+        for (const p of parcels) {
+            for (const code of [p.awb, p.alt_code, p.order_number]) {
+                if (code) {
+                    ready.current.set(String(code).toUpperCase(), p);
+                }
+            }
+        }
+    }
+
+    const forget = (p: Parcel, back = false) => {
+        for (const code of [p.awb, p.alt_code, p.order_number]) {
+            if (code && back) {
+                ready.current?.set(String(code).toUpperCase(), p);
+            } else if (code) {
+                ready.current?.delete(String(code).toUpperCase());
+            }
+        }
+    };
+    // Parcels shown as packed whose save did not reach the server.
+    const [unsaved, setUnsaved] = useState<
+        { id: number; ref: string; message: string }[]
+    >([]);
 
     const show = (next: Open | null) => {
         live.current = next;
         setOpen(next);
     };
 
-    /** The label scan that packs: once every piece is proved. */
-    const finish = useCallback(async (done: Open) => {
-        if (finishing.current) {
-            return;
-        }
+    /**
+     * Enter packs the parcel. The screen says so at once and is ready for
+     * the next label; the save goes to the server behind it, tried again
+     * if the connection drops. A parcel that could not be saved is listed
+     * in red and can be scanned again.
+     */
+    const finish = useCallback((done: Open) => {
+        const parcel: Parcel = {
+            ...done.parcel,
+            status: 'packed',
+            packed_at: new Date().toISOString(),
+        };
+        const ref = `${parcel.marketplace ?? 'Order'} ${parcel.order_number ?? parcel.awb ?? done.code}`;
 
-        finishing.current = true;
-        setBusy(true);
+        forget(done.parcel);
+        show(null);
+        setFlash(null);
+        setOutcome(null);
+        signal(true);
+        setNote({
+            tone: 'ok',
+            title: 'Packed',
+            text: `${ref} is on the ${courierName(parcel.courier)} pile. Scan the next label.`,
+        });
+        setRecent((r) => [parcel, ...r].slice(0, 15));
+        setN((c) => ({
+            ...c,
+            to_scan: Math.max(0, c.to_scan - 1),
+            scanned: c.scanned + 1,
+        }));
 
-        try {
-            const { ok, data } = await postJson<{
-                ok: boolean;
-                result?: 'scanned' | 'already' | 'dispatched';
-                message: string;
-                shipment?: Parcel;
-            }>(scanRoute().url, {
-                code: done.code,
-                by_eye: done.rows
-                    .filter((r) => done.eye.includes(r.item_id))
-                    .map((r) => r.full_name),
-            });
-
-            const result: Result =
-                ok && data.ok ? (data.result ?? 'scanned') : 'stop';
-            signal(result === 'scanned');
-
-            if (result === 'scanned' && data.shipment) {
-                // Packed: straight back to waiting for the next label.
-                const parcel = data.shipment;
-                setOutcome(null);
-                setNote({
-                    tone: 'ok',
-                    title: 'Packed',
-                    text: `${parcel.marketplace ?? 'Order'} ${parcel.order_number ?? parcel.awb ?? done.code} is on the ${courierName(parcel.courier)} pile. Scan the next label.`,
-                });
-                setRecent((r) => [parcel, ...r].slice(0, 15));
-                setN((c) => ({
-                    ...c,
-                    to_scan: Math.max(0, c.to_scan - 1),
-                    scanned: c.scanned + 1,
-                }));
-            } else {
-                setOutcome({
-                    result,
-                    message: data.message,
-                    shipment: data.shipment,
-                    code: done.code,
-                });
-            }
-        } catch {
-            setOutcome({
-                result: 'stop',
-                message:
-                    'No connection: the parcel is not packed yet. Scan its label again.',
-                code: done.code,
-            });
+        const undo = (message: string) => {
+            forget(done.parcel, true);
             signal(false);
-        } finally {
-            show(null);
-            setFlash(null);
-            finishing.current = false;
-            setBusy(false);
-        }
+            setRecent((r) => r.filter((p) => p.id !== parcel.id));
+            setN((c) => ({
+                ...c,
+                to_scan: c.to_scan + 1,
+                scanned: Math.max(0, c.scanned - 1),
+            }));
+            setUnsaved((u) => [
+                ...u.filter((x) => x.id !== parcel.id),
+                { id: parcel.id, ref, message },
+            ]);
+        };
+
+        const save = async (attempt: number): Promise<void> => {
+            try {
+                const { ok, data } = await postJson<{
+                    ok: boolean;
+                    result?: 'scanned' | 'already' | 'dispatched';
+                    message: string;
+                    shipment?: Parcel;
+                }>(scanRoute().url, {
+                    code: done.code,
+                    by_eye: done.rows
+                        .filter((r) => done.eye.includes(r.item_id))
+                        .map((r) => r.full_name),
+                });
+
+                if (ok && data.ok) {
+                    const saved = data.shipment;
+
+                    if (saved) {
+                        setRecent((r) =>
+                            r.map((p) => (p.id === saved.id ? saved : p)),
+                        );
+                    }
+
+                    return;
+                }
+
+                // The server refused it (cancelled meanwhile, stock short).
+                undo(data.message);
+            } catch {
+                if (attempt < 4) {
+                    window.setTimeout(
+                        () => void save(attempt + 1),
+                        [1500, 4000, 8000, 15000][attempt],
+                    );
+
+                    return;
+                }
+
+                undo(
+                    'No connection: it is not saved as packed. Scan its label again when the connection is back.',
+                );
+            }
+        };
+
+        void save(0);
     }, []);
 
     /**
@@ -260,7 +322,7 @@ export default function ScanParcels({
 
     /** A scan while a parcel is open is a product going into it. */
     const onProduct = useCallback(
-        async (now: Open, code: string) => {
+        (now: Open, code: string) => {
             const scanned = code.trim().toUpperCase();
             const row =
                 now.rows.find(
@@ -319,30 +381,9 @@ export default function ScanParcels({
                 return;
             }
 
-            // A label carries several barcodes, and the camera reads them
-            // all: only a barcode that is on another product is a wrong
-            // product. Anything else is simply not a product's barcode.
-            let other: string | null = null;
-
-            try {
-                const response = await fetch(
-                    productRoute({ query: { code: scanned } }).url,
-                    {
-                        credentials: 'same-origin',
-                        headers: { Accept: 'application/json' },
-                    },
-                );
-
-                if (response.ok) {
-                    other = ((await response.json()) as { name: string }).name;
-                }
-            } catch {
-                // Treated as not a product's barcode.
-            }
-
-            if (live.current?.code !== now.code) {
-                return;
-            }
+            // Only a barcode that is on another product is a wrong
+            // product; anything else is simply not a product's barcode.
+            const other = barcodes[scanned] ?? null;
 
             if (other === null) {
                 setFlash({
@@ -361,17 +402,48 @@ export default function ScanParcels({
                 text: `You scanned ${other}. Take it out and scan the product shown.`,
             });
         },
-        [prove],
+        [prove, barcodes],
     );
 
     const onCode = useCallback(
         async (code: string) => {
-            if (finishing.current) {
+            if (live.current) {
+                onProduct(live.current, code);
+
                 return;
             }
 
-            if (live.current) {
-                await onProduct(live.current, code);
+            const scanned = code.trim().toUpperCase();
+            const known = ready.current?.get(scanned);
+
+            // One of the day's parcels: opened at once, from what the page
+            // already holds.
+            if (known?.check?.length) {
+                show({
+                    parcel: known,
+                    code,
+                    rows: known.check,
+                    done: {},
+                    eye: [],
+                });
+                setOutcome(null);
+                setFlash(null);
+                setNote(null);
+                setUnsaved((u) => u.filter((x) => x.id !== known.id));
+                signal(true);
+
+                return;
+            }
+
+            // A product's barcode (the bottle still in front of the camera
+            // after its parcel was packed): not a missing parcel.
+            if (barcodes[scanned]) {
+                setOutcome(null);
+                setNote({
+                    tone: 'wait',
+                    title: 'Scan the label first',
+                    text: 'That was a product. Scan the label on the packet, then its products.',
+                });
 
                 return;
             }
@@ -379,38 +451,12 @@ export default function ScanParcels({
             setBusy(true);
 
             try {
-                const { ok, status, data } = await postJson<{
+                const { ok, data } = await postJson<{
                     ok: boolean;
                     result?: 'open' | 'scanned' | 'already' | 'dispatched';
                     message: string;
                     shipment?: Parcel;
                 }>(openRoute().url, { code });
-
-                // Not a label. If it is a product's barcode (the bottle
-                // still in front of the camera after its parcel was
-                // packed), say so quietly: it is not a missing parcel.
-                if (!ok && status === 404) {
-                    const product = await fetch(
-                        productRoute({
-                            query: { code: code.trim().toUpperCase() },
-                        }).url,
-                        {
-                            credentials: 'same-origin',
-                            headers: { Accept: 'application/json' },
-                        },
-                    ).catch(() => null);
-
-                    if (product?.ok) {
-                        setOutcome(null);
-                        setNote({
-                            tone: 'wait',
-                            title: 'Scan the label first',
-                            text: 'That was a product. Scan the label on the packet, then its products.',
-                        });
-
-                        return;
-                    }
-                }
 
                 if (
                     ok &&
@@ -467,7 +513,7 @@ export default function ScanParcels({
                 setBusy(false);
             }
         },
-        [onProduct],
+        [onProduct, barcodes],
     );
 
     /**
@@ -477,7 +523,7 @@ export default function ScanParcels({
     const onEnter = useCallback(() => {
         const now = live.current;
 
-        if (!now || finishing.current) {
+        if (!now) {
             return;
         }
 
@@ -487,7 +533,7 @@ export default function ScanParcels({
 
         // Every product scanned: Enter is the Packed button.
         if (left.length === 0) {
-            void finish(now);
+            finish(now);
 
             return;
         }
@@ -511,7 +557,7 @@ export default function ScanParcels({
             eye: [...new Set([...now.eye, ...left.map((r) => r.item_id)])],
         };
         show(next);
-        void finish(next);
+        finish(next);
     }, [finish]);
 
     const putAside = () => {
@@ -521,7 +567,7 @@ export default function ScanParcels({
 
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && live.current && !finishing.current) {
+            if (e.key === 'Escape' && live.current) {
                 putAside();
             }
         };
@@ -689,12 +735,67 @@ export default function ScanParcels({
                                 : "Start scanning: scan the label's barcode…"
                         }
                         repeatMs={1200}
+                        formats={LINE_FORMATS}
                         captureKeys
                         onEnter={onEnter}
                     />
+                    {!open && (
+                        <div className="bg-card rounded-2xl border p-3 text-sm">
+                            <p className="font-semibold">
+                                Which barcode to scan on the label
+                            </p>
+                            <ul className="text-muted-foreground mt-1 space-y-0.5 text-xs">
+                                <li>
+                                    <span className="text-foreground font-semibold">
+                                        Flipkart:
+                                    </span>{' '}
+                                    the long barcode at the bottom, with the
+                                    FMPC number above it
+                                </li>
+                                <li>
+                                    <span className="text-foreground font-semibold">
+                                        Website (SF360), Meesho, Amazon:
+                                    </span>{' '}
+                                    the long barcode at the top, with the AWB
+                                    under it
+                                </li>
+                                <li>
+                                    The square codes are ignored. You can also
+                                    type the AWB or order number.
+                                </li>
+                            </ul>
+                        </div>
+                    )}
                 </div>
 
                 <div className="space-y-4 lg:sticky lg:top-18 lg:col-start-2 lg:row-span-2 lg:row-start-1">
+                    {unsaved.length > 0 && (
+                        <div
+                            role="alert"
+                            className="rounded-2xl border-2 border-red-600 bg-red-500/15 p-4"
+                        >
+                            <p className="text-lg font-bold text-red-700 dark:text-red-300">
+                                {unsaved.length === 1
+                                    ? '1 parcel was not saved as packed'
+                                    : `${unsaved.length} parcels were not saved as packed`}
+                            </p>
+                            <ul className="mt-1 space-y-1 text-sm">
+                                {unsaved.map((u) => (
+                                    <li key={u.id}>
+                                        <span className="font-semibold">
+                                            {u.ref}
+                                        </span>
+                                        : {u.message}
+                                    </li>
+                                ))}
+                            </ul>
+                            <p className="mt-2 text-sm">
+                                Keep these packets aside and scan their labels
+                                again.
+                            </p>
+                        </div>
+                    )}
+
                     {!open && !outcome && (
                         <div
                             role="status"

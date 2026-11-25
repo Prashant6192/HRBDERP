@@ -148,6 +148,35 @@ class CountByProductTest extends TestCase
     }
 
     #[Test]
+    public function a_register_sheet_is_entered_on_nobodys_login_and_waits_for_approval(): void
+    {
+        $counts = app(StockCountService::class);
+        // A pack is never what a sheet's row means.
+        Product::factory()->create(['name' => 'Rahat Rooh Medicated Oil 500ml (Pack of 2)', 'stock_uom_id' => $this->oil->stock_uom_id, 'pack_of_item_id' => $this->oil->id]);
+        Product::factory()->create(['name' => 'Rahat Rooh Satreetha Shampoo 1000ml', 'stock_uom_id' => $this->oil->stock_uom_id]);
+
+        $rows = [
+            ['label' => 'RR 500ml', 'any' => ['medicated'], 'size' => '500\\s*ml', 'quantity' => 140],
+            ['label' => 'Satreetha 500ml', 'any' => ['satreetha'], 'none' => ['soap'], 'size' => '500\\s*ml', 'quantity' => 20],
+        ];
+
+        $count = $counts->enterSheet($this->store, $rows, now()->toImmutable(), 'Sheet');
+        $this->assertSame(StockCountStatus::Submitted, $count->status);
+        $this->assertNull($count->started_by);
+
+        $counts->approve($count, $this->checker->id);
+        $this->assertSame(['140', '20'], [$this->onHand($this->oil), $this->onHand($this->shampoo)]);
+
+        // A row that names no product, or more than one, is left for the counter.
+        Product::factory()->create(['name' => 'Rahat Rooh Satreetha Shampoo 500 ml New Pack', 'stock_uom_id' => $this->oil->stock_uom_id]);
+        $count = $counts->enterSheet($this->store, [...$rows, ['label' => 'Lauki 200ml', 'any' => ['lauki'], 'size' => '200\\s*ml', 'quantity' => 30]], now()->toImmutable(), 'Sheet');
+        $this->assertSame(StockCountStatus::Counting, $count->status);
+        $this->assertStringContainsString('Lauki 200ml = 30 (no such product)', (string) $count->notes);
+        $this->assertStringContainsString('Satreetha 500ml = 20 (could be ', (string) $count->notes);
+        $this->assertSame('140', (string) (int) $count->lines()->where('item_id', $this->oil->id)->sum('counted_quantity'));
+    }
+
+    #[Test]
     public function the_screen_takes_totals_by_product_and_keeps_what_was_not_counted(): void
     {
         $ledger = app(InventoryLedgerService::class);

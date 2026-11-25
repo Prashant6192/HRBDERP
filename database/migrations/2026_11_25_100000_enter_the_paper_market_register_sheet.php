@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 /**
  * The Paper Market shelf as its register sheet of 24 November 2026 has it,
  * entered as a stock count that waits for approval. The sheet stands for
- * the shelf at the start of 25 November: whatever was taken for parcels
+ * the shelf on the evening of 24 November (8 pm): whatever was taken for parcels
  * or scanned in from then on is allowed for when the count is approved.
  */
 return new class extends Migration
@@ -56,7 +56,7 @@ return new class extends Migration
             $count = app(StockCountService::class)->enterSheet(
                 $store,
                 $rows,
-                CarbonImmutable::parse('2026-11-25 00:00', 'Asia/Kolkata')->utc(),
+                CarbonImmutable::parse('2026-11-24 20:00', 'Asia/Kolkata')->utc(),
                 'Paper Market register sheet dated 24-11-26, entered from its photo.',
             );
 

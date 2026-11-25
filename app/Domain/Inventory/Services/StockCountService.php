@@ -16,6 +16,7 @@ use App\Domain\Inventory\Models\StockCountLine;
 use App\Domain\Inventory\Models\StockReservation;
 use App\Domain\Marketplace\Enums\StockState;
 use App\Domain\Marketplace\Models\Shipment;
+use App\Domain\MasterData\Enums\ItemType;
 use App\Domain\MasterData\Models\Item;
 use App\Domain\Warehousing\Models\Warehouse;
 use App\Support\Math\Decimal;
@@ -51,7 +52,7 @@ class StockCountService
      * The difference posted on approval is then the true one, whatever was
      * packed or scanned in after the count.
      */
-    public function start(Warehouse $warehouse, int $userId, ?string $notes = null, ?CarbonImmutable $asAt = null): StockCount
+    public function start(Warehouse $warehouse, ?int $userId, ?string $notes = null, ?CarbonImmutable $asAt = null): StockCount
     {
         return DB::transaction(function () use ($warehouse, $userId, $notes, $asAt): StockCount {
             if (StockCount::query()->where('warehouse_id', $warehouse->id)->whereIn('status', [StockCountStatus::Counting->value, StockCountStatus::Submitted->value])->exists()) {
@@ -127,7 +128,7 @@ class StockCountService
      *
      * @return list<StockCountLine>
      */
-    public function recordProduct(StockCount $count, Item $item, BigDecimal|string $counted, int $userId, ?string $note = null): array
+    public function recordProduct(StockCount $count, Item $item, BigDecimal|string $counted, ?int $userId, ?string $note = null): array
     {
         return DB::transaction(function () use ($count, $item, $counted, $userId, $note): array {
             $count = StockCount::query()->lockForUpdate()->findOrFail($count->getKey());
@@ -180,11 +181,66 @@ class StockCountService
     }
 
     /**
+     * Enter a hand-written register sheet as a count, on nobody's login, so
+     * whoever checks it can approve it. Each row names a product by words
+     * its name must hold, words it must not, and its size; it is counted
+     * only when exactly one single product (not a pack) answers
+     * to it. Products not on the sheet stay as the system has them.
+     *
+     * When every row found its product the count is submitted and waits
+     * for approval. Otherwise it stays open, its notes naming the rows
+     * left out, so they can be counted by hand.
+     *
+     * @param  list<array{label: string, any: list<string>, none?: list<string>, size: string, quantity: int}>  $rows
+     */
+    public function enterSheet(Warehouse $warehouse, array $rows, CarbonImmutable $asAt, string $notes): StockCount
+    {
+        return DB::transaction(function () use ($warehouse, $rows, $asAt, $notes): StockCount {
+            $products = Item::query()
+                ->where('type', ItemType::FinishedGood->value)
+                ->where('is_active', true)
+                ->whereNull('pack_of_item_id')
+                ->get(['id', 'name']);
+
+            $count = $this->start($warehouse, null, $notes, $asAt);
+            $leftOut = [];
+
+            foreach ($rows as $row) {
+                $found = $products->filter(function (Item $item) use ($row): bool {
+                    $name = mb_strtolower($item->name);
+
+                    return collect($row['any'])->contains(fn (string $word) => str_contains($name, $word))
+                        && ! collect($row['none'] ?? [])->contains(fn (string $word) => str_contains($name, $word))
+                        && preg_match('/(?<![\d.])(?:'.$row['size'].')(?![a-z\d])/', $name) === 1;
+                });
+
+                if ($found->count() !== 1) {
+                    $leftOut[] = "{$row['label']} = {$row['quantity']} (".($found->isEmpty() ? 'no such product' : 'could be '.$found->pluck('name')->implode(' or ')).')';
+
+                    continue;
+                }
+
+                $this->recordProduct($count, $found->first(), (string) $row['quantity'], null, 'From the register sheet');
+            }
+
+            if ($leftOut !== []) {
+                $count->fill(['notes' => mb_substr($notes.' — NOT ENTERED, count these by hand: '.implode('; ', $leftOut), 0, 1000)])->save();
+
+                return $count->refresh();
+            }
+
+            $this->keepUncounted($count, null);
+
+            return $this->submit($count, null);
+        });
+    }
+
+    /**
      * Products the counter did not count stay as the system has them.
      *
      * @return int the lines kept
      */
-    public function keepUncounted(StockCount $count, int $userId): int
+    public function keepUncounted(StockCount $count, ?int $userId): int
     {
         return DB::transaction(function () use ($count, $userId): int {
             $count = StockCount::query()->lockForUpdate()->findOrFail($count->getKey());
@@ -249,7 +305,7 @@ class StockCountService
         });
     }
 
-    public function submit(StockCount $count, int $userId): StockCount
+    public function submit(StockCount $count, ?int $userId): StockCount
     {
         return DB::transaction(function () use ($count, $userId): StockCount {
             $count = StockCount::query()->lockForUpdate()->with('lines')->findOrFail($count->getKey());
